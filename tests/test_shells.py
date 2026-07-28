@@ -257,9 +257,7 @@ class ShellContract(unittest.TestCase):
             if body is None:
                 continue  # a shell may have no brand row rule of its own
             for tok in ("var(--tt)", "var(--tw)"):
-                self.assertNotIn(
-                    tok, body, f"{name}: a customer's mark must not be recoloured by block severity"
-                )
+                self.assertNotIn(tok, body, f"{name}: a customer's mark must not be recoloured by block severity")
 
     def test_empty_severity_label_is_hidden_and_wins_the_cascade(self):
         """'.brand .sev' and '.sev:empty' are both (0,2,0), so only source order
