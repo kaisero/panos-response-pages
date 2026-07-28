@@ -1,0 +1,228 @@
+<!--
+  Record Panel, ported to the GlobalProtect portal from shells/record.html.
+
+  On the login page the theme is structural: a flat accent rule across the top,
+  a hairline header bar carrying the brand, and no decoration below it. On the
+  logout page no markup can be added, so the rule and the bar move onto the card
+  itself -- the accent becomes its top border and the hairline separates the
+  brand from the message.
+-->
+<!--@STYLE_LOGIN-->
+:root{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}}}
+@media(prefers-color-scheme:dark){:root{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}}}}
+html[data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}}}
+html[data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}}}
+*{box-sizing:border-box}
+html{font-size:16px}
+@media(min-width:600px){html{font-size:20px}}
+/* Only the horizontal axis is clamped. The vertical axis has to stay
+   scrollable, because the change-password state adds two more fields and a
+   message box and grows taller than the viewport. Clamping both axes silently
+   cuts that state off. */
+html,body{overflow-x:hidden!important}
+body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+.rule{height:.2rem;background:var(--ac)}
+.bar{border-bottom:1px solid var(--sa);padding:.85rem 1.5rem;
+width:100%;max-width:26rem;margin:0 auto}
+/* Height reserved up front: the src arrives from PAN-OS' jQuery handler a beat
+   after parse, and without a reserved box the bar would jump. */
+#logo{height:2.2rem}
+#logo img{height:100%;width:auto;display:block}
+/* .loginscreen_logo is the wrapper the stock file uses. Keeping the class name
+   means the markup below still looks like the page PAN-OS shipped. */
+.loginscreen_logo{width:100%;max-width:26rem;margin:0 auto;
+padding:clamp(1.8rem,7vh,3.4rem) 1.5rem 3.5rem}
+#heading{margin:0 0 .5rem;font-size:1.65rem;line-height:1.15;letter-spacing:-.028em;
+font-weight:650;color:var(--ik);text-align:left;font-family:inherit}
+/* The portal name, carried in markup because gp_portal_name is applied with
+   .html() and would replace the switch spans beside it. */
+#heading .pn{display:block;margin:0 0 .25rem;font-size:.62rem;font-weight:700;
+letter-spacing:.14em;text-transform:uppercase;color:var(--at)}
+.gloss{margin:0 0 2rem;color:var(--im);font-size:.95rem;line-height:1.72}
+/* Below: the markup the form token expands into. The ids are PAN-OS', not ours
+   -- loadPage() and submitClicked() look them up by id, so they are restyled in
+   place. The token is named in prose, never written literally outside the body:
+   PAN-OS substitutes the first occurrence in the file and does not care that it
+   is inside a comment. */
+#formdiv{margin:0}
+#taLogin{margin:0;padding:0;width:auto;min-height:0;background:none;border:0;
+box-shadow:none;text-align:left}
+.login_fields>div{width:auto;margin:0 0 .85rem}
+#formdiv input[type=text],#formdiv input[type=password]{
+display:block;width:100%;min-height:3rem;padding:.7rem .9rem;
+font:inherit;font-size:.95rem;color:var(--ik);background:var(--gr);
+border:1px solid var(--sa);border-radius:.35rem;-webkit-appearance:none;appearance:none;
+transition:border-color .15s ease,box-shadow .15s ease}
+#formdiv input[type=text]:focus,#formdiv input[type=password]:focus{
+outline:0;border-color:var(--at);box-shadow:0 0 0 3px var(--aw)}
+#formdiv input::placeholder{color:var(--if);opacity:1}
+#submitbutton{margin:1.4rem 0 0}
+#formdiv .buttonFixed{display:block;width:100%;min-height:3rem;margin:0;
+padding:.75rem 1.5rem;font:inherit;font-size:.97rem;font-weight:600;
+background:var(--ac);color:var(--ai);border:1px solid transparent;border-radius:.35rem;
+cursor:pointer;-webkit-appearance:none;appearance:none}
+#formdiv .buttonFixed:hover{filter:brightness(1.08)}
+#dError,.error_msg{margin:1.3rem 0 0;padding:.9rem 1rem;border-radius:.45rem;
+font:inherit;font-size:.87rem;line-height:1.55;color:var(--ik);background:var(--cw);
+border-left:3px solid var(--ct);list-style:none}
+/* loadPage() writes the failure text as an <li> with no list around it. */
+#dError li{display:block;list-style:none}
+#dInputStr{margin:0 0 .85rem;font-size:.9rem;color:var(--im)}
+#dChangePasswordMsgArea .msg{max-width:none;margin:1.3rem 0 0;padding:0;background:none}
+#dChangePasswordMsg{padding:.9rem 1rem;border-radius:.45rem;font-size:.87rem;
+background:var(--sa);border-left:3px solid var(--at)}
+/* --- getsoftwarepage.esp ------------------------------------------------
+   The portal serves this same imported file for the agent-download page and
+   swaps the form token for a different form. One file, two contexts, so the
+   copy switches with them: .pl shows on the login page, .ps on the download
+   page. Default is login -- if the detection script never runs, the page
+   degrades to the login wording rather than to nothing. */
+.ps{display:none}
+html[data-page=sw] .pl{display:none}
+html[data-page=sw] .ps{display:inline}
+/* The injected markup is 2005-era table layout with align/valign/width
+   attributes and an inline padding-top on the outer table. Inline styles
+   outrank a stylesheet, which is why the width, height and padding resets carry
+   !important -- the rest is beating presentational attributes, which do not. */
+html[data-page=sw] table{width:100%!important;height:auto!important;
+padding-top:0!important;border-collapse:collapse}
+html[data-page=sw] td{padding:0;text-align:left;vertical-align:top}
+#taGetSofewarePage p{margin:0 0 .55rem}
+/* All three downloads weighted equally, and PAN-OS' own anchors are styled
+   where they stand rather than moved into new markup. Styling one as the
+   primary action would have to pick it by DOM position, and PAN-OS lists
+   Windows 32-bit first -- so the accent would steer people onto a 32-bit
+   build. Nothing on the page knows the visitor's platform, so the page does
+   not pretend to. The anchors carry no class; p > a is the only anchor shape
+   in this form. */
+#taGetSofewarePage p a{display:block;min-height:3rem;padding:.75rem 1rem;
+font-size:.95rem;font-weight:600;text-align:center;text-decoration:none;
+border-radius:.35rem;background:var(--gr);color:var(--at);border:1px solid var(--sa)}
+#taGetSofewarePage p a:hover{background:var(--sa)}
+/* The description rows stay: they are the only thing on the page that says
+   which build to pick. #dFormat is empty in every capture. */
+#taGetSofewarePage table{margin:1.1rem 0 0}
+#taGetSofewarePage table td{padding:.35rem 0;font-size:.8rem;line-height:1.5;
+color:var(--if);border-bottom:1px solid var(--sa)}
+#dFormat{display:none}
+.note{margin:2rem 0 0;font-size:.85rem;color:var(--if);line-height:1.6}
+.note a{color:var(--at)}
+a:focus-visible,input:focus-visible{outline:3px solid var(--at);outline-offset:3px}
+@media(max-width:600px){
+.bar{padding:.8rem 1.15rem}
+.loginscreen_logo{padding:1.75rem 1.15rem 2.5rem}
+#heading{font-size:1.5rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+<!--/@STYLE_LOGIN-->
+<!--@BODY-->
+<div class="rule"></div>
+<header class="bar"><div id="logo"><img alt="{{COMPANY}}"></div></header>
+<div class="loginscreen_logo">
+<div id="activearea">
+<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">Sign in</span><span class="ps">Get GlobalProtect</span></div>
+<p class="gloss"><span class="pl">Use your company account to connect to the VPN.</span><span class="ps">Download the agent for your operating system, then sign in from the app.</span></p>
+<div id="formdiv">
+<pan_form/>
+</div>
+</div>
+<p class="note">Need help? Contact <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+</div>
+<!--/@BODY-->
+<!--@STYLE_LOGOUT-->
+html[data-gp=logout]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+font-size:16px;overflow-x:hidden}
+@media(prefers-color-scheme:dark){html[data-gp=logout]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}}}}
+html[data-gp=logout][data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}}}
+html[data-gp=logout][data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}}}
+html[data-gp=logout] *{box-sizing:border-box}
+@media(min-width:600px){html[data-gp=logout]{font-size:20px}}
+/* The body is the centring container here. On the login page that job belonged
+   to .loginscreen_logo, but this page has no wrapper to spare -- that element
+   is needed for the card itself. */
+html[data-gp=logout] body{margin:0;min-height:100vh;display:flex;align-items:center;
+justify-content:center;padding:clamp(1.8rem,7vh,3.4rem) 1.5rem;
+background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+/* The rule and the bar, carried onto the card. The login page draws the accent
+   rule across the whole viewport and hangs a hairline header under it; here
+   they are the card's top border and the hairline under the brand. This shell
+   has no orbs to move into pseudo-elements, which is the point of it. */
+html[data-gp=logout] .loginscreen_logo{position:relative;width:100%;max-width:24rem;
+margin:0;padding:1.6rem 1.7rem 1.7rem;text-align:left;
+border:1px solid var(--sa);border-top:.2rem solid var(--ac);border-radius:.35rem;
+background:var(--gr)}
+/* The logo is painted by CSS, not by the logo variable, and the img PAN-OS
+   wrote is hidden outright.
+
+   PAN-OS hard-codes its own mark into this body and its jQuery handler only
+   rewrites that src at ready. The browser has already fetched and painted the
+   Palo Alto logo by then, so the page visibly flashes the wrong one before
+   settling on ours. On the login page that was avoidable -- we own that body
+   and ship the img with no src -- but here the body is PAN-OS'. A stylesheet
+   applies at first paint, so moving the artwork into CSS removes the flash
+   entirely. The img is display:none rather than swapped, so its src never
+   matters, whatever jQuery does to it later.
+
+   The logo variable stays set even though this rule supersedes it: the same
+   variable brands the portal home page, which this file does not restyle. */
+/* The artwork is sized explicitly rather than with contain: the hairline needs
+   padding under the box, and contain would grow the mark to fill it. */
+html[data-gp=logout] #logo{height:2.2rem;margin:0 0 1.1rem;padding:0 0 1.1rem;
+border-bottom:1px solid var(--sa);box-sizing:content-box;
+background:url("data:image/svg+xml,{{PORTAL_LOGO_SVG}}") left top/auto 2.2rem no-repeat}
+html[data-gp=logout] #logo img{display:none}
+html[data-gp=logout] #heading{margin:0 0 1rem;font-size:1.65rem;line-height:1.15;
+letter-spacing:-.028em;font-weight:650;color:var(--ik);text-align:left;font-family:inherit}
+html[data-gp=logout] #formdiv{margin:0}
+/* The message div. PAN-OS fills it from logout_text_array at ready, so it is
+   empty at parse time -- min-height stops the card resizing when text lands. */
+html[data-gp=logout] #logout{min-height:2.8rem;margin:0 0 1.5rem;padding:.9rem 1rem;
+width:auto;font-family:inherit;font-size:.87rem;font-weight:400;line-height:1.55;
+text-align:left;color:var(--ik);background:var(--sa);border-radius:.45rem}
+html[data-gp=logout] #taLogout{margin:0;padding:0;width:auto;min-height:0;
+background:none;border:0;box-shadow:none;text-align:left}
+html[data-gp=logout] .buttonFixed-logout{display:block;width:100%;min-height:3rem;
+margin:0;padding:.75rem 1.5rem;font:inherit;font-size:.97rem;font-weight:600;
+background:var(--ac);color:var(--ai);border:1px solid transparent;border-radius:.35rem;
+cursor:pointer;-webkit-appearance:none;appearance:none;text-transform:none}
+html[data-gp=logout] .buttonFixed-logout:hover{filter:brightness(1.08)}
+html[data-gp=logout] .buttonFixed-logout:focus-visible{outline:3px solid var(--at);
+outline-offset:3px}
+@media(max-width:600px){
+html[data-gp=logout] body{padding:1.75rem 1.15rem;align-items:flex-start}
+html[data-gp=logout] .loginscreen_logo{padding:1.4rem 1.3rem 1.4rem}
+html[data-gp=logout] #heading{font-size:1.5rem}}
+@media(prefers-reduced-motion:reduce){
+html[data-gp=logout] *{animation:none!important;transition:none!important}}
+<!--/@STYLE_LOGOUT-->

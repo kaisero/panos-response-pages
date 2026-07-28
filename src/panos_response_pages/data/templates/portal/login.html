@@ -1,0 +1,54 @@
+<!--
+  API category: global-protect-portal-custom-login-page
+  Serves: login.esp AND getsoftwarepage.esp -- one import, two forms.
+  Shape: BODY FRAGMENT. PAN-OS emits <html> and an OPEN <head>; this file closes
+  </head>, supplies the whole <body>, and ends </html>.
+  Never write the substitution token literally outside the body -- naming it in
+  prose is safe, writing it in a comment is not: PAN-OS substitutes the first
+  literal occurrence and is blind to context.
+-->
+<!--@VARS-->
+<script>
+var favicon='';
+var logo='{{PORTAL_LOGO_URI}}';
+var bg_color='';
+var gp_portal_name='';
+var gp_portal_name_color='';
+var error_text_color='';
+</script>
+<!--/@VARS-->
+<!--
+  gp_portal_name stays empty on purpose. PAN-OS' ready handler runs
+  $('#heading').html(gp_portal_name) whenever it is non-empty, and the heading
+  carries the surface-switching spans, so a value here replaces both and the
+  download page shows login wording. The portal name is rendered into the
+  #heading markup by the shell instead. bg_color, gp_portal_name_color and
+  error_text_color are empty for the general reason: a non-empty value overrides
+  the stylesheet at ready time. logo is one of the two deliberate exceptions --
+  the img ships with no src and this is the only thing that fills it.
+-->
+<!--@HEAD_SCRIPT-->
+<script>
+[].forEach.call(document.getElementsByTagName('link'),function(l){if(l.rel==='stylesheet'){l.disabled=true;}});
+</script>
+<!--/@HEAD_SCRIPT-->
+<!--
+  All four stock sheets go, latofonts.css included: they ship in the Clientless
+  VPN content package rather than in this import, and that package has been
+  observed to 404 the whole portal/css/ tree after a major upgrade. Nothing
+  below asks for Lato.
+  No counting loop -- that needs a less-than against links.length, and that
+  character must not appear outside a real tag anywhere in this file.
+-->
+<!--@FOOT_SCRIPT-->
+<script>
+if(document.getElementById('getsoftwarepage_form')){document.documentElement.setAttribute('data-page','sw');}
+</script>
+<!--/@FOOT_SCRIPT-->
+<!--
+  Emitted at the end of the body, after the form has been substituted and
+  parsed. Placed in the head it would run before the download form exists,
+  getElementById would return null, and the download page would show login
+  wording forever. Login is the default, so a page where this never runs
+  degrades to the login copy rather than to nothing.
+-->
