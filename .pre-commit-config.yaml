@@ -1,0 +1,55 @@
+# ruff/mypy/codespell run as local `uv run` hooks rather than pre-commit's own
+# isolated environments, so the versions that gate a commit are the same ones
+# nox and CI use. Pinned mirrors drift from pyproject.toml silently.
+default_language_version:
+  python: python3.11
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.5.18
+    hooks:
+      - id: uv-lock
+
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff (uv run)
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: ruff-format
+        name: ruff-format (uv run)
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+      - id: mypy
+        name: mypy (uv run)
+        entry: uv run mypy
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+        require_serial: true
+      - id: codespell
+        name: codespell (uv run)
+        entry: uv run codespell
+        language: system
+        pass_filenames: false
+        require_serial: true

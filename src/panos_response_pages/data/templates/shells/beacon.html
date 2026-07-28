@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-tone="{{TONE}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="pragma" content="no-cache">
+<title>{{TITLE}}</title>
+<style>
+:root{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--dot:.55;
+--tt:var(--at);--tw:var(--aw)}
+@media(prefers-color-scheme:dark){:root{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--dot:.40}}
+html[data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};--dot:.55}
+html[data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--dot:.40}
+html[data-tone=warn]{--tt:var(--wnt);--tw:var(--ww)}
+html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
+*{box-sizing:border-box}
+html{font-size:16px}
+@media(min-width:600px){html{font-size:20px}}
+body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+/* A 1.4px dot at 24px spacing is texture, not a brand surface -- which is the
+   one use of radial-gradient the ban is not aimed at. Fixed, so the
+   drifting field never adds scroll height. */
+.field{position:fixed;inset:0;pointer-events:none;opacity:var(--dot);
+background-image:radial-gradient(circle,var(--aw) 1.4px,transparent 1.5px);
+background-size:1.2rem 1.2rem;animation:dr 24s linear infinite}
+@keyframes dr{0%{background-position:0 0}100%{background-position:6rem 6rem}}
+/* Kept deliberately shallow. A ring doubling in size reads as an alarm, which
+   is not what a seal beside a block notice is for -- and at 2x it also grew
+   wider than the column it sits in. */
+@keyframes pu{0%{transform:scale(.96);opacity:.32}70%,100%{transform:scale(1.3);opacity:0}}
+main{position:relative;width:100%;max-width:44rem;margin:0 auto;
+padding:clamp(1.8rem,7vh,3.4rem) 1.5rem 3.5rem;
+display:grid;grid-template-columns:1fr 12rem;gap:2.4rem;align-items:center}
+.col{min-width:0}
+.brand{display:flex;align-items:center;gap:.55rem;color:var(--at);margin:0 0 1.7rem}
+.brand svg{width:1.25rem;height:1.25rem}
+.brand span{font-size:.83rem;font-weight:600;letter-spacing:.03em}
+.brand .sev{margin-left:auto;font-size:.6rem;font-weight:700;letter-spacing:.09em;
+text-transform:uppercase;color:var(--tt);background:var(--tw);
+padding:.25rem .7rem;border-radius:999px}
+.sev:empty{display:none}
+h1{margin:0 0 .65rem;font-size:2.1rem;line-height:1.06;letter-spacing:-.04em;font-weight:700;
+text-wrap:balance}
+.gloss{margin:0 0 1.5rem;color:var(--im);font-size:.95rem;line-height:1.68;max-width:29rem}
+dl{margin:0 0 1.6rem;border-top:1px solid var(--sa);max-width:31rem}
+.f{display:flex;gap:.8rem;padding:.55rem 0;border-bottom:1px solid var(--sa)}
+dt{width:5rem;flex:none;font-size:.68rem;color:var(--if)}
+dd{margin:0;min-width:0;font-size:.72rem;font-weight:600;overflow-wrap:anywhere}
+dd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.66rem;
+font-weight:500}
+/* The rings carry severity: this shell's seal is the loudest thing on the page,
+   so it reads the tone as well as the pill does. The disc itself does not move
+   -- it floated once, and against stationary rings that read as the pulse being
+   off-centre rather than as the disc drifting.
+   overflow:hidden is the backstop: the rings are absolutely positioned and
+   scale beyond their own box, so without it a wide pulse can push the page into
+   a horizontal scrollbar. Sized so it never actually clips. */
+.seal{position:relative;display:grid;place-items:center;height:12rem;overflow:hidden}
+.seal .r{position:absolute;width:7.6rem;height:7.6rem;border-radius:50%;
+border:1px solid var(--tt);animation:pu 7.5s ease-out infinite}
+.seal .r:nth-child(2){animation-delay:2.5s}
+.seal .r:nth-child(3){animation-delay:5s}
+.seal .d{position:relative;width:7rem;height:7rem;border-radius:50%;background:var(--sa);
+border:1px solid var(--aw);color:var(--tt);display:grid;place-items:center}
+.seal .d svg{width:3.4rem;height:3.4rem}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem 1rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.8rem;
+padding:.7rem 1.5rem;border-radius:.45rem;background:var(--ac);color:var(--ai);text-decoration:none;
+font-size:.88rem;font-weight:650;border:1px solid transparent;cursor:pointer;
+box-shadow:0 .4rem 1.1rem rgba(0,0,0,.18)}
+.btn:hover{filter:brightness(1.08)}
+.acts form{margin:0;display:inline-flex}
+.acts input[type=submit],.acts input[type=button],.acts button{
+font:inherit;font-size:.88rem;font-weight:650;min-height:2.8rem;padding:.7rem 1.5rem;
+border-radius:.45rem;border:1px solid var(--sa);background:var(--sa);color:var(--ik);
+cursor:pointer;-webkit-appearance:none;appearance:none}
+.acts input[type=submit]:hover,.acts button:hover{filter:brightness(.96)}
+.plain{width:100%;font-size:.78rem;color:var(--if);margin:0}
+.plain a,.note a{color:var(--at)}
+.infobox,.warnline{display:flex;align-items:flex-start;gap:.55rem;margin:1.4rem 0 0;
+padding:.75rem .85rem;border-radius:.5rem;background:var(--sa);
+border-left:3px solid var(--at);color:var(--ik);font-size:.78rem;line-height:1.55;max-width:31rem}
+.infobox>svg,.warnline>svg{flex:none;width:1rem;height:1rem;margin-top:.15rem;color:var(--at)}
+.infobox>span,.warnline>span{flex:1;min-width:0}
+.warnline{border-left-color:var(--tt)}
+.warnline>svg{color:var(--tt)}
+.note{margin:1.4rem 0 0;font-size:.76rem;color:var(--if);line-height:1.6;max-width:31rem}
+a:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid var(--tt);
+outline-offset:3px}
+@media(max-width:600px){
+main{grid-template-columns:1fr;gap:1.6rem;padding:1.75rem 1.15rem 2.5rem}
+h1{font-size:1.75rem}
+/* justify-self on the seal, NOT justify-items inside it. The rings are
+   absolutely positioned, so justify-items moved their static position to the
+   left edge while the disc kept its own width -- the two shared a left edge
+   and so had different centres. Centring inside a fixed-width box keeps the
+   ring concentric with the disc, and the box itself sits at the left. */
+.seal{height:7rem;width:7rem;order:-1;justify-self:start}
+.seal .r{width:5rem;height:5rem}
+.seal .d{width:4.4rem;height:4.4rem}
+.seal .d svg{width:2.2rem;height:2.2rem}
+.acts>.btn,.acts>form{flex:1 1 auto}
+.acts>form input{width:100%}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="field" aria-hidden="true"></div>
+<main>
+<div class="col">
+<p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
+<h1>{{HEADLINE}}</h1>
+<p class="gloss" id="gloss">{{GLOSS}}</p>
+<dl>{{FACTS}}</dl>
+<div class="acts">{{ACTIONS}}</div>
+{{EXTRA}}
+</div>
+<div class="seal" aria-hidden="true"><span class="r"></span><span class="r"></span><span class="r"></span><span class="d">{{MARK}}</span></div>
+</main>
+{{SCRIPTS}}
+</body>
+</html>

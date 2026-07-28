@@ -1,0 +1,6 @@
+{
+  "name": "banner",
+  "label": "Accent Banner",
+  "shell": "banner",
+  "_note": "Full-bleed accent band and an oversized heading, with the record in a sidebar. The band carries the brand, so the mark sits in it at low opacity rather than competing with the type."
+}

@@ -1,0 +1,41 @@
+<!--
+  File Blocking Continue Page
+  API category: file-block-continue-page
+  Tokens available: <user/> <fname/> <cookie/>
+
+  <cookie/> is the continue mechanism: PAN-OS injects markup that sets a cookie
+  and reloads to resume the download. It is treated like <pan_form/> -- placed in
+  the action row and styled by the .acts input/button rules.
+
+  VERIFY ON A LIVE FIREWALL: whether <cookie/> renders a visible control. If it
+  injects only a script, this page needs its own visible Continue affordance.
+-->
+
+<!--@TITLE-->Continue with this download?<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v11"/><path d="m7.5 10 4.5 4.5 4.5-4.5"/><path d="M4.5 19.5h15"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->Continue with this download?<!--/@HEADLINE-->
+
+<!--@GLOSS-->Downloading files of this type is restricted by company policy. You can continue if you need this file for your work.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>File</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<cookie/>
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="File download warning"
+   data-intro="I was warned before downloading a restricted file type." data-prompt="What I was doing:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=File%20download%20warning&amp;body=I%20was%20warned%20before%20downloading%20a%20restricted%20file%20type.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20was%20doing%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>Only continue if you know what this file is and where it came from.</span></p>
+<!--/@EXTRA-->

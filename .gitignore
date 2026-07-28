@@ -1,0 +1,39 @@
+# Build artifacts — regenerate with: panos-response-pages build
+# Not dist/: that is where uv build puts wheels, and the release workflow
+# uploads dist/* as release assets.
+out/
+
+# Working material: prototypes, plans, specs and design reviews. Kept in the
+# working tree, never published. The docs/ tree is real documentation and IS
+# tracked.
+tmp/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*.egg-info/
+build/
+
+# Environments and tool caches
+.venv/
+venv/
+.nox/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Docs site output
+site/

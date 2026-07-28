@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, publish and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      # Must match the environment named on the PyPI trusted publisher, or the
+      # OIDC exchange fails with invalid-publisher.
+      name: pypi
+      url: https://pypi.org/p/panos-response-pages
+    # A job-level block replaces the workflow default, so both are listed here:
+    # contents:write for `gh release create`, id-token:write for PyPI OIDC.
+    # Listing only id-token is the classic way to get a 403 from gh.
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          python-version: "3.11"
+
+      # Extraction runs BEFORE the build so a missing changelog section fails
+      # fast, rather than after producing artifacts nobody can describe.
+      - name: Extract release notes
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          test -f CHANGELOG.md || { echo "::error::CHANGELOG.md is missing."; exit 1; }
+          awk -v ver="$VERSION" '
+            /^## \[/ { if (found) exit; if (index($0, "[" ver "]")) { found=1; next } }
+            /^\[.*\]: http/ { next }
+            found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::Missing CHANGELOG.md section '## [$VERSION]'. Add release notes before tagging."
+            exit 1
+          fi
+
+      - name: Check the tag matches the packaged version
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          DECLARED=$(uv run python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          if [ "$VERSION" != "$DECLARED" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $DECLARED."
+            exit 1
+          fi
+
+      - name: Build
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+        with:
+          attestations: true
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md dist/*

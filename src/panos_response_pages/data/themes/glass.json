@@ -1,0 +1,6 @@
+{
+  "name": "glass",
+  "label": "Glass Panel",
+  "shell": "glass",
+  "_note": "A layered panel floating over an ambient field of blurred discs. The facts are cards on an auto-fit grid, so a two-fact page reflows rather than leaving a hole."
+}

@@ -1,0 +1,7 @@
+# The generator measures page size in memory and the build fails anything over
+# 17,999 bytes. If a template arrived with CRLF the count would shift under the
+# guard, so line endings are normalised in the repository rather than left to
+# each contributor's core.autocrlf.
+* text=auto eol=lf
+*.png binary
+*.zip binary

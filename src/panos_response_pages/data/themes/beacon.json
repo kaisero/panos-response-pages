@@ -1,0 +1,6 @@
+{
+  "name": "beacon",
+  "label": "Beacon Field",
+  "shell": "beacon",
+  "_note": "A drifting dot field with an animated seal beside the content. The seal's rings take the severity colour, so the page reads its own tone from across the room. The prototype's scan sweep is deliberately absent."
+}

@@ -1,0 +1,46 @@
+<!--
+  Application Block Page
+  API category: application-block-page
+  Tokens available: <user/> <appname/>   -- NO url, NO category
+
+  <appname/> is the App-ID name of the blocked application, so it renders a
+  machine identifier ("bittorrent", "ms-rdp") rather than a product name. It gets
+  the mono treatment for the same reason the URL does: the user may have to read
+  it back to IT.
+
+  Tone is calm, and deliberately so. An application block is a policy preference,
+  not a threat verdict -- the same reasoning that keeps url-block-page calm until
+  its category map raises it. There is no <category/> token here to raise it from,
+  so this page stays calm always.
+
+  VERIFY ON A LIVE FIREWALL: the shipped PAN-OS default for this page uses both
+  <user/> and <appname/>, so both are expected to render. Confirm anyway -- an
+  unsupported token renders as nothing, leaving a blank field.
+-->
+
+<!--@TITLE-->Application blocked<!--/@TITLE-->
+
+<!--@TONE-->calm<!--/@TONE-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17"/><path d="M9 14.8h6"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->This application is blocked<!--/@HEADLINE-->
+
+<!--@GLOSS-->Company policy restricts this application on the network.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>Application</dt><dd class="mono"><appname/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Blocked application report"
+   data-intro="Please review this application block." data-prompt="Why I need this application:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20application%20report&amp;body=Please%20review%20this%20application%20block.%0A%0AUser%3A%20<user/>%0A%0AWhy%20I%20need%20this%20application%3A%0A%0AApplication%3A%20<appname/>">Report to IT</a>
+<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>If you need this application for your work, send the report above and IT will review it.</span></p>
+<!--/@EXTRA-->

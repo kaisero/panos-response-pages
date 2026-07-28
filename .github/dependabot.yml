@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Needs a committed uv.lock, which this repo has.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+
+  # Actions are pinned by SHA, so this is the only thing that moves them.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]

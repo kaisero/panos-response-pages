@@ -1,0 +1,6 @@
+{
+  "name": "record",
+  "label": "Record Panel",
+  "shell": "record",
+  "_note": "Restrained and records-first: a flat accent rule, a header bar, and the facts as a two-column register. Severity is an eyebrow above the heading -- this layout has no chrome to hang a pill on."
+}

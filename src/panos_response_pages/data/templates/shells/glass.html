@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-tone="{{TONE}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="pragma" content="no-cache">
+<title>{{TITLE}}</title>
+<style>
+:root{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--ob:.30;--gf:88%;
+--tt:var(--at);--tw:var(--aw)}
+@media(prefers-color-scheme:dark){:root{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%}}
+html[data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};--ob:.30;--gf:88%}
+html[data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%}
+html[data-tone=warn]{--tt:var(--wnt);--tw:var(--ww)}
+html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
+*{box-sizing:border-box}
+html{font-size:16px}
+@media(min-width:600px){html{font-size:20px}}
+body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+/* position:fixed, not absolute: an orb hanging off the bottom of the page is
+   scrollable overflow, which would give the page a scrollbar and the preview
+   frame a few hundred pixels of dead space below the content. */
+.field{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.field span{position:absolute;border-radius:50%;filter:blur(2.5rem);opacity:var(--ob)}
+/* A blurred flat disc, not a radial gradient: visually the same thing, and the
+   ban on radial fills survives intact. */
+.o1{top:-9rem;left:-4rem;width:24rem;height:24rem;background:var(--ac);
+animation:fl 11s ease-in-out infinite}
+.o2{bottom:-11rem;right:-5rem;width:26rem;height:26rem;background:var(--aw);
+animation:fl 14s ease-in-out infinite reverse}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-.6rem)}}
+@keyframes pu{0%{transform:scale(1);opacity:.5}70%,100%{transform:scale(1.9);opacity:0}}
+main{position:relative;min-height:100vh;display:flex;align-items:center;
+justify-content:center;padding:clamp(1.5rem,6vh,3rem) 1.5rem}
+.pane{width:100%;max-width:30rem;padding:1px;border-radius:1.1rem;
+background:linear-gradient(150deg,var(--aw),transparent 55%,var(--sa));
+box-shadow:0 1.5rem 3.5rem rgba(0,0,0,.16)}
+/* The solid fill first, then the translucent one. An old browser drops the
+   color-mix declaration entirely -- without the fallback the panel would have
+   no background at all and its text would land on the orbs. The mix stays at
+   88% because nothing measures ink contrast through a translucent panel. */
+.panein{border-radius:1.05rem;padding:1.9rem 1.8rem 1.7rem;
+background:var(--gr);
+background:color-mix(in oklab,var(--gr) var(--gf),transparent);
+backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35)}
+.brand{display:flex;align-items:center;gap:.55rem;color:var(--at);margin:0 0 1.5rem}
+.brand svg{width:1.25rem;height:1.25rem}
+.brand span{font-size:.83rem;font-weight:600;letter-spacing:.03em}
+.brand .sev{margin-left:auto;font-size:.6rem;font-weight:700;letter-spacing:.09em;
+text-transform:uppercase;color:var(--tt);background:var(--tw);
+padding:.25rem .7rem;border-radius:999px}
+.sev:empty{display:none}
+.ind{position:relative;width:3.2rem;height:3.2rem;margin:0 0 1.2rem}
+/* The pulse takes the tone colour, not the accent: it reads as the icon's own
+   halo, so on a caution page it has to be the caution yellow the icon is. */
+.ind::before{content:"";position:absolute;inset:0;border-radius:50%;
+background:var(--tt);opacity:.45;animation:pu 3.4s ease-out infinite}
+.ind>svg{position:relative;width:100%;height:100%;padding:.75rem;border-radius:50%;
+background:var(--tw);color:var(--tt)}
+h1{margin:0 0 .6rem;font-size:1.65rem;line-height:1.16;letter-spacing:-.03em;
+font-weight:650;text-wrap:balance}
+.gloss{margin:0 0 1.4rem;color:var(--im);font-size:.92rem;line-height:1.7}
+/* auto-fit, so 4 facts land 2x2, 3 land 2+1 and safe-search's 2 land side by
+   side -- none of the eight pages shows a hole where a card should be. */
+dl{margin:0 0 1.4rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));
+gap:.5rem}
+.f{min-width:0;border-radius:.65rem;padding:.6rem .7rem;border:1px solid var(--aw);
+background:var(--sa);
+background:color-mix(in oklab,var(--sa) 70%,transparent)}
+dt{font-size:.58rem;color:var(--if);margin-bottom:.1rem}
+dd{margin:0;font-size:.72rem;font-weight:600;overflow-wrap:anywhere}
+dd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.66rem;
+font-weight:500;line-height:1.5}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem 1rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.7rem;
+padding:.65rem 1.4rem;border-radius:.6rem;background:var(--ac);color:var(--ai);text-decoration:none;
+font-size:.85rem;font-weight:650;border:1px solid transparent;cursor:pointer;
+box-shadow:0 .5rem 1.2rem rgba(0,0,0,.18)}
+.btn:hover{filter:brightness(1.08)}
+.acts form{margin:0;display:inline-flex}
+.acts input[type=submit],.acts input[type=button],.acts button{
+font:inherit;font-size:.85rem;font-weight:650;min-height:2.7rem;padding:.65rem 1.4rem;
+border-radius:.6rem;border:1px solid var(--aw);background:var(--sa);color:var(--ik);
+cursor:pointer;-webkit-appearance:none;appearance:none}
+.acts input[type=submit]:hover,.acts button:hover{filter:brightness(.96)}
+.plain{width:100%;font-size:.76rem;color:var(--if);margin:0}
+.plain a,.note a{color:var(--at)}
+.infobox,.warnline{display:flex;align-items:flex-start;gap:.55rem;margin:1.3rem 0 0;
+padding:.7rem .8rem;border-radius:.65rem;color:var(--ik);font-size:.76rem;line-height:1.55;
+border:1px solid var(--aw);
+background:var(--sa);
+background:color-mix(in oklab,var(--sa) 60%,transparent)}
+.infobox>svg,.warnline>svg{flex:none;width:1rem;height:1rem;margin-top:.15rem;color:var(--at)}
+.infobox>span,.warnline>span{flex:1;min-width:0}
+.warnline{border-color:var(--tt)}
+.warnline>svg{color:var(--tt)}
+.note{margin:1.3rem 0 0;font-size:.74rem;color:var(--if);line-height:1.6}
+a:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid var(--tt);
+outline-offset:3px}
+@media(max-width:600px){
+main{padding:1.5rem 1.15rem;align-items:flex-start}
+.panein{padding:1.5rem 1.3rem 1.4rem}
+h1{font-size:1.55rem}
+.acts>.btn,.acts>form{flex:1 1 auto}
+.acts>form input{width:100%}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="field" aria-hidden="true"><span class="o1"></span><span class="o2"></span></div>
+<main>
+<div class="pane"><div class="panein">
+<p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
+<div class="ind">{{MARK}}</div>
+<h1>{{HEADLINE}}</h1>
+<p class="gloss" id="gloss">{{GLOSS}}</p>
+<dl>{{FACTS}}</dl>
+<div class="acts">{{ACTIONS}}</div>
+{{EXTRA}}
+</div></div>
+</main>
+{{SCRIPTS}}
+</body>
+</html>

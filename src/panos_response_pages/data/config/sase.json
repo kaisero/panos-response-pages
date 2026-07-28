@@ -1,0 +1,5 @@
+{
+  "_comment": "Per-customer overrides. Deep-merged over config/_defaults.json, so you only list what differs. Add one file per customer; build with --customer <name>.",
+  "company": "SASE Corporation",
+  "supportEmail": "support@sase.at"
+}

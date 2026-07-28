@@ -1,0 +1,125 @@
+[project]
+name = "panos-response-pages"
+version = "0.1.0"
+description = "Self-contained PAN-OS URL Filtering and Anti-Phishing response pages, generated from templates"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Oliver Kaiser", email = "oliver.kaiser@outlook.com" }]
+keywords = ["pan-os", "palo-alto", "response-pages", "url-filtering", "anti-phishing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Security",
+    "Topic :: System :: Networking :: Firewalls",
+]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "pyyaml>=6",
+]
+
+[project.urls]
+Homepage = "https://github.com/kaisero/panos-response-pages"
+Documentation = "https://kaisero.github.io/panos-response-pages/"
+Changelog = "https://github.com/kaisero/panos-response-pages/blob/main/CHANGELOG.md"
+
+[project.scripts]
+panos-response-pages = "panos_response_pages.cli:app"
+
+[dependency-groups]
+test = ["pytest>=8", "pytest-cov>=5"]
+typecheck = ["mypy>=1.11", "types-PyYAML>=6", { include-group = "test" }]
+lint = ["ruff>=0.6", "codespell>=2.3"]
+audit = ["pip-audit>=2.7"]
+docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
+dev = [
+    "nox>=2024.4",
+    "pre-commit>=3.7",
+    { include-group = "test" },
+    { include-group = "typecheck" },
+    { include-group = "lint" },
+    { include-group = "audit" },
+    { include-group = "docs" },
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/panos_response_pages"]
+
+# The shells, palettes, themes and default config are the product, not fixtures:
+# a wheel without them installs a tool that cannot build anything. force-include
+# is not needed -- everything under the package directory ships -- but excluding
+# nothing is stated explicitly so a future `exclude` cannot silently drop them.
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.ruff]
+target-version = "py311"
+# 120, not the template's 88: only two lines in the existing codebase exceed 100
+# and none exceed 120, so this reformats nothing that was not already wrong.
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "S", "ASYNC", "PTH", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101 assert is pytest's whole idiom.
+"tests/**" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["panos_response_pages"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.codespell]
+skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp"
+# "levl" is a deliberate misspelling in the test asserting that a typo'd
+# settings key is rejected rather than silently ignored.
+ignore-words-list = "levl"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+files = ["src"]
+
+# tests/ stays out of mypy's `files`. They import sibling helpers (_paths,
+# _build) by bare name, which only resolves because pytest puts tests/ on
+# sys.path -- mypy would have to be told about that separately, and the value of
+# strict-typing assertions about assertions is low.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--tb=short"]
+markers = [
+    "unit: pure functions, no filesystem",
+    "integration: reads or writes real template and palette files",
+    "cli: drives the Typer app through CliRunner",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["panos_response_pages"]
+# __main__.py is two lines that call app() at import time so `python -m` works.
+# There is nothing to assert about it that importing it would not itself do.
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["if __name__", "pragma: no cover", "if TYPE_CHECKING:"]
+# Set from what the suite actually reaches (95%) with a little slack, rather than
+# picked as a round number and then worked around. It was 31% while the tests
+# shelled out to a subprocess -- the code ran, coverage just could not see it.
+fail_under = 93

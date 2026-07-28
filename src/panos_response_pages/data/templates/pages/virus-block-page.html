@@ -1,0 +1,43 @@
+<!--
+  Antivirus Block Page
+  API category: virus-block-page
+  Tokens available: <user/> <fname/>
+
+  The shipped PAN-OS default uses only <fname/>. <user/> is documented as being
+  available on every response page, but is absent from this default -- verify it
+  renders on your platform before relying on it. <threatname/> is community-
+  attested only and is deliberately not used: an unsupported token renders as
+  nothing, leaving a blank field on a live page.
+
+  Tone is fixed to crit: an antivirus hit is a threat verdict, not a policy
+  preference, and there is no category token here to derive severity from.
+-->
+
+<!--@TITLE-->Download blocked<!--/@TITLE-->
+
+<!--@TONE-->crit<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="9" width="10" height="9" rx="4.5"/><path d="M9.5 9V7.5a2.5 2.5 0 0 1 5 0V9"/><path d="M4.5 12H7M17 12h2.5M5.5 16.5 7.4 15.5M16.6 15.5l1.9 1M5.5 8l1.9 1M16.6 9l1.9-1"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->Download blocked<!--/@HEADLINE-->
+
+<!--@GLOSS-->Antivirus scanning found malware in this file, so the download was stopped.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>File</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Malware detected in a download"
+   data-intro="A download was blocked by antivirus scanning." data-prompt="What I was doing:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=Malware%20detected%20in%20a%20download&amp;body=A%20download%20was%20blocked%20by%20antivirus%20scanning.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20was%20doing%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
+<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> straight away.</p>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="warnline">{{WARN_MARK}}<span>If you have opened a copy of this file from somewhere else, tell IT — it may already be on your device.</span></p>
+<!--/@EXTRA-->

@@ -1,0 +1,33 @@
+<!--
+  URL Filtering and Category Match Block Page
+  API category: url-block-page
+  Tokens available: <user/> <url/> <category/>
+-->
+
+<!--@TITLE-->This site is blocked<!--/@TITLE-->
+
+<!--@TONE-->calm<!--/@TONE-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z"/><path d="m9 12.3 2.1 2.1 4-4.3"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->This site is blocked<!--/@HEADLINE-->
+
+<!--@GLOSS-->This category is restricted by company policy.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>Address</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>Category</dt><dd class="mono" id="cat"><category/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Blocked site report"
+   data-intro="Please review this block." data-prompt="Why I need access:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20site%20report&amp;body=Please%20review%20this%20block.%0A%0AUser%3A%20<user/>%0ACategory%3A%20<category/>%0A%0AWhy%20I%20need%20access%3A%0A%0AAddress%3A%20<url/>">Report to IT</a>
+<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>If you believe this site is needed for your work, send the report above and IT will review it.</span></p>
+<!--/@EXTRA-->

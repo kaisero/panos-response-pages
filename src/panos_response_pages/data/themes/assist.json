@@ -1,0 +1,6 @@
+{
+  "name": "assist",
+  "label": "Assistive Panel",
+  "shell": "assist",
+  "_note": "Layout only. Colour lives in palettes/ so a brand change never forks a shell."
+}

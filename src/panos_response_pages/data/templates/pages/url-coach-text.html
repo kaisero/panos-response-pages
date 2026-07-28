@@ -1,0 +1,36 @@
+<!--
+  URL Filtering Continue and Override Page
+  API category: url-coach-text
+  Tokens available: <user/> <url/> <category/> <pan_form/>
+
+  Copy note: the grant is per URL CATEGORY for 15 minutes (default), not per page.
+  The stock wording ("proceed to the page") understates what the user authorises.
+-->
+
+<!--@TITLE-->Continue to this site?<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 21 19H3Z"/><path d="M12 10v3.4"/><path d="M12 16.4h.01"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->Continue to this site?<!--/@HEADLINE-->
+
+<!--@GLOSS-->This category is restricted by company policy.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>Address</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>Category</dt><dd class="mono" id="cat"><category/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<pan_form/>
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Category warning - continue page"
+   data-intro="I was warned before continuing." data-prompt="Why I think the category is wrong:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=Category%20warning%20-%20continue%20page&amp;body=I%20was%20warned%20before%20continuing.%0A%0AUser%3A%20<user/>%0ACategory%3A%20<category/>%0A%0AWhy%20I%20think%20the%20category%20is%20wrong%3A%0A%0AAddress%3A%20<url/>">Report to IT</a>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>Continuing grants access to <strong>every site in this category</strong> for {{CONTINUE_GRANT}}.</span></p>
+<!--/@EXTRA-->

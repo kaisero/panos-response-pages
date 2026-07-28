@@ -1,0 +1,41 @@
+<!--
+  File Blocking Block Page
+  API category: file-block-page
+  Tokens available: <user/> <fname/>
+
+  The shipped PAN-OS default uses only <fname/>; see the note in
+  virus-block-page.html about <user/>.
+
+  Tone is warn, not crit: this is a policy restriction on a file type, not a
+  threat verdict. COPY_LOCK because there is no category token to derive
+  severity or a gloss from.
+-->
+
+<!--@TITLE-->This file type is blocked<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9.5 14.5h5"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->This file type is blocked<!--/@HEADLINE-->
+
+<!--@GLOSS-->Transferring files of this type is restricted by company policy, so the transfer was stopped.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>File</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Blocked file transfer"
+   data-intro="A file transfer was blocked by policy." data-prompt="Why I need this file:"
+   href="mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20file%20transfer&amp;body=A%20file%20transfer%20was%20blocked%20by%20policy.%0A%0AUser%3A%20<user/>%0A%0AWhy%20I%20need%20this%20file%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
+<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p>
+<!--/@ACTIONS-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>If you need this file for your work, send the report above and IT will review it.</span></p>
+<!--/@EXTRA-->
