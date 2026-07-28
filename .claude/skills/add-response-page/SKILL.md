@@ -224,7 +224,12 @@ default page.
 
 ## 7. What this does *not* cover
 
-Page types whose function is not "explain a block" — GlobalProtect portal pages,
-MFA login, captive portal comfort, SAML error — carry forms and auth flows this
-project's shells are not built for. Adding one is a design conversation, not this
-checklist.
+Page types whose function is not "explain a block" carry forms and auth flows
+these shells are not built for, and PAN-OS serves them as fragments or bare
+scripts rather than whole documents. They are a separate family with their own
+slot contract, their own guards and a different byte ceiling.
+
+**For the GlobalProtect portal login and home/logout pages, use
+`add-portal-page`.** The same route is the right starting point for MFA login,
+captive portal comfort and SAML error pages, none of which are implemented yet —
+each needs its file shape established against a live firewall first.
