@@ -34,7 +34,7 @@ test = ["pytest>=8", "pytest-cov>=5"]
 typecheck = ["mypy>=1.11", "types-PyYAML>=6", { include-group = "test" }]
 lint = ["ruff>=0.6", "codespell>=2.3"]
 audit = ["pip-audit>=2.7"]
-docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
+docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=1.0.6"]
 dev = [
     "nox>=2024.4",
     "pre-commit>=3.7",
