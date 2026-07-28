@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from panos_response_pages.config import load_config
+from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
 from panos_response_pages.gallery import build_gallery
 from panos_response_pages.page import build_page
@@ -105,7 +106,10 @@ def build_all(
                 prev_dir.mkdir(parents=True, exist_ok=True)
 
         for page in pages:
-            deployable = build_page(page, th, cfg, palette, False, template_dir)
+            # strip_output runs here, before validate(), so the bytes that are
+            # measured are the bytes that ship. It must not run any earlier:
+            # parse_sections() needs the <!--@SLOT--> markers intact.
+            deployable = strip_output(build_page(page, th, cfg, palette, False, template_dir))
             size, errors, warnings = validate(page, th["name"], deployable)
             if write:
                 # write_bytes, never write_text: write_text translates "\n" to
@@ -115,7 +119,7 @@ def build_all(
                 (deploy_dir / f"{page}.html").write_bytes(deployable.encode("utf-8"))
 
             if preview:
-                pv = build_page(page, th, cfg, palette, True, template_dir)
+                pv = strip_output(build_page(page, th, cfg, palette, True, template_dir))
                 blobs[th["name"], page] = pv
                 if write:
                     (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))

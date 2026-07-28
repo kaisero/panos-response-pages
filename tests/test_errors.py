@@ -133,7 +133,10 @@ class TestOversizePage(unittest.TestCase):
         then silently serves the default one instead."""
         data = scratch_data()
         shell = data / "templates" / "shells" / "assist.html"
-        padding = "<!--" + "x" * 18000 + "-->"
+        # Deliberately not a comment: the emit stage strips comments, which
+        # would shrink the page back under the ceiling and silently disable
+        # the guard this test exists to protect.
+        padding = "<p>" + "x" * 18000 + "</p>"
         shell.write_text(shell.read_text(encoding="utf-8").replace("</body>", padding + "</body>"), encoding="utf-8")
         result = build_all(data, pathlib.Path(tempfile.mkdtemp()), theme="assist", preview=False, write=False)
         self.assertTrue(result.failed)
