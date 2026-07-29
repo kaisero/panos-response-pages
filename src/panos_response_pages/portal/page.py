@@ -27,6 +27,7 @@ import pathlib
 import re
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import quote
 
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
@@ -55,9 +56,26 @@ FROM_SHELL = {
 
 _SLOT_RE = re.compile(r"\{\{([A-Z_0-9]+)\}\}")
 
-# The logout logo is a CSS background, and the shells write this prefix
+# The logo is a CSS background on both imports, and the shells write this prefix
 # literally so the rule reads as artwork rather than as a substitution.
 SVG_URI_PREFIX = "data:image/svg+xml,"
+
+# What survives percent-encoding intact. Everything outside this set is escaped,
+# which covers the four characters that actually matter:
+#
+#   #   mandatory -- unencoded, everything after the first colour is read as a
+#       URL fragment and the artwork loses its palette.
+#   '   the URI is also assigned inside a JS string literal on the home import,
+#       and the SVG quotes its own attributes with '; raw, they end the literal.
+#   < > the import path may or may not sanitize markup, and a data: URI carrying
+#       raw <svg> through a naive HTML filter is exactly the shape that gets
+#       mangled. It also keeps the file clear of the no-raw-'<' rule.
+#
+# `{` and `}` are escaped as well, which the lab's encoder left literal. They
+# are legal in a quoted url(), but the SVG carries a <style> block full of them
+# and the templates are delimited by {{...}} -- encoding removes any chance of
+# artwork colliding with the substitution syntax.
+LOGO_SAFE = "/:=,;.()- "
 
 
 def build_portal_page(
@@ -105,6 +123,21 @@ def build_portal_page(
     return strip_output(out)
 
 
+def _css_string(value: str) -> str:
+    """The body of one double-quoted CSS string, for a `content:` declaration.
+
+    The logout page's body belongs to PAN-OS, so the company name cannot be put
+    beside the mark as markup there -- a ::after on our own stylesheet is the
+    only way in. That makes this text a CSS string, and customer config is where
+    an unescaped quote would come from.
+
+    '<' becomes a hex escape rather than being left alone: one raw '<' outside a
+    tag stops PAN-OS substituting the form token, and a company name is not
+    somewhere anyone would look for that.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("<", "\\3c ")
+
+
 def _js_string(value: str) -> str:
     """One single-quoted JS string literal.
 
@@ -117,6 +150,68 @@ def _js_string(value: str) -> str:
     return f"'{body}'"
 
 
+# Which palette entry each S_* token falls back to when the artwork is drawn on
+# the accent rather than on the ground. Figure and ground swap: everything that
+# was ink becomes the colour that reads on the accent, and everything that was a
+# page surface becomes the accent itself. Without this a shell that puts the
+# logo on an accent band -- banner does -- paints an accent mark on an accent
+# field and the logo vanishes.
+ON_ACCENT = {
+    "ink": "accent_ink",
+    "ink_muted": "accent_ink",
+    "ink_faint": "accent_ink",
+    "accent": "accent_ink",
+    "accent_text": "accent_ink",
+    "ground": "accent",
+    "surface": "accent",
+    "surface_alt": "accent",
+    "accent_ink": "accent",
+    "accent_wash": "accent",
+}
+
+
+def _logo(
+    cfg: Mapping[str, Any],
+    palette: Mapping[str, Any],
+    base: Mapping[str, str],
+    *,
+    dark: bool,
+    on_accent: bool = False,
+) -> str:
+    """The portal logo, percent-encoded, for one scheme and one backdrop.
+
+    An SVG referenced by `url()` or by an `<img>` renders as an isolated
+    document: it inherits nothing from the embedding page, so `currentColor` is
+    dead and the shell's custom properties are out of scope. The colours have to
+    be baked in, which is why this runs more than once.
+
+    The scheme is expressed as `S_*` rather than as the shells' `C_*`. Every
+    copy of the artwork is the same source file, and it has no way to say "the
+    accent for whichever scheme this copy is" if the token names already carry a
+    scheme. So `S_ACCENT` is the light `accent` in one pass and `d_accent` in
+    the other, and the shell picks between the results.
+    """
+    colors = palette["colors"]
+    scheme = {k: str(v) for k, v in colors.items() if not k.startswith("d_")}
+    if dark:
+        scheme.update({k[2:]: str(v) for k, v in colors.items() if k.startswith("d_")})
+    if on_accent:
+        scheme = {k: scheme.get(ON_ACCENT.get(k, k), v) for k, v in scheme.items()}
+    scheme = {f"S_{k.upper()}": v for k, v in scheme.items()}
+
+    key = "portalLogoSvgDark" if dark and cfg.get("portalLogoSvgDark") else "portalLogoSvg"
+    svg = substitute(str(cfg[key]), {**base, **scheme})
+    if not svg.lstrip().startswith("<svg"):
+        raise BuildError(f"{key} must be SVG source starting with <svg -- the build does the data: encoding")
+    # Caught here rather than by the frame's leftover check: by the time this
+    # reaches the frame it is percent-encoded, so an unresolved token reads as
+    # %7B%7BFOO%7D%7D and the generic check never sees it.
+    if "{{" in svg:
+        leftover = sorted(set(_SLOT_RE.findall(svg)))
+        raise BuildError(f"unresolved placeholder(s) in {key}: {', '.join(leftover) or '{{...}}'}")
+    return quote(svg, safe=LOGO_SAFE)
+
+
 def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str]:
     """Everything a portal slot may reference."""
     base = {
@@ -125,19 +220,28 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
     }
     values: dict[str, str] = dict(base)
     values["MARK"] = str(cfg["marks"]["shield"])
+    # The same name again, escaped for a CSS content: string. The mark is only a
+    # symbol; the wordmark is live text, which is what makes a rename in config
+    # reach the portal at all.
+    values["COMPANY_CSS"] = _css_string(base["COMPANY"])
     # The heading text. Carried in markup rather than in gp_portal_name, which
     # PAN-OS applies with .html() and would use to replace the whole heading.
     values["PORTAL_NAME"] = substitute(str(cfg["portalName"]), base)
-    # A data: URI, not inline markup: the portal needs it inside a JS string.
-    uri = str(cfg["portalLogoUri"])
-    if not uri.startswith(SVG_URI_PREFIX):
-        raise BuildError(f"portalLogoUri must be an {SVG_URI_PREFIX} URI -- the logout logo is painted from CSS")
-    values["PORTAL_LOGO_URI"] = uri
-    # The same artwork with the media type split off, because the logout shells
-    # write that prefix literally. A stylesheet is the only thing that paints the
-    # logo at first paint, and spelling the media type out in the shell is what
-    # lets that rule be asserted rather than assumed.
-    values["PORTAL_LOGO_SVG"] = uri[len(SVG_URI_PREFIX) :]
+    # The artwork, encoded once per scheme. The shells write the media type
+    # prefix themselves, so these are the encoded SVG alone; PORTAL_LOGO_URI is
+    # the whole URI, for the one place that still needs it in a JS string.
+    light = _logo(cfg, palette, base, dark=False)
+    values["PORTAL_LOGO_LIGHT"] = light
+    values["PORTAL_LOGO_DARK"] = _logo(cfg, palette, base, dark=True)
+    # For shells that stand the logo on the accent instead of on the ground. A
+    # shell references one pair or the other, never both, so this costs nothing
+    # in the imports that do not use it.
+    values["PORTAL_LOGO_ACC_LIGHT"] = _logo(cfg, palette, base, dark=False, on_accent=True)
+    values["PORTAL_LOGO_ACC_DARK"] = _logo(cfg, palette, base, dark=True, on_accent=True)
+    # The `logo` variable brands the portal HOME page -- stock Bootstrap markup
+    # this family does not restyle, and which is light whatever the visitor's
+    # scheme is. So it gets the light copy, and only that page uses it.
+    values["PORTAL_LOGO_URI"] = SVG_URI_PREFIX + light
     # {{SUPPORT_EMAIL}} is resolved before encoding -- substitute() does not
     # rescan replacement text, so a token left inside the array would ship
     # literally. No spaces after the commas: every byte is measured.

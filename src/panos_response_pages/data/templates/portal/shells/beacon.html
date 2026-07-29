@@ -65,10 +65,29 @@ border:1px solid var(--at);animation:pu 7.5s ease-out infinite}
 .seal .d{position:relative;width:6.6rem;height:6.6rem;border-radius:50%;background:var(--sa);
 border:1px solid var(--aw);color:var(--at);display:grid;place-items:center}
 .seal .d svg{width:3.2rem;height:3.2rem}
-/* Height reserved up front: the src arrives from PAN-OS' jQuery handler a beat
-   after parse, and without a reserved box the column would jump. */
-#logo{height:2.2rem;margin:0 0 1.4rem}
-#logo img{height:100%;width:auto;display:block}
+/* The mark, twice. An SVG behind url() renders as an isolated document --
+   currentColor is dead in there and these custom properties are out of scope --
+   so changing scheme means changing the whole asset. Doing that here rather
+   than inside the SVG is what lets data-force-scheme reach it, which is how one
+   machine previews both schemes. Each copy is written once and selected through
+   --lg; naming them in all four rule sets would carry the artwork four times. */
+:root{--lgl:url("data:image/svg+xml,{{PORTAL_LOGO_LIGHT}}");
+--lgd:url("data:image/svg+xml,{{PORTAL_LOGO_DARK}}");--lg:var(--lgl)}
+@media(prefers-color-scheme:dark){:root{--lg:var(--lgd)}}
+html[data-force-scheme=light]{--lg:var(--lgl)}
+html[data-force-scheme=dark]{--lg:var(--lgd)}
+/* The lockup: the mark painted by the stylesheet, the name beside it as live
+   text. Splitting them is what makes a rename in config reach this page -- an
+   SVG cannot measure text, so a name drawn into fixed artwork is a name that
+   gets clipped or shrunk. It also means only the mark needs a copy per scheme;
+   the text takes its colour from the cascade, inherited rather than stated,
+   because the one theme that stands this on the accent band has already set it.
+   Painting from CSS also puts it on screen at first paint: the body ships no
+   img and the logo variable is empty, so nothing here waits on jQuery. */
+#logo{height:2.2rem;margin:0 0 1.4rem;display:flex;align-items:center;gap:.55rem;
+font-size:1.02rem;font-weight:700;letter-spacing:-.01em;color:inherit}
+#logo .mk{width:1.9rem;height:1.9rem;flex:none;
+background:var(--lg) center/contain no-repeat}
 #heading{margin:0 0 .4rem;font-size:1.75rem;line-height:1.08;letter-spacing:-.04em;
 font-weight:700;color:var(--ik);text-align:left;font-family:inherit}
 /* The portal name, carried in markup because gp_portal_name is applied with
@@ -132,19 +151,59 @@ html[data-page=sw] table{width:100%!important;height:auto!important;
 padding-top:0!important;border-collapse:collapse}
 html[data-page=sw] td{padding:0;text-align:left;vertical-align:top}
 #taGetSofewarePage p{margin:0 0 .5rem}
-/* All three downloads weighted equally, and PAN-OS' own anchors are styled
-   where they stand rather than moved into new markup. Styling one as the
-   primary action would have to pick it by DOM position, and PAN-OS lists
-   Windows 32-bit first -- so the accent would steer people onto a 32-bit
-   build. Nothing on the page knows the visitor's platform, so the page does
-   not pretend to. The anchors carry no class; p > a is the only anchor shape
-   in this form. */
+/* PAN-OS' own anchors, styled where they stand. All three weighted equally on
+   purpose: this rule set is the fallback, shown whenever the script below has
+   not replaced it, and a primary chosen here would have to be chosen by DOM
+   position -- PAN-OS lists Windows 32-bit first, so the accent would steer
+   people onto a 32-bit build. The anchors carry no class; p > a is the only
+   anchor shape in this form. */
 #taGetSofewarePage p a{display:block;min-height:2.8rem;padding:.7rem 1rem;
 font-size:.88rem;font-weight:650;text-align:center;text-decoration:none;
 border-radius:.45rem;background:var(--sa);color:var(--at);border:1px solid var(--sa)}
 #taGetSofewarePage p a:hover{filter:brightness(.97)}
-/* The description rows stay: they are the only thing on the page that says
-   which build to pick. #dFormat is empty in every capture. */
+/* --- the download button ---
+   Everything above is the page PAN-OS builds: three equal links over three rows
+   explaining which one to take, i.e. a decision the browser has already made.
+   The script at the end of the body reads the platform out of the user agent,
+   MOVES those anchors into the menu below -- moved, never rebuilt, so no href
+   is ever retyped and no markup is ever built in JS -- and puts the matching
+   one on this button.
+
+   None of this is visible until that script sets data-dl on the document, which
+   it does last. #dl ships hidden, so a thrown exception, a blocked script or a
+   platform nobody recognised leaves the working stock links in place rather
+   than an empty card. */
+html[data-dl] #taGetSofewarePage p,
+html[data-dl] #taGetSofewarePage table{display:none}
+.dl[hidden]{display:none}
+/* One-pixel gap rather than a border between the halves: they share a colour,
+   so a border would need its own contrasting value in every palette. */
+.dlrow{display:flex;gap:1px}
+.dlmain{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+min-height:2.8rem;padding:.7rem 1.1rem;font-size:.88rem;font-weight:650;text-decoration:none;
+cursor:pointer;background:var(--ac);color:var(--ai);border:1px solid transparent;
+border-radius:.45rem 0 0 .45rem;box-shadow:0 .4rem 1.1rem rgba(0,0,0,.18);}
+.dlmain svg{width:1.05rem;height:1.05rem;flex:none}
+.dlcar{display:inline-flex;align-items:center;justify-content:center;width:2.6rem;
+min-height:2.8rem;padding:0;font:inherit;cursor:pointer;
+background:var(--ac);color:var(--ai);border:1px solid transparent;
+border-radius:0 .45rem .45rem 0;box-shadow:0 .4rem 1.1rem rgba(0,0,0,.18);-webkit-appearance:none;appearance:none}
+.dlcar svg{width:1.1rem;height:1.1rem}
+.dlmain:hover,.dlcar:hover{filter:brightness(1.08)}
+.dlcar[aria-expanded=true] svg{transform:rotate(180deg)}
+/* The focus rule at the foot of this file covers a and input. The caret is a
+   button, so it needs its own. */
+.dlcar:focus-visible{outline:3px solid var(--at);outline-offset:3px}
+.dlmenu{margin:.4rem 0 0;padding:.3rem;border-radius:.45rem;border:1px solid var(--sa);
+background:var(--gr)}
+.dlmenu[hidden]{display:none}
+.dlitem{display:block;padding:.55rem .7rem;border-radius:.35rem;font-size:.82rem;
+font-weight:650;color:var(--ik);text-decoration:none}
+.dlitem:hover{background:var(--sa)}
+/* The description rows are styled for that same fallback: three sentences
+   restating which build suits which OS, which is exactly what the button below
+   answers. Hidden with the links once the button is up. #dFormat is empty in
+   every capture. */
 #taGetSofewarePage table{margin:1rem 0 0}
 #taGetSofewarePage table td{padding:.25rem 0;font-size:.74rem;line-height:1.5;color:var(--if)}
 #dFormat{display:none}
@@ -169,12 +228,19 @@ align-items:start}
 <div class="field" aria-hidden="true"></div>
 <div class="loginscreen_logo">
 <div class="col">
-<div id="logo"><img alt="{{COMPANY}}"></div>
+<div id="logo"><span class="mk" aria-hidden="true"></span><span>{{COMPANY}}</span></div>
 <div id="activearea">
-<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">Sign in</span><span class="ps">Get GlobalProtect</span></div>
-<p class="gloss"><span class="pl">Use your company account to connect to the VPN.</span><span class="ps">Download the agent for your operating system, then sign in from the app.</span></p>
+<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">Sign in</span><span class="ps">Get Agent Software</span></div>
+<p class="gloss"><span class="pl">Use your company account to sign in.</span><span class="ps">Download the agent for your operating system, then sign in from the app.</span></p>
 <div id="formdiv">
 <pan_form/>
+</div>
+<div class="dl" id="dl" hidden>
+<div class="dlrow">
+<a class="dlmain" id="dlmain"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg><span id="dllab">Download</span></a>
+<button class="dlcar" id="dlcar" type="button" aria-expanded="false" aria-haspopup="true" aria-label="Other platforms"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></button>
+</div>
+<div class="dlmenu" id="dlmenu" hidden></div>
 </div>
 </div>
 <p class="note">Need help? Contact <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
@@ -248,9 +314,24 @@ html[data-gp=logout] .loginscreen_logo::after{animation-delay:3.75s}
    matters, whatever jQuery does to it later.
 
    The logo variable stays set even though this rule supersedes it: the same
-   variable brands the portal home page, which this file does not restyle. */
-html[data-gp=logout] #logo{height:2.2rem;margin:0 0 1.4rem;
-background:url("data:image/svg+xml,{{PORTAL_LOGO_SVG}}") left center/contain no-repeat}
+   variable brands the portal home page, which this file does not restyle. That
+   page gets the light copy and only the light copy -- it is an img src, and an
+   img has no way to be told which scheme it is in. Its Bootstrap chrome is
+   light either way, so that is the right copy. */
+html[data-gp=logout]{--lgl:url("data:image/svg+xml,{{PORTAL_LOGO_LIGHT}}");
+--lgd:url("data:image/svg+xml,{{PORTAL_LOGO_DARK}}");--lg:var(--lgl)}
+@media(prefers-color-scheme:dark){html[data-gp=logout]{--lg:var(--lgd)}}
+html[data-gp=logout][data-force-scheme=light]{--lg:var(--lgl)}
+html[data-gp=logout][data-force-scheme=dark]{--lg:var(--lgd)}
+/* PAN-OS owns this body, so the name cannot be put beside the mark as markup.
+   ::before carries the artwork and ::after the text -- both on our own
+   stylesheet, which is the only way in. The img PAN-OS wrote is hidden rather
+   than swapped, so whatever its src ends up being never matters. */
+html[data-gp=logout] #logo{height:2.2rem;margin:0 0 1.4rem;display:flex;align-items:center;gap:.55rem;
+font-size:1.02rem;font-weight:700;letter-spacing:-.01em}
+html[data-gp=logout] #logo::before{content:"";width:1.9rem;height:1.9rem;flex:none;
+background:var(--lg) center/contain no-repeat}
+html[data-gp=logout] #logo::after{content:"{{COMPANY_CSS}}"}
 html[data-gp=logout] #logo img{display:none}
 html[data-gp=logout] #heading{margin:0 0 1.1rem;font-size:1.75rem;line-height:1.08;
 letter-spacing:-.04em;font-weight:700;color:var(--ik);text-align:left;font-family:inherit}

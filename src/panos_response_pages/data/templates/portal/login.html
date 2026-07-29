@@ -10,7 +10,7 @@
 <!--@VARS-->
 <script>
 var favicon='';
-var logo='{{PORTAL_LOGO_URI}}';
+var logo='';
 var bg_color='';
 var gp_portal_name='';
 var gp_portal_name_color='';
@@ -24,8 +24,15 @@ var error_text_color='';
   download page shows login wording. The portal name is rendered into the
   #heading markup by the shell instead. bg_color, gp_portal_name_color and
   error_text_color are empty for the general reason: a non-empty value overrides
-  the stylesheet at ready time. logo is one of the two deliberate exceptions --
-  the img ships with no src and this is the only thing that fills it.
+  the stylesheet at ready time.
+
+  logo is empty too, and that is the change from the first cut of this file.
+  PAN-OS' handler puts it in an <img> src, and an <img>-referenced SVG is an
+  isolated document -- one asset, no way for the page to tell it which scheme it
+  is in. The shell paints #logo as a CSS background instead, choosing between a
+  light and a dark copy in a rule the page can reach, so the body carries no img
+  for this variable to fill. It also means the mark is painted at first paint
+  rather than at $(document).ready, so there is no empty box while jQuery loads.
 -->
 <!--@HEAD_SCRIPT-->
 <script>
@@ -44,6 +51,43 @@ var error_text_color='';
 <script>
 if(document.getElementById('getsoftwarepage_form')){document.documentElement.setAttribute('data-page','sw');}
 </script>
+<script>
+(function(){
+var box=document.getElementById('taGetSofewarePage'),dl=document.getElementById('dl');
+if(!box||!dl){return;}
+var links=[].slice.call(box.querySelectorAll('p a'));
+if(!links.length){return;}
+var menu=document.getElementById('dlmenu'),main=document.getElementById('dlmain'),
+lab=document.getElementById('dllab'),car=document.getElementById('dlcar'),
+ua=navigator.userAgent||'',isMac=/Mac/i.test(ua),isWin=/Win/i.test(ua),
+x64=/Win64|WOW64|x64|x86_64/i.test(ua),pick=null;
+function toggle(v){menu.hidden=!v;car.setAttribute('aria-expanded',v?'true':'false');}
+links.forEach(function(a){
+var h=a.getAttribute('href')||'',
+mac=h.indexOf('platform=mac')!==-1,
+win=h.indexOf('platform=windows')!==-1,
+w64=h.indexOf('version=64')!==-1;
+a.textContent=mac?'macOS':win?'Windows '+(w64?'64-bit':'32-bit'):(a.textContent||'').trim();
+a.className='dlitem';
+menu.appendChild(a);
+if(!pick&&((isMac&&mac)||(isWin&&win&&w64===x64))){pick=a;}
+});
+if(pick){
+main.setAttribute('href',pick.getAttribute('href'));
+lab.textContent='Download for '+pick.textContent;
+}else{
+lab.textContent='Choose your download';
+main.setAttribute('href','#');
+main.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();toggle(menu.hidden);});
+}
+car.addEventListener('click',function(e){e.stopPropagation();toggle(menu.hidden);});
+menu.addEventListener('click',function(e){e.stopPropagation();});
+document.addEventListener('click',function(){toggle(false);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){toggle(false);}});
+dl.hidden=false;
+document.documentElement.setAttribute('data-dl','on');
+})();
+</script>
 <!--/@FOOT_SCRIPT-->
 <!--
   Emitted at the end of the body, after the form has been substituted and
@@ -51,4 +95,24 @@ if(document.getElementById('getsoftwarepage_form')){document.documentElement.set
   getElementById would return null, and the download page would show login
   wording forever. Login is the default, so a page where this never runs
   degrades to the login copy rather than to nothing.
+
+  The second block is the download button. PAN-OS builds getsoftwarepage.esp as
+  three equally weighted links -- Windows 32-bit first -- over three rows of
+  prose explaining which one to take. The browser already knows which one to
+  take, so this reads the platform out of the user agent and says so.
+
+  Four things it is careful about:
+
+  - It MOVES PAN-OS' anchors into the menu rather than reading their hrefs and
+    building new ones. Nothing here writes markup, which it could not do anyway:
+    an innerHTML string carrying a '<' would stop the form token being
+    substituted. Moving the nodes also means no href is ever retyped.
+  - No counting loop, for the same reason -- `i < n` is a raw '<'. slice.call
+    turns the NodeList into a real array and forEach does the rest.
+  - Bit-ness is only detectable on Windows, via Win64|WOW64|x64|x86_64. An
+    unrecognised platform gets 'Choose your download' and the open menu rather
+    than a guess.
+  - data-dl is set LAST. Everything that hides PAN-OS' own links and description
+    rows hangs off it, so if any line above throws, or the script never runs at
+    all, the stock page is still sitting there working.
 -->

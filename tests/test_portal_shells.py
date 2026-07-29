@@ -40,8 +40,20 @@ class TestShellRules(unittest.TestCase):
         for p in SHELLS:
             with self.subTest(shell=p.stem):
                 body = css(p)
-                self.assertRegex(body, r"#logo\s*\{[^}]*background\s*:\s*url\(\s*[\"']?data:image/svg")
+                self.assertRegex(body, r"#logo(?:\s+\.mk|::before)\s*\{[^}]*background:var\(--lg\)")
                 self.assertRegex(body, r"#logo\s+img\s*\{[^}]*display\s*:\s*none")
+
+    def test_every_shell_offers_both_scheme_copies_of_the_logo(self):
+        """The artwork is an isolated document, so the scheme cannot reach into
+        it -- the shell has to choose between two whole assets. A shell that
+        defines --lgl but never --lgd shows the light mark on a dark page."""
+        for p in SHELLS:
+            with self.subTest(shell=p.stem):
+                body = css(p)
+                for var in ("--lgl:url(", "--lgd:url("):
+                    self.assertIn(var, body)
+                self.assertIn("html[data-force-scheme=dark]{--lg:var(--lgd)}", body)
+                self.assertIn("@media(prefers-color-scheme:dark){:root{--lg:var(--lgd)}}", body)
 
     def test_logout_message_slot_reserves_height(self):
         """#logout is empty at parse time and filled at ready; without a
@@ -72,12 +84,45 @@ class TestShellRules(unittest.TestCase):
 
 
 class TestLoginLogo(unittest.TestCase):
-    def test_login_logo_img_ships_without_a_src(self):
-        """Shipping a src paints something before the logo variable lands --
-        either a broken image or the wrong mark."""
+    def test_login_carries_no_img_and_no_logo_variable(self):
+        """The mark is a CSS background on both imports now. An <img> would put
+        it back on PAN-OS' ready handler -- one asset, no scheme -- and would
+        paint nothing at all until jQuery had loaded."""
         for (theme, page), html in portal_pages().items():
             if page == "login":
                 with self.subTest(theme=theme):
-                    m = re.search(r'<div id="logo">\s*<img([^>]*)>', html)
-                    self.assertIsNotNone(m, "no #logo img")
-                    self.assertNotIn("src=", m.group(1))
+                    self.assertNotRegex(html, r'id="logo"[^>]*>\s*<img')
+                    self.assertIn("var logo='';", html)
+
+    def test_the_wordmark_is_text_not_artwork(self):
+        """A name drawn into the SVG cannot follow a rename in config, and an
+        SVG cannot measure text -- so a fixed viewBox either clips a long name
+        or shrinks a short one. The mark is a symbol; the name is text."""
+        for (theme, page), html in portal_pages().items():
+            with self.subTest(theme=theme, page=page):
+                if page == "login":
+                    # A <span> beside the mark, in a body we own.
+                    self.assertRegex(html, r'<div id="logo"><span class="mk"[^>]*></span><span>[^<]+</span></div>')
+                else:
+                    # PAN-OS owns the logout body, so the only way in is CSS.
+                    self.assertRegex(html, r'#logo::after\{content:"[^"]+"\}')
+
+    def test_the_mark_carries_no_lettering(self):
+        """The check that keeps the two from drifting back together."""
+        for (theme, page), html in portal_pages().items():
+            with self.subTest(theme=theme, page=page):
+                for uri in re.findall(r"--lg[ld]:url\(\"([^\"]+)\"\)", html):
+                    self.assertNotIn("%3Ctext", uri, "the mark has lettering drawn into it")
+
+    def test_the_two_scheme_copies_are_different_artwork(self):
+        """Both copies are the same source file rendered twice. If the S_*
+        binding ever stopped switching, they would be byte-identical and the
+        dark page would show light-scheme ink -- with nothing else to notice."""
+        for (theme, page), html in portal_pages().items():
+            if page == "login":
+                with self.subTest(theme=theme):
+                    light = re.search(r"--lgl:url\(\"([^\"]+)\"\)", html)
+                    dark = re.search(r"--lgd:url\(\"([^\"]+)\"\)", html)
+                    self.assertIsNotNone(light)
+                    self.assertIsNotNone(dark)
+                    self.assertNotEqual(light.group(1), dark.group(1))

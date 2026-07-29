@@ -21,12 +21,19 @@ theme:
       scheme: slate
       toggle: {icon: material/weather-sunny, name: Switch to light mode}
 
+# Flat on purpose: test_docs.py reads each entry as a single path, so a nested
+# section yields a list and raises TypeError.
 nav:
   - Home: index.md
   - CLI: cli.md
   - Styles: styles.md
   - Copy rules: copy-rules.md
   - Customising: customising.md
+  - GlobalProtect portal: portal.md
+  - Architecture: architecture/general.md
+  - GP login page: architecture/globalprotect-portal-login-page.md
+  - GP home page: architecture/globalprotect-portal-home-page.md
+  - URL filtering pages: architecture/url-filtering-response-pages.md
 
 plugins:
   - search

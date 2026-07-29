@@ -263,13 +263,43 @@ class TestPreviewGallery(unittest.TestCase):
 
         themes = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((DATA / "themes").glob("*.json"))]
         if len(themes) == 1:
-            self.assertNotIn("data-theme=", self.html)
+            self.assertNotIn("data-theme", self.html)
         else:
-            self.assertIn("data-theme=", self.html, "no style selector was emitted")
+            self.assertIn("<select data-theme>", self.html, "no style selector was emitted")
             for theme in themes:
                 self.assertIn(
-                    f'data-theme="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
+                    f'<option value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
                 )
+
+    def test_the_long_lists_do_not_grow_the_control_bar(self):
+        """The chrome used to cost about 500 px of a 900 px viewport, most of it
+        the page list wrapping onto three rows. A select is one line whatever a
+        build produces; a button per page is not, so this is the rule that keeps
+        the bar from creeping back."""
+        self.assertIn("<select data-page>", self.html)
+        self.assertNotIn('data-page="', self.html, "the page list is buttons again")
+
+    def test_the_portal_frames_are_not_shrink_wrapped(self):
+        """A portal page is a small card centred in min-height:100vh. Collapsing
+        the frame to the card collapses the viewport it is centred in, so it
+        loses the background it was designed to sit on and reads as a broken
+        thumbnail. Block pages fill their frame and still shrink-wrap."""
+        self.assertRegex(self.html, r"var FLOOR=\{desktop:\d{3},mobile:\d{3}\}")
+        self.assertIn('i.setAttribute("data-min",FLOOR[kind])', self.html)
+
+    def test_the_spliced_frames_still_carry_their_warning(self):
+        """The one thing on this page that is not decoration: a spliced preview
+        carries PAN-OS' own prefix and an inert CSRF token, and importing one
+        breaks the portal."""
+        self.assertIn("never importable", self.html)
+
+    def test_every_control_is_labelled(self):
+        """Two of the segmented controls dropped their visible caption to fit
+        the bar on one line, so the label has to survive somewhere."""
+        for group in ("Viewport", "Colour scheme"):
+            self.assertIn(f'aria-label="{group}"', self.html)
+        for ctl in ("Style", "Page"):
+            self.assertIn(f"<span>{ctl}</span>", self.html)
 
     def test_takes_its_colours_from_the_palette(self):
         import json

@@ -30,6 +30,12 @@ var logout_text_color='';
   '' is falsy and removes the agent download entry from the portal home page
   this file does not restyle. gp_portal_name IS set here: the logout #heading is
   PAN-OS' own and has no spans to lose.
+
+  logo is set here and empty on the login import, which is not an inconsistency.
+  This variable's only remaining job is branding that untouched home page, whose
+  Bootstrap chrome is light whatever the visitor's scheme is -- so it carries the
+  light copy of the artwork. logout.esp gets its logo from the stylesheet below,
+  which can choose between the light and dark copies; the home page cannot.
 -->
 <!--@HEAD_SCRIPT-->
 <script>
