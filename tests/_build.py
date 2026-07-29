@@ -25,6 +25,26 @@ def built() -> tuple[pathlib.Path, BuildResult]:
     return out, build_all(DATA, out, preview=True)
 
 
+@functools.lru_cache(maxsize=1)
+def portal_pages() -> dict[tuple[str, str], str]:
+    """Every portal page in every theme, as the firewall would receive it."""
+    from _paths import DATA
+    from panos_response_pages.builder import load_themes
+    from panos_response_pages.config import load_config
+    from panos_response_pages.palettes import load_palette
+    from panos_response_pages.portal.page import build_portal_page
+
+    cfg = load_config("contoso", DATA / "config")
+    palette = load_palette("cyber-orange", DATA / "palettes")
+    out: dict[tuple[str, str], str] = {}
+    for theme in load_themes(DATA):
+        for page in ("login", "home"):
+            out[(theme["name"], page)] = build_portal_page(
+                page, theme, cfg, palette, preview=False, template_dir=DATA / "templates"
+            )
+    return out
+
+
 def deploy_dir() -> pathlib.Path:
     return built()[0] / "deploy"
 

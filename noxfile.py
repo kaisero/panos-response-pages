@@ -7,6 +7,8 @@ the same thing.
 from __future__ import annotations
 
 import os
+import pathlib
+import shutil
 
 import nox
 
@@ -15,6 +17,12 @@ nox.options.reuse_existing_virtualenvs = True
 nox.options.sessions = ["lint", "type_check", "tests", "docs"]
 
 PYTHON_VERSIONS = ["3.11", "3.12", "3.13", "3.14"]
+
+# The clickthrough gallery is shipped as part of the docs site, so a visitor can
+# try the pages rather than read about them. It is BUILT here rather than
+# committed: it is generated output, and a stale copy in git would show a
+# visitor pages the current templates no longer produce.
+PREVIEW_DEST = pathlib.Path("docs/preview")
 
 
 def _sync(session: nox.Session, *groups: str) -> None:
@@ -57,15 +65,31 @@ def audit(session: nox.Session) -> None:
     session.run("pip-audit")
 
 
+def _build_preview(session: nox.Session) -> None:
+    """Generate the gallery into docs/ so mkdocs copies it into the site.
+
+    Built into a session temp directory and copied, rather than straight into
+    docs/: the build also emits deploy/, and a tree of importable pages under
+    docs/ would be published beside the preview with nothing marking which is
+    which.
+    """
+    out = pathlib.Path(session.create_tmp()) / "site"
+    session.run("panos-response-pages", "build", "--out", str(out))
+    shutil.rmtree(PREVIEW_DEST, ignore_errors=True)
+    shutil.copytree(out / "preview", PREVIEW_DEST)
+
+
 @nox.session
 def docs(session: nox.Session) -> None:
     _sync(session, "docs")
+    _build_preview(session)
     session.run("mkdocs", "build", "--strict")
 
 
 @nox.session(name="docs-serve")
 def docs_serve(session: nox.Session) -> None:
     _sync(session, "docs")
+    _build_preview(session)
     session.run("mkdocs", "serve")
 
 

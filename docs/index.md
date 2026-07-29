@@ -2,6 +2,34 @@
 
 Modern, responsive response pages for PAN-OS. Generate response pages to delight users while protecting them from threats.
 
+## Preview
+
+`panos-response-pages` generates responsive response pages for Desktop and Mobile which
+support both dark and light mode by default. For a full preview of all available themes
+and options take a look at the dedicated
+[Preview](preview/index.html){ target="_blank" } pages.
+
+<div class="rp-embed" id="rp-embed">
+  <div class="rp-bar">
+    <label class="rp-field">
+      <span>Page</span>
+      <select id="rp-page"></select>
+    </label>
+    <label class="rp-switch">
+      <input type="checkbox" id="rp-scheme" aria-label="Dark mode" checked>
+      <span class="rp-track" aria-hidden="true"><span class="rp-thumb"></span></span>
+      <span class="rp-switch-label" aria-hidden="true"></span>
+    </label>
+  </div>
+  <div class="rp-screen">
+    <iframe id="rp-frame" title="Live response page preview" scrolling="no"></iframe>
+  </div>
+</div>
+
+*Shown in the **Beacon Field** style. The
+[Preview](preview/index.html){ target="_blank" } gallery adds the other five styles,
+mobile widths and the four GlobalProtect login states.*
+
 ## Install
 
 ```bash
