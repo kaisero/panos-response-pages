@@ -1,0 +1,165 @@
+/* The inline preview on the home page.
+ *
+ * Styled entirely through Material's own custom properties so the chrome around
+ * the frame follows the docs theme, while the frame itself shows the response
+ * page in whichever scheme the switch selects -- the two are deliberately
+ * independent, because the point of the switch is to look at the page in a
+ * scheme the reader is not currently using.
+ */
+
+.rp-embed {
+  margin: 1.2rem 0 1.4rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+
+.rp-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  background: var(--md-default-bg-color);
+}
+
+.rp-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.rp-field > span {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  white-space: nowrap;
+}
+
+.rp-field select {
+  font: inherit;
+  font-size: 0.7rem;
+  max-width: 16rem;
+  padding: 0.25rem 1.3rem 0.25rem 0.45rem;
+  color: var(--md-default-fg-color);
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lighter);
+  border-radius: 0.2rem;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.rp-field select:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 1px;
+}
+
+/* A CSS caret rather than a background image: it inherits the theme's text
+   colour, which a background SVG could not. */
+.rp-field::after {
+  content: "";
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  margin-top: -0.1rem;
+  border: 0.22rem solid transparent;
+  border-top-color: var(--md-default-fg-color--light);
+  pointer-events: none;
+}
+
+.rp-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rp-switch input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.rp-track {
+  position: relative;
+  flex: none;
+  width: 2rem;
+  height: 1.05rem;
+  border-radius: 1rem;
+  background: var(--md-default-fg-color--lighter);
+  transition: background 0.18s ease;
+}
+
+.rp-thumb {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: var(--md-default-bg-color);
+  transition: transform 0.18s ease;
+}
+
+.rp-switch input:checked + .rp-track {
+  background: var(--md-accent-fg-color);
+}
+
+.rp-switch input:checked + .rp-track .rp-thumb {
+  transform: translateX(0.95rem);
+}
+
+.rp-switch input:focus-visible + .rp-track {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
+/* The word is generated from the checkbox rather than written by script.
+ * Returning to this page re-renders the authored markup while the browser
+ * restores the checkbox's own state, so any JS-set text can come back
+ * disagreeing with the control it describes. Content tied to :checked cannot.
+ */
+.rp-switch-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--md-default-fg-color--light);
+  /* Fixed width so the bar does not reflow between "Light" and "Dark". */
+  min-width: 2.4rem;
+}
+
+.rp-switch-label::after {
+  content: "Light";
+}
+
+.rp-switch input:checked ~ .rp-switch-label::after {
+  content: "Dark";
+}
+
+.rp-screen {
+  background: var(--md-code-bg-color);
+}
+
+.rp-embed iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-track,
+  .rp-thumb {
+    transition: none;
+  }
+}

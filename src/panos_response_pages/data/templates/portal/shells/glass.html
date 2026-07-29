@@ -1,0 +1,351 @@
+<!--
+  Glass Panel, ported to the GlobalProtect portal from shells/glass.html and
+  from the two candidates verified against a live firewall.
+
+  Three slots, and only two of them ever reach the same import: STYLE_LOGIN and
+  BODY go to the Login Page import, STYLE_LOGOUT to the Home Page import. The
+  rule sets are disjoint, so nothing is shared between them.
+-->
+<!--@STYLE_LOGIN-->
+:root{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--ob:.30;--gf:88%}
+@media(prefers-color-scheme:dark){:root{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%}}
+html[data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};--ob:.30;--gf:88%}
+html[data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%}
+*{box-sizing:border-box}
+html{font-size:16px}
+@media(min-width:600px){html{font-size:20px}}
+/* Only the horizontal axis is clamped. The orbs hang off both edges but are
+   already clipped by .field's own overflow:hidden, so the page never needs to
+   scroll sideways -- while the vertical axis has to stay scrollable, because
+   the change-password state adds two more fields and a message box and grows
+   taller than the viewport. Clamping both axes silently cuts that state off. */
+html,body{overflow-x:hidden!important}
+body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+.field{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.field span{position:absolute;border-radius:50%;filter:blur(2.5rem);opacity:var(--ob)}
+.o1{top:-9rem;left:-4rem;width:24rem;height:24rem;background:var(--ac);
+animation:fl 11s ease-in-out infinite}
+.o2{bottom:-11rem;right:-5rem;width:26rem;height:26rem;background:var(--aw);
+animation:fl 14s ease-in-out infinite reverse}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-.6rem)}}
+/* .loginscreen_logo is the wrapper the stock file uses. Keeping the class name
+   means the markup below still looks like the page PAN-OS shipped, which
+   matters when the next admin diffs it against the factory default. */
+.loginscreen_logo{position:relative;min-height:100vh;display:flex;align-items:center;
+justify-content:center;padding:clamp(1.5rem,6vh,3rem) 1.5rem}
+.pane{width:100%;max-width:24rem;padding:1px;border-radius:1.1rem;
+background:linear-gradient(150deg,var(--aw),transparent 55%,var(--sa));
+box-shadow:0 1.5rem 3.5rem rgba(0,0,0,.16)}
+/* The solid fill first, then the translucent one: an old browser drops the
+   color-mix declaration entirely, and without the fallback the panel would have
+   no background at all and its text would land on the orbs. */
+.panein{border-radius:1.05rem;padding:2rem 1.8rem 1.8rem;
+background:var(--gr);
+background:color-mix(in oklab,var(--gr) var(--gf),transparent);
+backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35)}
+/* The mark, twice. An SVG behind url() renders as an isolated document --
+   currentColor is dead in there and these custom properties are out of scope --
+   so changing scheme means changing the whole asset. Doing that here rather
+   than inside the SVG is what lets data-force-scheme reach it, which is how one
+   machine previews both schemes. Each copy is written once and selected through
+   --lg; naming them in all four rule sets would carry the artwork four times. */
+:root{--lgl:url("data:image/svg+xml,{{PORTAL_LOGO_LIGHT}}");
+--lgd:url("data:image/svg+xml,{{PORTAL_LOGO_DARK}}");--lg:var(--lgl)}
+@media(prefers-color-scheme:dark){:root{--lg:var(--lgd)}}
+html[data-force-scheme=light]{--lg:var(--lgl)}
+html[data-force-scheme=dark]{--lg:var(--lgd)}
+/* The lockup: the mark painted by the stylesheet, the name beside it as live
+   text. Splitting them is what makes a rename in config reach this page -- an
+   SVG cannot measure text, so a name drawn into fixed artwork is a name that
+   gets clipped or shrunk. It also means only the mark needs a copy per scheme;
+   the text takes its colour from the cascade, inherited rather than stated,
+   because the one theme that stands this on the accent band has already set it.
+   Painting from CSS also puts it on screen at first paint: the body ships no
+   img and the logo variable is empty, so nothing here waits on jQuery. */
+#logo{height:2.2rem;margin:0 0 1.5rem;display:flex;align-items:center;gap:.55rem;
+font-size:1.02rem;font-weight:700;letter-spacing:-.01em;color:inherit}
+#logo .mk{width:1.9rem;height:1.9rem;flex:none;
+background:var(--lg) center/contain no-repeat}
+#heading{margin:0 0 .35rem;font-size:1.5rem;line-height:1.16;letter-spacing:-.03em;
+font-weight:650;color:var(--ik);text-align:left;font-family:inherit}
+/* The portal name, carried in markup because gp_portal_name is applied with
+   .html() and would replace the switch spans beside it. */
+#heading .pn{display:block;margin:0 0 .2rem;font-size:.6rem;font-weight:700;
+letter-spacing:.14em;text-transform:uppercase;color:var(--at)}
+.gloss{margin:0 0 1.6rem;color:var(--im);font-size:.88rem;line-height:1.6}
+/* Below: the markup the form token expands into. The ids are PAN-OS', not ours
+   -- loadPage() and submitClicked() look them up by id, so they are restyled in
+   place. The token is named in prose, never written literally outside the body:
+   PAN-OS substitutes the first occurrence in the file and does not care that it
+   is inside a comment. */
+#formdiv{margin:0}
+#taLogin{margin:0;padding:0;width:auto;min-height:0;background:none;border:0;
+box-shadow:none;text-align:left}
+.login_fields>div{width:auto;margin:0 0 .85rem}
+#formdiv input[type=text],#formdiv input[type=password]{
+display:block;width:100%;min-height:2.7rem;padding:.6rem .85rem;
+font:inherit;font-size:.85rem;color:var(--ik);
+background:var(--sa);
+background:color-mix(in oklab,var(--sa) 70%,transparent);
+border:1px solid var(--aw);border-radius:.6rem;-webkit-appearance:none;appearance:none;
+transition:border-color .15s ease,box-shadow .15s ease}
+#formdiv input[type=text]:focus,#formdiv input[type=password]:focus{
+outline:0;border-color:var(--at);box-shadow:0 0 0 3px var(--aw)}
+#formdiv input::placeholder{color:var(--if);opacity:1}
+#submitbutton{margin:1.3rem 0 0}
+#formdiv .buttonFixed{display:block;width:100%;min-height:2.7rem;margin:0;
+padding:.65rem 1.4rem;font:inherit;font-size:.85rem;font-weight:650;
+background:var(--ac);color:var(--ai);border:1px solid transparent;border-radius:.6rem;
+cursor:pointer;-webkit-appearance:none;appearance:none;
+box-shadow:0 .5rem 1.2rem rgba(0,0,0,.18)}
+#formdiv .buttonFixed:hover{filter:brightness(1.08)}
+#dError,.error_msg{margin:1.1rem 0 0;padding:.7rem .8rem;border-radius:.65rem;
+font:inherit;font-size:.76rem;line-height:1.55;color:var(--ik);
+border:1px solid var(--ct);background:var(--cw);list-style:none}
+/* loadPage() writes the failure text as an <li> with no list around it. */
+#dError li{display:block;list-style:none}
+#dInputStr{margin:0 0 .85rem;font-size:.82rem;color:var(--im)}
+/* The two wrappers, listed by id. PAN-OS puts class="msg" on the inner div
+   as well, so a `#dChangePasswordMsgArea .msg` reset matches the message box
+   too -- and at one id plus one class it outranks the `#dChangePasswordMsg`
+   rule below, stripping the padding and the background off the box that
+   actually shows the text. Only the change-password state renders any of
+   this, so nothing catches it until a password expires. */
+#dChangePasswordMsgArea,#dChangePasswordMsgBorder{max-width:none;margin:1.1rem 0 0;padding:0;background:none}
+#dChangePasswordMsg{padding:.7rem .8rem;border-radius:.65rem;font-size:.76rem;
+border:1px solid var(--aw);background:var(--sa)}
+/* --- getsoftwarepage.esp ------------------------------------------------
+   The portal serves this same imported file for the agent-download page and
+   swaps the form token for a different form. One file, two contexts, so the
+   copy switches with them: .pl shows on the login page, .ps on the download
+   page. Default is login -- if the detection script never runs, the page
+   degrades to the login wording rather than to nothing. */
+.ps{display:none}
+html[data-page=sw] .pl{display:none}
+html[data-page=sw] .ps{display:inline}
+/* The injected markup is 2005-era table layout with align/valign/width
+   attributes and an inline padding-top on the outer table. Inline styles
+   outrank a stylesheet, which is why the width, height and padding resets carry
+   !important -- the rest is beating presentational attributes, which do not. */
+html[data-page=sw] table{width:100%!important;height:auto!important;
+padding-top:0!important;border-collapse:collapse}
+html[data-page=sw] td{padding:0;text-align:left;vertical-align:top}
+#taGetSofewarePage p{margin:0 0 .5rem}
+/* PAN-OS' own anchors, styled where they stand. All three weighted equally on
+   purpose: this rule set is the fallback, shown whenever the script below has
+   not replaced it, and a primary chosen here would have to be chosen by DOM
+   position -- PAN-OS lists Windows 32-bit first, so the accent would steer
+   people onto a 32-bit build. The anchors carry no class; p > a is the only
+   anchor shape in this form. */
+#taGetSofewarePage p a{display:block;min-height:2.7rem;padding:.7rem 1rem;
+font-size:.85rem;font-weight:650;text-align:center;text-decoration:none;
+border-radius:.6rem;background:var(--sa);color:var(--at);border:1px solid var(--aw)}
+#taGetSofewarePage p a:hover{filter:brightness(.97)}
+/* --- the download button ---
+   Everything above is the page PAN-OS builds: three equal links over three rows
+   explaining which one to take, i.e. a decision the browser has already made.
+   The script at the end of the body reads the platform out of the user agent,
+   MOVES those anchors into the menu below -- moved, never rebuilt, so no href
+   is ever retyped and no markup is ever built in JS -- and puts the matching
+   one on this button.
+
+   None of this is visible until that script sets data-dl on the document, which
+   it does last. #dl ships hidden, so a thrown exception, a blocked script or a
+   platform nobody recognised leaves the working stock links in place rather
+   than an empty card. */
+html[data-dl] #taGetSofewarePage p,
+html[data-dl] #taGetSofewarePage table{display:none}
+.dl[hidden]{display:none}
+/* One-pixel gap rather than a border between the halves: they share a colour,
+   so a border would need its own contrasting value in every palette. */
+.dlrow{display:flex;gap:1px}
+.dlmain{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+min-height:2.7rem;padding:.7rem 1.1rem;font-size:.85rem;font-weight:650;text-decoration:none;
+cursor:pointer;background:var(--ac);color:var(--ai);border:1px solid transparent;
+border-radius:.6rem 0 0 .6rem;box-shadow:0 .5rem 1.2rem rgba(0,0,0,.18);}
+.dlmain svg{width:1.05rem;height:1.05rem;flex:none}
+.dlcar{display:inline-flex;align-items:center;justify-content:center;width:2.6rem;
+min-height:2.7rem;padding:0;font:inherit;cursor:pointer;
+background:var(--ac);color:var(--ai);border:1px solid transparent;
+border-radius:0 .6rem .6rem 0;box-shadow:0 .5rem 1.2rem rgba(0,0,0,.18);-webkit-appearance:none;appearance:none}
+.dlcar svg{width:1.1rem;height:1.1rem}
+.dlmain:hover,.dlcar:hover{filter:brightness(1.08)}
+.dlcar[aria-expanded=true] svg{transform:rotate(180deg)}
+/* The focus rule at the foot of this file covers a and input. The caret is a
+   button, so it needs its own. */
+.dlcar:focus-visible{outline:3px solid var(--at);outline-offset:3px}
+.dlmenu{margin:.4rem 0 0;padding:.3rem;border-radius:.6rem;border:1px solid var(--aw);
+background:var(--gr)}
+.dlmenu[hidden]{display:none}
+.dlitem{display:block;padding:.55rem .7rem;border-radius:.45rem;font-size:.8rem;
+font-weight:650;color:var(--ik);text-decoration:none}
+.dlitem:hover{background:var(--sa)}
+/* The description rows are styled for that same fallback: three sentences
+   restating which build suits which OS, which is exactly what the button below
+   answers. Hidden with the links once the button is up. #dFormat is empty in
+   every capture. */
+#taGetSofewarePage table{margin:1rem 0 0}
+#taGetSofewarePage table td{padding:.25rem 0;font-size:.72rem;line-height:1.5;color:var(--if)}
+#dFormat{display:none}
+.note{margin:1.5rem 0 0;font-size:.74rem;color:var(--if);line-height:1.6}
+.note a{color:var(--at)}
+a:focus-visible,input:focus-visible{outline:3px solid var(--at);outline-offset:3px}
+@media(max-width:600px){
+.loginscreen_logo{padding:1.5rem 1.15rem;align-items:flex-start}
+.panein{padding:1.6rem 1.3rem 1.5rem}
+#heading{font-size:1.4rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+<!--/@STYLE_LOGIN-->
+<!--@BODY-->
+<div class="field" aria-hidden="true"><span class="o1"></span><span class="o2"></span></div>
+<div class="loginscreen_logo">
+<div class="pane"><div class="panein">
+<div id="logo"><span class="mk" aria-hidden="true"></span><span>{{COMPANY}}</span></div>
+<div id="activearea">
+<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">Sign in</span><span class="ps">Get Agent Software</span></div>
+<p class="gloss"><span class="pl">Use your company account to sign in.</span><span class="ps">Download the agent for your operating system, then sign in from the app.</span></p>
+<div id="formdiv">
+<pan_form/>
+</div>
+<div class="dl" id="dl" hidden>
+<div class="dlrow">
+<a class="dlmain" id="dlmain"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg><span id="dllab">Download</span></a>
+<button class="dlcar" id="dlcar" type="button" aria-expanded="false" aria-haspopup="true" aria-label="Other platforms"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></button>
+</div>
+<div class="dlmenu" id="dlmenu" hidden></div>
+</div>
+</div>
+<p class="note">Need help? Contact <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+</div></div>
+</div>
+<!--/@BODY-->
+<!--@STYLE_LOGOUT-->
+html[data-gp=logout]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--ob:.30;--gf:88%;font-size:16px;overflow-x:hidden}
+@media(prefers-color-scheme:dark){html[data-gp=logout]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--ob:.20;--gf:92%}}
+html[data-gp=logout][data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};--ob:.30;--gf:88%}
+html[data-gp=logout][data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};--ob:.20;--gf:92%}
+html[data-gp=logout] *{box-sizing:border-box}
+@media(min-width:600px){html[data-gp=logout]{font-size:20px}}
+/* The body is the centring container here. On the login page that job belonged
+   to .loginscreen_logo, but this page has no wrapper to spare -- that element
+   is needed for the card itself. */
+html[data-gp=logout] body{margin:0;min-height:100vh;display:flex;align-items:center;
+justify-content:center;padding:clamp(1.5rem,6vh,3rem) 1.5rem;
+background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+/* Orbs as pseudo-elements. The login page uses two real spans inside a .field
+   div, but no markup can be added to this page, and ::before/::after on the
+   body render the same blurred discs. position:fixed keeps them out of the
+   scroll box. */
+html[data-gp=logout] body::before,html[data-gp=logout] body::after{content:"";
+position:fixed;border-radius:50%;filter:blur(2.5rem);opacity:var(--ob);
+pointer-events:none;z-index:0}
+html[data-gp=logout] body::before{top:-9rem;left:-4rem;width:24rem;height:24rem;
+background:var(--ac);animation:fl 11s ease-in-out infinite}
+html[data-gp=logout] body::after{bottom:-11rem;right:-5rem;width:26rem;height:26rem;
+background:var(--aw);animation:fl 14s ease-in-out infinite reverse}
+@keyframes fl{0%,100%{transform:translateY(0)}50%{transform:translateY(-.6rem)}}
+/* .loginscreen_logo is the card. It is the only element wrapping all the
+   content, so it takes the pane treatment the login page splits across .pane
+   and .panein -- one border-radius and one background instead of the gradient
+   hairline. */
+html[data-gp=logout] .loginscreen_logo{position:relative;z-index:1;width:100%;
+max-width:24rem;margin:0;padding:2rem 1.8rem 1.8rem;text-align:left;
+border-radius:1.1rem;border:1px solid var(--aw);
+background:var(--gr);
+background:color-mix(in oklab,var(--gr) var(--gf),transparent);
+backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35);
+box-shadow:0 1.5rem 3.5rem rgba(0,0,0,.16)}
+/* The logo is painted by CSS, not by the logo variable, and the img PAN-OS
+   wrote is hidden outright.
+
+   PAN-OS hard-codes its own <img src=...> into this body and its jQuery handler
+   only rewrites that src at ready. The browser has already fetched and painted
+   the Palo Alto mark by then, so the page visibly flashes the wrong logo before
+   settling on ours. On the login page that was avoidable -- we own that body
+   and ship the img with no src -- but here the body is PAN-OS'. A stylesheet
+   applies at first paint, so moving the artwork into CSS removes the flash
+   entirely. The img is display:none rather than swapped, so its src never
+   matters, whatever jQuery does to it later.
+
+   The logo variable stays set even though this rule supersedes it: the same
+   variable brands the portal home page, which this file does not restyle. That
+   page gets the light copy and only the light copy -- it is an img src, and an
+   img has no way to be told which scheme it is in. Its Bootstrap chrome is
+   light either way, so that is the right copy. */
+html[data-gp=logout]{--lgl:url("data:image/svg+xml,{{PORTAL_LOGO_LIGHT}}");
+--lgd:url("data:image/svg+xml,{{PORTAL_LOGO_DARK}}");--lg:var(--lgl)}
+@media(prefers-color-scheme:dark){html[data-gp=logout]{--lg:var(--lgd)}}
+html[data-gp=logout][data-force-scheme=light]{--lg:var(--lgl)}
+html[data-gp=logout][data-force-scheme=dark]{--lg:var(--lgd)}
+/* PAN-OS owns this body, so the name cannot be put beside the mark as markup.
+   ::before carries the artwork and ::after the text -- both on our own
+   stylesheet, which is the only way in. The img PAN-OS wrote is hidden rather
+   than swapped, so whatever its src ends up being never matters. */
+html[data-gp=logout] #logo{height:2.2rem;margin:0 0 1.5rem;display:flex;align-items:center;gap:.55rem;
+font-size:1.02rem;font-weight:700;letter-spacing:-.01em}
+html[data-gp=logout] #logo::before{content:"";width:1.9rem;height:1.9rem;flex:none;
+background:var(--lg) center/contain no-repeat}
+html[data-gp=logout] #logo::after{content:"{{COMPANY_CSS}}"}
+html[data-gp=logout] #logo img{display:none}
+html[data-gp=logout] #heading{margin:0 0 1.2rem;font-size:1.5rem;line-height:1.16;
+letter-spacing:-.03em;font-weight:650;color:var(--ik);text-align:left;font-family:inherit}
+html[data-gp=logout] #formdiv{margin:0}
+/* The message div. PAN-OS fills it from logout_text_array at ready, so it is
+   empty at parse time -- min-height stops the card resizing when text lands. */
+html[data-gp=logout] #logout{min-height:2.6rem;margin:0 0 1.5rem;padding:.75rem .85rem;
+width:auto;font-family:inherit;font-size:.85rem;font-weight:400;line-height:1.6;
+text-align:left;color:var(--ik);border-radius:.65rem;border:1px solid var(--aw);
+background:var(--sa);
+background:color-mix(in oklab,var(--sa) 70%,transparent)}
+html[data-gp=logout] #taLogout{margin:0;padding:0;width:auto;min-height:0;
+background:none;border:0;box-shadow:none;text-align:left}
+html[data-gp=logout] .buttonFixed-logout{display:block;width:100%;min-height:2.7rem;
+margin:0;padding:.65rem 1.4rem;font:inherit;font-size:.85rem;font-weight:650;
+background:var(--ac);color:var(--ai);border:1px solid transparent;border-radius:.6rem;
+cursor:pointer;-webkit-appearance:none;appearance:none;text-transform:none;
+box-shadow:0 .5rem 1.2rem rgba(0,0,0,.18)}
+html[data-gp=logout] .buttonFixed-logout:hover{filter:brightness(1.08)}
+html[data-gp=logout] .buttonFixed-logout:focus-visible{outline:3px solid var(--at);
+outline-offset:3px}
+@media(max-width:600px){
+html[data-gp=logout] body{padding:1.5rem 1.15rem;align-items:flex-start}
+html[data-gp=logout] .loginscreen_logo{padding:1.6rem 1.3rem 1.5rem}
+html[data-gp=logout] #heading{font-size:1.4rem}}
+@media(prefers-reduced-motion:reduce){
+html[data-gp=logout] *{animation:none!important;transition:none!important}}
+<!--/@STYLE_LOGOUT-->

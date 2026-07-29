@@ -1,0 +1,60 @@
+
+<div id="activearea">
+    <div id="formdiv">
+    <form name="login" id="login_form" method="post" autocomplete="off">
+
+        <input type="hidden" name="prot" value="">
+        <input type="hidden" name="server" value="">
+        <input type="hidden" name="inputStr" value="">
+        <input type="hidden" name="action" value="">
+        <!-- The captured token value has been replaced. PAN-OS mints a csrf-token
+             per page load inside the pan_form substitution, so the real one was
+             valid for exactly one request against one appliance and is worthless
+             now -- but a token-shaped string sitting in a repository invites
+             someone to believe otherwise, so nothing that looks reusable is kept.
+             The input itself stays: submitClicked() and the preview both expect
+             the form PAN-OS actually emits.
+             This is also why spliced output must never reach validate_portal():
+             it errors on the literal string csrf-token anywhere in a file, which
+             is the correct rule for a real import and the wrong one for a capture
+             of what the firewall served back. -->
+        <input type="hidden" name="csrf-token" value="SAMPLE-PREVIEW-TOKEN-NOT-VALID">
+
+        <div id="taLogin">
+            <div class="login_fields">
+                <div id="dUserName">
+                    <input type="text" id="user" name="user" size="19" placeholder="Username" autocomplete="off">
+                </div>
+                <div id="dInputStr" style="display:none"><br></div>
+                <div id="dPassword">
+                    <input type="password" id="passwd" maxlength="128" size="19" name="passwd" placeholder="Password" autocomplete="off">
+                </div>
+                <div id="dNewPassword" style="display:none">
+                    <input type="password" maxlength="128" size="19" name="new-passwd" id="new_passwd" placeholder="New Password" autocomplete="off">
+                </div>
+                <div id="dConfirmNewPassword" style="display:none">
+                    <input type="password" maxlength="128" size="19" name="confirm-new-passwd" id="confirm_new_passwd" placeholder="confirm New Password" autocomplete="off">
+                </div>
+                <div id="submitbutton">
+                    <input class="buttonFixed" type="submit" id="submit" name="ok" value="Log In" onclick="return submitClicked()">
+                </div>
+            </div>
+        </div>
+
+        <div id="dError" class="error_msg" style="display:none"> </div>
+
+                <div id="dChangePasswordMsgArea">
+                  <div id="dChangePasswordMsgBorder" class="msg">
+                    <div id="dChangePasswordMsg" class="msg" style="display: none;">
+                    </div>
+                  </div>
+                </div>
+
+    </form>
+    </div>
+</div>
+
+
+
+
+

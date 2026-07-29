@@ -8,6 +8,15 @@ Modern, responsive response pages for PAN-OS. Generate response pages to delight
 
 **[Full documentation →](https://kaisero.github.io/panos-response-pages/)**
 
+## Preview
+
+`panos-response-pages` generates responsive response pages for Desktop and Mobile which
+support both dark and light mode by default. For a full preview of all available themes
+and options take a look at the dedicated [Preview](https://kaisero.github.io/panos-response-pages/preview/) pages.
+
+[![A blocked-application page rendered in the Beacon Field style](docs/assets/preview-beacon.png)](https://kaisero.github.io/panos-response-pages/preview/)
+
+
 ## Install
 
 ```bash

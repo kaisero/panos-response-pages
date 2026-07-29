@@ -1,37 +1,47 @@
 # Changelog
 
-## [Unreleased]
+Notable changes to this project. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-07-28
+## [0.1.0]
+
+First release.
 
 ### Added
 
-- **Nine PAN-OS response page types**: URL Filtering block and continue,
-  Safe Search enforcement, Application block, Anti-Phishing block and continue,
-  Antivirus block, File Blocking block and continue.
-- **Six styles** — `assist`, `record`, `banner`, `glass`, `beacon`, `mesh` —
-  each supporting all three palettes and both colour schemes.
-- **Three palettes**: Cyber Orange, Strata Yellow, Prisma Blue. Every text/fill combination is
-  held to 4.5:1 in both schemes by the test suite.
-- **Typer CLI** with `build`, `init`, `themes`, `palettes`, `pages` and
-  `validate`, shell completion, and rejection that reports the available values
-  rather than only refusing.
-- **Packaged data** with a `--config-dir` override and `init` to copy the shipped
-  shells, palettes, themes and config out for editing.
-- **Logging** to stdout with `-v`/`-vv`/`-q`, `--log-json` for a single
-  machine-readable stream, and optional rotating file logging configured from
-  `~/.panos_response_pages/settings.yaml`.
-- **PAN-OS guards** that fail the build rather than letting a page fail silently
-  on a firewall: the 17,999-byte ceiling, external references, tokens the page
-  type does not provide, missing doctype, and copy the page cannot substantiate.
-- **A clickthrough preview gallery** across style, page, viewport and scheme.
+- **Nine URL Filtering and Threat Prevention response pages**: URL block and
+  coach text, Safe Search enforcement, Application block, credential block and
+  coach text, Antivirus block, and File Blocking block and continue.
+- **Two GlobalProtect portal pages**, covering three visitor-facing screens: the
+  portal login page, the agent download page and the logout page. The portal home
+  page is deliberately left as PAN-OS ships it.
+- **Six styles** — `assist`, `record`, `banner`, `glass`, `beacon` and `mesh` —
+  with every page available in every style.
+- **Three palettes**: Cyber Orange, Strata Yellow and Prisma Blue. Every text and
+  fill pairing meets 4.5:1 contrast, enforced by the test suite.
+- **Light and dark mode** on every page, following the visitor's system setting.
+- **Responsive layouts** for desktop and mobile.
+- **Self-contained pages.** Each is a single HTML file that makes no external
+  requests, so it renders on a blocked site with no network access.
+- **A command-line interface** with `build`, `init`, `themes`, `palettes`,
+  `pages` and `validate`, plus shell completion.
+- **Customisation through JSON config**: company name, support address, logos,
+  portal wording, per-category explanations and the GlobalProtect logout
+  messages. `init` copies the shipped templates, palettes, themes and config out
+  for editing, and `--config-dir` points a build at them.
+- **Operating-system detection on the GlobalProtect download page.** Visitors are
+  offered the agent build for their platform, with the rest behind a menu, in
+  place of the three undifferentiated links PAN-OS serves.
+- **A clickthrough preview gallery** across style, page, viewport and colour
+  scheme, published with the documentation site. The documentation home page
+  carries a live inline preview.
+- **Build-time validation** against the limits PAN-OS enforces silently: the
+  17,999-byte serving ceiling for response pages, the 16,170-byte import ceiling
+  for GlobalProtect portal pages, external references, missing doctypes, tokens a
+  page type does not provide, and copy the page cannot substantiate. The build
+  fails rather than emitting a page that breaks on the firewall.
+- **Logging** to stdout with `-v`, `-vv` and `-q`, `--log-json` for a single
+  machine-readable stream, and optional rotating file logging.
 
-### Fixed
-
-- Pages are written with `write_bytes` rather than `write_text`. `write_text`
-  translates newlines to `os.linesep`, but the size guard measures the string in
-  memory beforehand — on Windows every page would gain a byte per line *after*
-  being measured, and could ship over the ceiling with the report saying `ok`.
-
-[Unreleased]: https://github.com/kaisero/panos-response-pages/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/kaisero/panos-response-pages/releases/tag/v0.1.0

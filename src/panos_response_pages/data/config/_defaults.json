@@ -1,13 +1,25 @@
 {
   "company": "Example Corp",
   "supportEmail": "servicedesk@example.com",
-
   "_palette": "Colour scheme, from palettes/. One of: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette.",
   "palette": "cyber-orange",
-
   "_logoSvg": "Placeholder mark. Replace with the customer's logo as INLINE SVG, optimised to <= 2 KB. A traced-path export can be 40 KB and will silently break the page. Keep viewBox 0 0 24 24 and use currentColor so it inherits the theme accent.",
   "logoSvg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"M12 8.2v4.4\"/><path d=\"M12 15.6h.01\"/></svg>",
-
+  "_portalName": "Heading under the portal logo. Rendered into the #heading markup by the shell, NOT via gp_portal_name -- PAN-OS applies that variable with .html(), which would replace the login/download switch spans and leave the download page reading 'Sign in'. Names the service, not the company: this same string is a small eyebrow on the login and download pages but the whole <h1> on logout, and a value carrying {{COMPANY}} wraps that heading to two lines as soon as the company name is long. The company is already on every one of these pages -- it is the wordmark beside the logo.",
+  "portalName": "GlobalProtect",
+  "_portalLogoSvg": "The GlobalProtect portal MARK, as SVG source -- the symbol only, no company name. The name is rendered as text beside it, from `company`, so it follows a rename and takes its colour from the page. Do not draw it in here: an SVG cannot measure text, the viewBox is fixed, and a name longer than the artwork would simply be clipped. Separate from logoSvg because the portal needs this as a percent-encoded data: URI rather than inline markup -- the build does that encoding, so write plain SVG here, with single quotes for attributes. Colour it with the S_* tokens, never a literal hex and never currentColor: this artwork is an isolated document and inherits nothing from the page. The build renders it TWICE, binding S_* to the palette's light values for one copy and its d_ values for the other, and the shells switch between the two in CSS. Keep it square -- it is drawn into a square box.",
+  "portalLogoSvg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='{{S_ACCENT}}'/><g transform='translate(16,16) scale(.85) translate(-12,-12.5)'><path d='M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z' fill='{{S_ACCENT_INK}}'/></g></svg>",
+  "_portalLogoSvgDark": "Optional. Set it only when the dark-scheme mark is different ARTWORK -- a different symbol, a knockout treatment -- rather than the same drawing in different colours. Left out, the dark copy is portalLogoSvg with S_* bound to the palette's dark values, which is what a mark built from the tokens wants.",
+  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator'.",
+  "logoutMessages": [
+    "You have successfully logged out of GlobalProtect portal.",
+    "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
+    "User not authenticated to GlobalProtect portal.",
+    "System error. Contact {{SUPPORT_EMAIL}}.",
+    "System error, failed to delete user session. Contact {{SUPPORT_EMAIL}}.",
+    "Cannot create user session, maximum capacity reached. Contact {{SUPPORT_EMAIL}}.",
+    "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
+  ],
   "_marks": "Page-level marks, also inline SVG. Referenced by name from a page template's <!--@MARK--> slot.",
   "marks": {
     "shield": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"m9 12.3 2.1 2.1 4-4.3\"/></svg>",
@@ -20,31 +32,79 @@
     "warning": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.6 21.4 20H2.6Z\"/><path d=\"M12 10.2v3.6\"/><path d=\"M12 16.8h.01\"/></svg>",
     "search": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"m16 16 4 4\"/></svg>"
   },
-
   "_defaultGloss": "Shown when the blocked category is not in the map below. Must be true for every category, so keep it general.",
   "defaultGloss": "This category is restricted by company policy.",
-
   "_continueGrantText": "How long a Continue/Override grant lasts. PAN-OS defaults to 15 minutes but this is administrator-configurable per firewall, so it must match your actual URL Admin Override timeout rather than being hardcoded in the page.",
   "continueGrantText": "15 minutes",
-
   "_categories": "PAN-OS exposes no severity or reason variable and serves one page per type, so this map is applied client-side by reading the substituted <category/> value. Tone is one of calm | warn | critical. Covers the categories responsible for nearly all real blocks -- everything else falls back to defaultGloss.",
   "categories": {
-    "command-and-control": { "tone": "critical", "gloss": "Sites in this category are used to remote-control computers that are already infected." },
-    "malware":             { "tone": "critical", "gloss": "This site is known to distribute software that can steal data or take over your device." },
-    "phishing":            { "tone": "critical", "gloss": "This site is impersonating a real sign-in page to collect passwords." },
-    "ransomware":          { "tone": "critical", "gloss": "This site is linked to ransomware, which encrypts files and demands payment." },
-    "grayware":            { "tone": "warn",     "gloss": "This site hosts unwanted software — not clearly malicious, but not safe to run on a work device." },
-    "newly-registered-domain": { "tone": "warn", "gloss": "This domain was registered very recently. New domains are blocked for a short period because they are frequently used in scams." },
-    "parked":              { "tone": "warn",     "gloss": "This domain has no real content. Parked domains are often placeholders for scams or malware." },
-    "dynamic-dns":         { "tone": "warn",     "gloss": "This address uses a dynamic DNS service, commonly used to hide where a site is actually hosted." },
-    "unknown":             { "tone": "warn",     "gloss": "This site has not been categorised yet, so it is blocked as a precaution." },
-    "insufficient-content":{ "tone": "warn",     "gloss": "There is not enough content on this site to classify it, so it is blocked as a precaution." },
-    "hacking":             { "tone": "warn",     "gloss": "This site distributes tools or instructions for attacking computer systems." },
-    "proxy-avoidance-and-anonymizers": { "tone": "warn", "gloss": "This site is designed to bypass network security controls." },
-    "shopping":            { "tone": "calm",     "gloss": "Shopping sites are not available on the company network." },
-    "streaming-media":     { "tone": "calm",     "gloss": "Streaming sites are not available on the company network, mainly to protect bandwidth." },
-    "games":               { "tone": "calm",     "gloss": "Games are not available on the company network." },
-    "social-networking":   { "tone": "calm",     "gloss": "Social networks are not available on the company network." },
-    "web-advertisements":  { "tone": "calm",     "gloss": "Advertising and tracking content is blocked across the company network." }
+    "command-and-control": {
+      "tone": "critical",
+      "gloss": "Sites in this category are used to remote-control computers that are already infected."
+    },
+    "malware": {
+      "tone": "critical",
+      "gloss": "This site is known to distribute software that can steal data or take over your device."
+    },
+    "phishing": {
+      "tone": "critical",
+      "gloss": "This site is impersonating a real sign-in page to collect passwords."
+    },
+    "ransomware": {
+      "tone": "critical",
+      "gloss": "This site is linked to ransomware, which encrypts files and demands payment."
+    },
+    "grayware": {
+      "tone": "warn",
+      "gloss": "This site hosts unwanted software — not clearly malicious, but not safe to run on a work device."
+    },
+    "newly-registered-domain": {
+      "tone": "warn",
+      "gloss": "This domain was registered very recently. New domains are blocked for a short period because they are frequently used in scams."
+    },
+    "parked": {
+      "tone": "warn",
+      "gloss": "This domain has no real content. Parked domains are often placeholders for scams or malware."
+    },
+    "dynamic-dns": {
+      "tone": "warn",
+      "gloss": "This address uses a dynamic DNS service, commonly used to hide where a site is actually hosted."
+    },
+    "unknown": {
+      "tone": "warn",
+      "gloss": "This site has not been categorised yet, so it is blocked as a precaution."
+    },
+    "insufficient-content": {
+      "tone": "warn",
+      "gloss": "There is not enough content on this site to classify it, so it is blocked as a precaution."
+    },
+    "hacking": {
+      "tone": "warn",
+      "gloss": "This site distributes tools or instructions for attacking computer systems."
+    },
+    "proxy-avoidance-and-anonymizers": {
+      "tone": "warn",
+      "gloss": "This site is designed to bypass network security controls."
+    },
+    "shopping": {
+      "tone": "calm",
+      "gloss": "Shopping sites are not available on the company network."
+    },
+    "streaming-media": {
+      "tone": "calm",
+      "gloss": "Streaming sites are not available on the company network, mainly to protect bandwidth."
+    },
+    "games": {
+      "tone": "calm",
+      "gloss": "Games are not available on the company network."
+    },
+    "social-networking": {
+      "tone": "calm",
+      "gloss": "Social networks are not available on the company network."
+    },
+    "web-advertisements": {
+      "tone": "calm",
+      "gloss": "Advertising and tracking content is blocked across the company network."
+    }
   }
 }

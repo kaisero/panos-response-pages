@@ -21,12 +21,25 @@ theme:
       scheme: slate
       toggle: {icon: material/weather-sunny, name: Switch to light mode}
 
+# Flat on purpose: test_docs.py reads each entry as a single path, so a nested
+# section yields a list and raises TypeError.
 nav:
   - Home: index.md
   - CLI: cli.md
   - Styles: styles.md
   - Copy rules: copy-rules.md
   - Customising: customising.md
+  - GlobalProtect portal: portal.md
+  - Architecture: architecture/general.md
+  - GP login page: architecture/globalprotect-portal-login-page.md
+  - GP home page: architecture/globalprotect-portal-home-page.md
+  - URL filtering pages: architecture/url-filtering-response-pages.md
+
+extra_css:
+  - assets/preview-embed.css
+
+extra_javascript:
+  - assets/preview-embed.js
 
 plugins:
   - search
@@ -39,6 +52,11 @@ plugins:
             members_order: source
 
 markdown_extensions:
+  # attr_list is what lets the preview links carry target="_blank". That is not
+  # cosmetic: navigation.instant intercepts same-origin links and swaps the new
+  # body into the current page, which would tear the gallery -- its own document,
+  # with its own CSS and script -- out of its shell. A target opts the link out.
+  - attr_list
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences

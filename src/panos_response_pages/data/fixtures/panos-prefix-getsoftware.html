@@ -1,0 +1,51 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=.85">
+    <meta http-equiv="pragma" content="no-cache">
+    <title>GlobalProtect Portal</title>
+    <link rel="shortcut icon" type="image/x-icon" href="portal/images/favicon.ico">
+    <link rel="stylesheet" href="portal/css/bootstrap.min.css" disabled="">
+    <link rel="stylesheet" href="portal/css/latofonts.css" disabled="">
+    <script src="portal/js/jquery.min.js"></script>
+
+    
+    <script src="portal/js/ie10-viewport-bug-workaround.js"></script>
+    <link rel="stylesheet" href="portal/css/ie10-viewport-bug-workaround.css" disabled="">
+    <link rel="stylesheet" href="portal/css/login.css" disabled="">
+
+    
+    <!--[if lt IE 9]>
+      <script src="portal/js/html5shiv.min.js"></script>
+      <script src="portal/js/respond.min.js"></script>
+    <![endif]-->
+
+<script>
+       
+      $(document).ready(function() {
+        if ((favicon != null) && (favicon != '')) {
+          $('link[rel="shortcut icon"]').attr('href', favicon);
+        }
+
+        if ((logo != null) && (logo != '')) {
+          $('#logo img').attr('src', logo);
+        }
+
+        if ((bg_color != null) && (bg_color != '')) {
+          $('body').css('background', bg_color);
+        }
+
+        if ((gp_portal_name != null) && (gp_portal_name != '')) {
+          $('#heading').html(gp_portal_name);
+        }
+
+        if ((gp_portal_name_color != null) && (gp_portal_name_color != '')) {
+          $('#heading').css('color', gp_portal_name_color);
+        }
+        if ((error_text_color != null) && (error_text_color != '')) {
+          $('#dError').css('color', error_text_color);
+        }
+      });
+       
+</script>
+  

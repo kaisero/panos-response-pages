@@ -1,0 +1,51 @@
+<!--
+  API category: global-protect-portal-custom-home-page
+  Serves: logout.esp AND the portal home page.
+  Shape: SCRIPT-ONLY. Embedded verbatim mid-<head>. No </head>, no <body>, no
+  </html>, and no form token -- there is no form to place.
+  The restyle is gated to logout.esp: the portal home body has never been
+  captured, and disabling Bootstrap there would leave navbar-and-tiles with
+  nothing to replace it.
+-->
+<!--@VARS-->
+<script>
+var favicon='';
+var logo='{{PORTAL_LOGO_URI}}';
+var navbar_text='';
+var navbar_text_color='';
+var navbar_bg_color='';
+var dropdown_bg_color='';
+var bg_color='';
+var label_custom_app_url='';
+var display_globalprotect_agent=1;
+var label_globalprotect_agent='';
+var gp_portal_name='{{PORTAL_NAME}}';
+var gp_portal_name_color='';
+var logout_text_array={{LOGOUT_MESSAGES}};
+var logout_text_color='';
+</script>
+<!--/@VARS-->
+<!--
+  display_globalprotect_agent=1 is the one variable that must not be empty --
+  '' is falsy and removes the agent download entry from the portal home page
+  this file does not restyle. gp_portal_name IS set here: the logout #heading is
+  PAN-OS' own and has no spans to lose.
+
+  logo is set here and empty on the login import, which is not an inconsistency.
+  This variable's only remaining job is branding that untouched home page, whose
+  Bootstrap chrome is light whatever the visitor's scheme is -- so it carries the
+  light copy of the artwork. logout.esp gets its logo from the stylesheet below,
+  which can choose between the light and dark copies; the home page cannot.
+-->
+<!--@HEAD_SCRIPT-->
+<script>
+if(location.pathname.indexOf('logout.esp')!==-1){
+document.documentElement.setAttribute('data-gp','logout');
+[].forEach.call(document.getElementsByTagName('link'),function(l){if(l.rel==='stylesheet'){l.disabled=true;}});
+}
+</script>
+<!--/@HEAD_SCRIPT-->
+<!--
+  Gating is on location.pathname, not the DOM -- this runs in <head>, before
+  #taLogout is parsed.
+-->
