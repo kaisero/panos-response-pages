@@ -1,0 +1,57 @@
+
+
+
+    <script>
+       
+      $(document).ready(function() {
+        if ((favicon != null) && (favicon != '')) {
+          $('link[rel="shortcut icon"]').attr('href', favicon);
+        }
+
+        if ((logo != null) && (logo != '')) {
+          $('#logo img').attr('src', logo);
+        }
+
+        if ((bg_color != null) && (bg_color != '')) {
+          $('body').css('background', bg_color);
+        }
+
+        if ((gp_portal_name != null) && (gp_portal_name != '')) {
+          $('#heading').html(gp_portal_name);
+        }
+
+        if ((gp_portal_name_color != null) && (gp_portal_name_color != '')) {
+          $('#heading').css('color', gp_portal_name_color);
+        }
+        $('div#logout').text(logout_text_array[ 0 ]);
+        if ((logout_text_color != null) && (logout_text_color != '')) {
+          $('#logout').css('color', logout_text_color);
+        }
+      });
+       
+        if(typeof window.Storage !== 'undefined') {
+            window.localStorage.clear();
+        }
+    </script>
+  </head>
+
+  <body>
+    <div class="loginscreen_logo">
+    <div id="logo"><img src="portal/images/logo-pan-48525a.svg" onerror="this.onerror=null; this.src='portal/images/logo-pan-48525a.png'" alt=""></div>
+      <div id="activearea">
+        <div id="heading">GlobalProtect Portal</div>
+        <div id="formdiv">
+          <form name="login_form" id="login_form">
+            <div id="logout" class="msg"> </div>
+            <div id="taLogout">
+              <input class="buttonFixed-logout" type="button" id="submit" name="ok" value="Log In Again" onclick="location.href = '/global-protect/login.esp';">
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    
+    <script src="portal/js/ie10-viewport-bug-workaround.js"></script>
+  </body>
+</html>

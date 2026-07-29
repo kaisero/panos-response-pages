@@ -49,7 +49,20 @@ box-shadow:0 1px 2px rgba(10,20,30,.05),0 10px 30px rgba(10,20,30,.08)}}
 iframe{{border:0;display:block;width:100%;background:var(--srf)}}
 .note{{max-width:48rem;margin:0 auto;padding:0 1.5rem 3rem;color:var(--mut);font-size:.86rem}}
 .note code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}}
+.grp[hidden]{{display:none}}
 """
+
+# How each portal preview is labelled in the controls. The file names are keys
+# and stay terse; these are what a reviewer reads.
+PORTAL_LABELS = {
+    "login": "Login",
+    "getsoftware": "Get software",
+    "logout": "Logout",
+    "default": "Default",
+    "error": "Error",
+    "challenge": "Challenge",
+    "changepw": "Change password",
+}
 
 
 def build_gallery(
@@ -58,11 +71,19 @@ def build_gallery(
     blobs: Mapping[tuple[str, str], str],
     cfg: Mapping[str, Any],
     palette: Mapping[str, Any],
+    portal_blobs: Mapping[tuple[str, str], str] | None = None,
+    portal_previews: Sequence[str] = (),
 ) -> str:
     """Self-contained preview: every page inlined via iframe srcdoc.
 
     Frames are sized to their content after load, so nothing scrolls inside a
     frame -- the whole page is visible at once, which is the point of a preview.
+
+    The portal previews are spliced, not built: each is a PAN-OS prefix with an
+    import concatenated onto it. They are here so a reviewer sees the page a
+    visitor sees, and they are the only frames in this gallery that load
+    anything from disk -- the prefixes pull jQuery from `portal/` beside this
+    file, and srcdoc resolves that relative to this document.
     """
 
     def opts(name: str, items: Sequence[tuple[str, str]], cur: str) -> str:
@@ -71,9 +92,30 @@ def build_gallery(
             for v, lbl in items
         )
 
+    # The four login states are one import rendered four ways, so they get their
+    # own control rather than four more entries beside "Login" -- a reviewer
+    # picks a surface, then asks what the server said.
+    states = [n.removeprefix("login-") for n in portal_previews if n.startswith("login-")]
+    surfaces = ["login"] + [n for n in portal_previews if not n.startswith("login-")] if states else []
+
     page_btns = opts("page", [(p, p) for p in pages], pages[0])
     view_btns = opts("view", [("both", "Desktop + Mobile"), ("desktop", "Desktop"), ("mobile", "Mobile")], "both")
     scheme_btns = opts("scheme", [("light", "Light"), ("dark", "Dark")], "light")
+
+    portal_grp = state_grp = ""
+    if surfaces:
+        portal_grp = (
+            '<div class="grp"><span>Portal</span><div class="opts" role="radiogroup">'
+            # No current selection: the gallery opens on a block page, and the
+            # two page controls share one key so only one may look pressed.
+            + opts("page", [(f"portal:{s}", PORTAL_LABELS[s]) for s in surfaces], "")
+            + "</div></div>"
+        )
+        state_grp = (
+            '<div class="grp" id="stategrp" hidden><span>Login state</span><div class="opts" role="radiogroup">'
+            + opts("state", [(s, PORTAL_LABELS[s]) for s in states], states[0])
+            + "</div></div>"
+        )
 
     # The style is fixed at build time, so there is nothing to choose between --
     # the selector only appears if this build actually produced more than one.
@@ -86,6 +128,9 @@ def build_gallery(
         )
 
     data = {f"{t['name']}|{p}": blobs[(t["name"], p)] for t in themes for p in pages}
+    data.update(
+        {f"{t['name']}|portal:{p}": (portal_blobs or {})[(t["name"], p)] for t in themes for p in portal_previews}
+    )
     payload = json.dumps(data).replace("</", "<\\/")
     css = GALLERY_CSS.format(**palette["colors"])
 
@@ -96,13 +141,18 @@ def build_gallery(
 <style>{css}</style></head><body>
 <header>
   <h1>Response page preview</h1>
-  <p>All {len(pages)} pages exactly as <code>dist/&lt;style&gt;/</code> will serve them, in the
+  <p>All {len(pages)} block pages exactly as <code>deploy/&lt;style&gt;/</code> will serve them, in the
      <strong>{html.escape(palette["label"])}</strong> palette. Sample data stands in for the PAN-OS
-     tokens so the pages render; the deployable files keep the tokens intact.</p>
+     tokens so the pages render; the deployable files keep the tokens intact.
+     The portal frames are spliced onto captured PAN-OS prefixes, so they show
+     the whole served page rather than the import — preview only, never
+     importable.</p>
 </header>
 <div class="bars">
   {theme_grp}
   <div class="grp"><span>Page</span><div class="opts" role="radiogroup">{page_btns}</div></div>
+  {portal_grp}
+  {state_grp}
   <div class="grp"><span>Viewport</span><div class="opts" role="radiogroup">{view_btns}</div></div>
   <div class="grp"><span>Scheme</span><div class="opts" role="radiogroup">{scheme_btns}</div></div>
 </div>
@@ -110,7 +160,15 @@ def build_gallery(
 <p class="note">Built from <code>config/</code>, <code>palettes/</code> and
    <code>templates/</code>. Re-run <code>python3 build.py</code> to refresh.</p>
 <script>
-var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light"}};
+var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light",
+state:"{states[0] if states else ""}"}};
+// The login surface is one import in four server-driven states, so the state
+// control composes into the key rather than selecting a page of its own.
+function key(){{
+  var p=S.page;
+  if(p==="portal:login") p=p+"-"+S.state;
+  return S.theme+"|"+p;
+}}
 function fit(f){{
   try{{
     var d=f.contentDocument,h=0,n;
@@ -129,7 +187,7 @@ function frame(kind){{
   var f=document.createElement("figure");
   var d=document.createElement("div"); d.className="dev "+kind;
   var i=document.createElement("iframe");
-  i.setAttribute("srcdoc",D[S.theme+"|"+S.page]||"");
+  i.setAttribute("srcdoc",D[key()]||"");
   i.setAttribute("title",S.page+" "+kind);
   i.addEventListener("load",function(){{
     // Set the scheme on the loaded document rather than rewriting the markup:
@@ -143,6 +201,8 @@ function frame(kind){{
   f.appendChild(c); return f;
 }}
 function render(){{
+  var g=document.getElementById("stategrp");
+  if(g) g.hidden = S.page!=="portal:login";
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
@@ -151,7 +211,9 @@ document.querySelectorAll(".bars button").forEach(function(b){{
   b.addEventListener("click",function(){{
     var k=Object.keys(b.dataset)[0];
     S[k]=b.dataset[k];
-    b.parentNode.querySelectorAll("button").forEach(function(o){{
+    // Cleared by key, not by parent: the block pages and the portal surfaces
+    // are two groups setting the same key, and only one of them is selected.
+    document.querySelectorAll(".bars button[data-"+k+"]").forEach(function(o){{
       o.setAttribute("aria-pressed",String(o===b));}});
     render();
   }});

@@ -19,8 +19,17 @@ from panos_response_pages import __version__, datadir, logs, settings
 from panos_response_pages.builder import build_all, format_report, load_themes
 from panos_response_pages.errors import BuildError
 from panos_response_pages.palettes import load_palette
+from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS, detect_kind, validate_portal
 from panos_response_pages.templates import read
 from panos_response_pages.validate import PAGE_TOKENS, validate
+
+# What the two GlobalProtect imports are called on disk, and what each one is.
+# The file name is the routing key for `validate`, so it is stated once here
+# rather than spelled out at both call sites.
+PORTAL_PAGES = {
+    "login": ("global-protect-portal-custom-login-page", "login.esp, getsoftwarepage.esp", LOGIN_VARS),
+    "home": ("global-protect-portal-custom-home-page", "logout.esp, portal home page", HOME_VARS),
+}
 
 app = typer.Typer(
     name="panos-response-pages",
@@ -155,13 +164,21 @@ def build(
             log.error("%s/%s: %s", r.theme, r.page, e)
         log.debug("%s/%s: %d B", r.theme, r.page, r.size)
 
+    for pr in result.portal_results:
+        for w in pr.warnings:
+            log.warning("%s/portal/%s: %s", pr.theme, pr.page, w)
+        for e in pr.errors:
+            log.error("%s/portal/%s: %s", pr.theme, pr.page, e)
+        log.debug("%s/portal/%s: %d B (%d encoded)", pr.theme, pr.page, pr.size, pr.encoded)
+
     if not ctx.obj["json"]:
         typer.echo(format_report(result))
         if preview:
             typer.echo(f"\n  gallery: {out / 'preview' / 'index.html'}")
         typer.echo(f"  palette: {result.palette['name']}  ({result.palette['label']})")
         typer.echo(f"  data:    {data_dir} ({reason})")
-        typer.echo(f"  deploy:  {out / 'deploy'}/<style>/<page>.html\n")
+        typer.echo(f"  deploy:  {out / 'deploy'}/<style>/<page>.html")
+        typer.echo(f"  portal:  {out / 'deploy'}/<style>/portal/<login|home>.html\n")
 
     if result.failed:
         log.error("one or more pages would fail silently on PAN-OS")
@@ -211,8 +228,18 @@ def palettes(config_dir: Annotated[pathlib.Path | None, typer.Option("--config-d
 @app.command()
 def pages() -> None:
     """List the PAN-OS page types and the tokens each one provides."""
+    typer.echo("Block pages -- one import object each, tokens expanded at serve time:\n")
     for page, tokens in sorted(PAGE_TOKENS.items()):
         typer.echo(f"  {page:26} {' '.join(f'<{t}/>' for t in sorted(tokens))}")
+
+    # A different mechanism, so a different list. These carry no serve-time
+    # tokens at all: the customization is JS variables PAN-OS' own ready handler
+    # reads, and every one of them must be declared or the handler throws and
+    # the whole customization is lost.
+    typer.echo("\nGlobalProtect portal -- customization variables, all of them required:\n")
+    for page, (obj, serves, variables) in PORTAL_PAGES.items():
+        typer.echo(f"  portal/{page:19} {len(variables)} variables  serves {serves}")
+        typer.echo(f"  {'':26} {obj}")
 
 
 @app.command(name="validate")
@@ -227,11 +254,26 @@ def validate_cmd(
     log = logs.get()
     checked = failed = 0
     for path in sorted(directory.rglob("*.html")):
-        if path.stem not in PAGE_TOKENS:
+        # Two families, two sets of guards, routed by file name. Before this
+        # existed the portal imports fell through the block-page test and were
+        # skipped with a debug line -- reported as nothing, which reads exactly
+        # like a pass.
+        if path.stem in PORTAL_PAGES:
+            text = read(path)
+            kind = detect_kind(text)
+            if kind != path.stem:
+                # Checked rather than trusted: detect_kind looks for
+                # logout_text_array, so a home import that lost its variable
+                # block would be validated as a login page and every message
+                # would be about the wrong file shape.
+                log.warning("%s: reads as the %s import, not %s -- checking it as %s", path, kind, path.stem, kind)
+            _size, errors, warnings = validate_portal(text)
+        elif path.stem in PAGE_TOKENS:
+            _size, errors, warnings = validate(path.stem, path.parent.name, read(path))
+        else:
             log.debug("skipping %s: not a known page type", path)
             continue
         checked += 1
-        _size, errors, warnings = validate(path.stem, path.parent.name, read(path))
         for w in warnings:
             log.warning("%s: %s", path, w)
         for e in errors:

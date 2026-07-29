@@ -17,9 +17,17 @@ repos:
       - id: check-merge-conflict
       - id: check-toml
       - id: check-yaml
+      # These three rewrite files in place. The captured fixtures under
+      # data/fixtures/ are byte-for-byte records of what a firewall served --
+      # trimming their whitespace changed the login prefix from the documented
+      # 8,394 B to 8,206 B, which is the offset the architecture notes quote and
+      # the point the spliced preview reproduces. Leave captures alone.
       - id: end-of-file-fixer
+        exclude: ^src/panos_response_pages/data/fixtures/
       - id: mixed-line-ending
+        exclude: ^src/panos_response_pages/data/fixtures/
       - id: trailing-whitespace
+        exclude: ^src/panos_response_pages/data/fixtures/
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.5.18

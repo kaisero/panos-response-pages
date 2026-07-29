@@ -80,7 +80,10 @@ known-first-party = ["panos_response_pages"]
 docstring-code-format = true
 
 [tool.codespell]
-skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp"
+# data/fixtures/ is skipped because none of it is prose: it is a byte-for-byte
+# capture of what a firewall served, jQuery and Bootstrap included. Anything
+# "corrected" in there stops being a record of what PAN-OS actually sends.
+skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./src/panos_response_pages/data/fixtures"
 # "levl" is a deliberate misspelling in the test asserting that a typo'd
 # settings key is rejected rather than silently ignored.
 ignore-words-list = "levl"

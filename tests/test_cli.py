@@ -15,6 +15,7 @@ from typer.testing import CliRunner
 from _paths import DATA
 from panos_response_pages import __version__
 from panos_response_pages.cli import app
+from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS
 from panos_response_pages.validate import PAGE_TOKENS
 
 pytestmark = pytest.mark.cli
@@ -132,3 +133,53 @@ class TestValidateCommand(unittest.TestCase):
         r = runner.invoke(app, ["validate", tempfile.mkdtemp()])
         self.assertEqual(r.exit_code, 1)
         self.assertIn("No recognised page types", r.output)
+
+
+class TestValidateReachesThePortal(unittest.TestCase):
+    """Before this, the loop skipped anything whose stem was not a block page.
+    The portal imports fell through it with a debug line and no report -- which
+    reads exactly like a pass, on the one family whose failures are silent."""
+
+    def test_both_families_are_counted(self):
+        out = Path(tempfile.mkdtemp())
+        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out)])
+        r = runner.invoke(app, ["validate", str(out / "deploy")])
+        self.assertEqual(r.exit_code, 0, r.output)
+        self.assertIn(f"checked {len(PAGE_TOKENS) + 2} page(s)", r.output)
+
+    def test_a_portal_import_that_would_fail_is_reported(self):
+        bad = Path(tempfile.mkdtemp())
+        # A whole document rather than a body fragment, and no form token: two
+        # of the failures PAN-OS accepts without complaint.
+        (bad / "login.html").write_text("<html><body>no fragment</body></html>", encoding="utf-8")
+        r = runner.invoke(app, ["validate", str(bad)])
+        self.assertEqual(r.exit_code, 1, r.output)
+        self.assertIn("1 would fail", r.output)
+
+    def test_a_file_whose_name_disagrees_with_its_shape_is_called_out(self):
+        """detect_kind looks for logout_text_array, so a home import that lost
+        its variable block would be checked as a login page and every message
+        would describe the wrong file shape."""
+        odd = Path(tempfile.mkdtemp())
+        (odd / "home.html").write_text("<script>var favicon='';</script>", encoding="utf-8")
+        r = runner.invoke(app, ["-v", "validate", str(odd)])
+        self.assertIn("reads as the login import", r.output)
+
+
+class TestPagesListing(unittest.TestCase):
+    def test_lists_the_portal_imports_and_how_many_variables_each_declares(self):
+        """Every one of them must be declared: PAN-OS' ready handler
+        dereferences the lot, and one missing name throws and loses the whole
+        customization."""
+        r = runner.invoke(app, ["pages"])
+        self.assertEqual(r.exit_code, 0, r.output)
+        self.assertIn("portal/login", r.output)
+        self.assertIn("portal/home", r.output)
+        self.assertIn(f"{len(LOGIN_VARS)} variables", r.output)
+        self.assertIn(f"{len(HOME_VARS)} variables", r.output)
+        self.assertIn("global-protect-portal-custom-login-page", r.output)
+
+    def test_still_lists_every_block_page_and_its_tokens(self):
+        r = runner.invoke(app, ["pages"])
+        for page in PAGE_TOKENS:
+            self.assertIn(page, r.output)

@@ -84,7 +84,13 @@ border-left:3px solid var(--ct);list-style:none}
 /* loadPage() writes the failure text as an <li> with no list around it. */
 #dError li{display:block;list-style:none}
 #dInputStr{margin:0 0 .85rem;font-size:.9rem;color:var(--im)}
-#dChangePasswordMsgArea .msg{max-width:none;margin:1.3rem 0 0;padding:0;background:none}
+/* The two wrappers, listed by id. PAN-OS puts class="msg" on the inner div
+   as well, so a `#dChangePasswordMsgArea .msg` reset matches the message box
+   too -- and at one id plus one class it outranks the `#dChangePasswordMsg`
+   rule below, stripping the padding and the background off the box that
+   actually shows the text. Only the change-password state renders any of
+   this, so nothing catches it until a password expires. */
+#dChangePasswordMsgArea,#dChangePasswordMsgBorder{max-width:none;margin:1.3rem 0 0;padding:0;background:none}
 #dChangePasswordMsg{padding:.9rem 1rem;border-radius:.3rem;font-size:.87rem;
 background:var(--sa);border-left:3px solid var(--at)}
 /* --- getsoftwarepage.esp ------------------------------------------------

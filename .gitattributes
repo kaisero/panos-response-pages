@@ -5,3 +5,11 @@
 * text=auto eol=lf
 *.png binary
 *.zip binary
+
+# Captured fixtures are byte-for-byte records of what a firewall served, and
+# their measured sizes are quoted in docs/architecture/ -- the login prefix is
+# 8,394 B, and the custom content begins at exactly that offset. Normalising
+# line endings or trimming whitespace would change those numbers and make the
+# spliced preview diverge from the page it reproduces. Treat them as binary so
+# nothing rewrites them.
+src/panos_response_pages/data/fixtures/** -text

@@ -86,6 +86,17 @@ _RAW_LT = re.compile(r"<(?![a-zA-Z/!])")
 _EXTERNAL = re.compile(r"(?:src|href)\s*=\s*['\"](https?://[^'\"]+)")
 
 
+def encoded_size(text: str) -> int:
+    """The length PAN-OS measures, and the only one it ever quotes back.
+
+    encodebytes, not b64encode: the figure PAN-OS quoted matched the
+    wrapped-at-76-columns form exactly, trailing newline included. The unwrapped
+    length under-reports by around 1.4%, which is enough to call a file that
+    will be refused a file that fits.
+    """
+    return len(base64.encodebytes(text.encode("utf-8")))
+
+
 def detect_kind(text: str) -> str:
     """Which of the two imports this is.
 
@@ -103,7 +114,7 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
 
     # Report the encoded length too -- that is the number PAN-OS quotes back.
     size = len(raw)
-    encoded = len(base64.encodebytes(raw))
+    encoded = encoded_size(text)
     if size > SOFT_MAX:
         errors.append(
             f"{size} B encodes to {encoded} chars, over the {MAX_ENCODED} limit "

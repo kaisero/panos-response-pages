@@ -50,6 +50,18 @@ class TestShellRules(unittest.TestCase):
             with self.subTest(shell=p.stem):
                 self.assertRegex(css(p), r"#logout\s*\{[^}]*min-height")
 
+    def test_the_change_password_reset_does_not_out_specify_the_message_box(self):
+        """PAN-OS puts class="msg" on the message div as well as on its border
+        wrapper, so `#dChangePasswordMsgArea .msg` matches the message box too
+        -- and at one id plus one class it beats `#dChangePasswordMsg`,
+        stripping the padding and background off the box that shows the text.
+        Only the change-password state renders any of it, so on a firewall
+        nothing reveals it until somebody's password expires."""
+        for p in SHELLS:
+            with self.subTest(shell=p.stem):
+                self.assertNotIn("#dChangePasswordMsgArea .msg", css(p))
+                self.assertRegex(css(p), r"#dChangePasswordMsg\s*\{[^}]*padding")
+
     def test_no_shell_claims_an_id_panos_also_emits(self):
         """The injected form brings its own #activearea and #formdiv, so those
         ids are not unique. getElementById would silently return ours."""
