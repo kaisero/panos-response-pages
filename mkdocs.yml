@@ -35,6 +35,12 @@ nav:
   - GP home page: architecture/globalprotect-portal-home-page.md
   - URL filtering pages: architecture/url-filtering-response-pages.md
 
+extra_css:
+  - assets/preview-embed.css
+
+extra_javascript:
+  - assets/preview-embed.js
+
 plugins:
   - search
   - mkdocstrings:
@@ -46,6 +52,11 @@ plugins:
             members_order: source
 
 markdown_extensions:
+  # attr_list is what lets the preview links carry target="_blank". That is not
+  # cosmetic: navigation.instant intercepts same-origin links and swaps the new
+  # body into the current page, which would tear the gallery -- its own document,
+  # with its own CSS and script -- out of its shell. A target opts the link out.
+  - attr_list
   - admonition
   - pymdownx.highlight
   - pymdownx.superfences

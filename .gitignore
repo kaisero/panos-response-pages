@@ -37,3 +37,8 @@ htmlcov/
 
 # Docs site output
 site/
+
+# The clickthrough gallery, generated into the docs tree by `nox -s docs` and
+# published with the site. Generated output: committing it would ship a gallery
+# of pages the current templates no longer produce.
+docs/preview/
