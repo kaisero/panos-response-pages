@@ -13,7 +13,7 @@ schemes.
 | `glass` | Glass Panel — layered panel over an ambient field, facts as cards |
 | `beacon` | Beacon Field — drifting dot field with an animated seal |
 | `mesh` | Mesh Panel — masked hairline grid under a glass card |
-| `nyan` | Nyan Runway — pixel cat flying across a star field, glass notice beside its trail |
+| `nyan` | Nyan Runway — pixel cat flying a bending rainbow across a star field, glass notice beside the lane |
 
 ## A style that owns its colour
 

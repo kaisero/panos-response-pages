@@ -11,9 +11,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **A seventh style, `nyan`** — Nyan Runway. A pixel cat flying across a star
   field beside the notice, laying a spectrum trail; legs and tail animate as a
   frame swap, and a click on empty sky rolls it once and doubles the trail. The
-  notice sits out of the flight lane on a glass card, so the trail passes behind
-  it rather than through the words. The GlobalProtect imports take the same sky
-  and card, with the trail reduced to a hairline on the card edge.
+  notice sits out of the flight lane on a glass card, and the trail bends to
+  follow wherever the cat is steered — behind the glass it reads as a blurred
+  smear rather than being hidden by it. The GlobalProtect imports take the same
+  star field and the same glass card, but not the rainbow: it is a trail, and
+  without the cat drawing it there is nothing for it to be. The flight stays on
+  the block pages, because the Home Page import is script-only and has no
+  element to draw on.
 - **Style palettes.** Palettes now declare a `kind`: `brand` palettes are the
   customer axis, a `style` palette belongs to one shell and is pinned by it with
   a `palette` key in the theme. Resolution order is `--palette`, then the
