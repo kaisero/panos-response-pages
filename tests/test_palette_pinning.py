@@ -38,6 +38,18 @@ def data_dir(pin: str | None = "nyan", customer_palette: str | None = None) -> p
     return root
 
 
+def unpinned(root: pathlib.Path) -> set[str]:
+    """Themes carrying no pin of their own.
+
+    Derived, not listed: the shipped data now includes a style that pins itself,
+    and a hardcoded set here would have to be edited every time another one
+    lands -- which is exactly the kind of edit that gets made wrongly.
+    """
+    return {
+        p.stem for p in (root / "themes").glob("*.json") if "palette" not in json.loads(p.read_text(encoding="utf-8"))
+    }
+
+
 def palettes_used(root: pathlib.Path, **kwargs) -> dict[str, set[str]]:
     out = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-pin-out-"))
     result = build_all(root, out, preview=False, write=False, **kwargs)
@@ -53,11 +65,12 @@ class TestPalettePinning(unittest.TestCase):
         self.assertEqual(used[PINNED], {"nyan"}, "the theme's pin was ignored")
 
     def test_other_themes_are_untouched_by_one_theme_s_pin(self):
-        used = palettes_used(data_dir())
-        others = {name: p for name, p in used.items() if name != PINNED}
-        self.assertTrue(others, "fixture built only one theme")
-        for name, p in others.items():
-            self.assertEqual(p, {"cyber-orange"}, f"{name} followed another theme's pin")
+        root = data_dir()
+        used = palettes_used(root)
+        others = unpinned(root)
+        self.assertTrue(others, "fixture has no unpinned theme left to check")
+        for name in others:
+            self.assertEqual(used[name], {"cyber-orange"}, f"{name} followed another theme's pin")
 
     def test_the_customer_s_own_config_outranks_the_pin(self):
         used = palettes_used(data_dir(customer_palette="prisma-blue"), customer="acme")
@@ -88,9 +101,10 @@ class TestPalettePinning(unittest.TestCase):
         )
 
     def test_no_pin_means_the_build_palette(self):
-        used = palettes_used(data_dir(pin=None))
-        for name, p in used.items():
-            self.assertEqual(p, {"cyber-orange"}, f"{name} drifted off the build palette")
+        root = data_dir(pin=None)
+        used = palettes_used(root)
+        for name in unpinned(root):
+            self.assertEqual(used[name], {"cyber-orange"}, f"{name} drifted off the build palette")
 
 
 if __name__ == "__main__":
