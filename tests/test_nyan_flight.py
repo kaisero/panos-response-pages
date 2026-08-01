@@ -107,31 +107,30 @@ class TestGlassCrossesTheFamilies(unittest.TestCase):
                 self.assertRegex(text, r"--star:\{\{C_ACCENT_TEXT\}\}[0-9a-f]{2}")
                 self.assertRegex(text, r"--star:#[0-9a-f]{8}")
 
-    def test_no_card_wears_a_spectrum_on_its_edge(self):
-        """The portal card used to carry the trail as a bar along its top edge.
-        Nothing else in the theme has one, so it read as a different style --
-        and a decoration on top of the glass is the opposite of one behind it."""
+    def test_the_portal_carries_no_rainbow_at_all(self):
+        """The rainbow is a trail, and it only reads as one because a cat is
+        drawing it. Neither import can host the flight, so any spectrum here is
+        a bare rainbow: as a bar on the card's edge it made the portal look like
+        a different style, and as a band behind the card it was a slab wider and
+        taller than the block pages' ribbon, parked across the notice. What the
+        glass is transparent over is the starfield, which both families share.
+        """
+        self.assertNotIn("linear-gradient(90deg,#f00", PORTAL)
+        self.assertNotIn("#f00 0 16.66%", PORTAL)
+        self.assertNotIn("linear-gradient(180deg,#f00", PORTAL)
+
+    def test_the_block_card_wears_no_spectrum_either(self):
+        """Its rainbow is drawn on the canvas, behind the notice -- never baked
+        into the panel."""
+        self.assertNotIn("linear-gradient(90deg,#f00", SHELL)
+
+    def test_the_starfield_is_what_both_families_blur(self):
+        """Without it the veil sits on a flat gradient and the blur has nothing
+        to work on, which is what made this card read as a plain panel."""
         for name, text in (("block", SHELL), ("portal", PORTAL)):
             with self.subTest(shell=name):
-                self.assertNotIn("linear-gradient(90deg,#f00", text)
-
-    def test_the_portal_trail_crosses_behind_the_card_in_both_imports(self):
-        """It is what the glass is transparent over. Neither import can host the
-        flight, but both can have the trail pass under the notice, which is the
-        whole reason the block pages hold theirs out of the lane."""
-        self.assertEqual(PORTAL.count("linear-gradient(180deg,#f00 0 16.66%"), 2)
-        for selector in (".loginscreen_logo::before{content", "html[data-gp=logout] body::after{content"):
-            with self.subTest(selector=selector):
-                self.assertIn(selector, PORTAL)
-
-    def test_the_trail_is_not_painted_on_the_card_itself(self):
-        """A card pseudo-element paints above the veil, so the trail would land
-        on top of the blur instead of under it -- sharp, and over the text."""
-        for hit in (
-            ".col::after{background:\nlinear-gradient(180deg,#f00",
-            ".col::before{background:\nlinear-gradient(180deg,#f00",
-        ):
-            self.assertNotIn(hit, PORTAL)
+                self.assertIn("backdrop-filter:blur(", text)
+        self.assertEqual(PORTAL.count("radial-gradient(var(--star)"), 4)
 
     def test_the_portal_stays_out_of_the_canvas_business(self):
         """Not a style choice: the Home Page import is embedded mid-<head> and
