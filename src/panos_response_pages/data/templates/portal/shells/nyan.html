@@ -8,8 +8,8 @@
   to draw on and no honest way to give the two imports the same sky.
 
   What crosses over is everything that is style rather than motion: the
-  palette, the drifting star field, the trail reduced to a spectrum hairline
-  along the card's top edge, and the glass card itself -- a panel colour of its
+  palette, the drifting star field, the trail crossing behind the card, and the
+  glass card itself -- a panel colour of its
   own at a veil that stops short of opaque, so the sky reads through it. That
   last part is what keeps this reading as the same family as the block pages,
   where the same card is what lets the rainbow pass behind the notice.
@@ -73,12 +73,20 @@ border:1px solid var(--sa);
 box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.45)}
 .col::before,.col::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
 .col::before{background:var(--sf);opacity:var(--veil)}
-/* Two layers: the trail, reduced to a hairline along the top edge, over the
-   highlight that makes the panel read as glass rather than as a hole. */
-.col::after{background:
-linear-gradient(90deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%)
-top/100% 3px no-repeat,
-linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 45%)}
+/* The highlight that makes the panel read as glass rather than as a hole. No
+   spectrum bar on the edge: the block pages' card has none, and a rainbow
+   header on this one alone made the two families look like different styles. */
+.col::after{background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 45%)}
+/* The trail crosses BEHIND the card instead of sitting on it, which is what
+   gives the glass something to be transparent over -- the same reason the block
+   pages hold their notice out of the flight lane. Anchored to the wrapper and a
+   fixed drop below the card's top edge, so it lands in the same place whether
+   the form is the two-field default or the change-password state twice its
+   height. Full viewport width; html,body clip the overhang. */
+.loginscreen_logo::before{content:"";position:absolute;left:-50vw;width:200vw;
+top:calc(clamp(2rem,9vh,4.5rem) + 4.6rem);height:6rem;pointer-events:none;background:
+linear-gradient(180deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,
+#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%)}
 /* The mark, twice. An SVG behind url() renders as an isolated document --
    currentColor is dead in there and these custom properties are out of scope --
    so changing scheme means changing the whole asset. Selecting between two
@@ -210,6 +218,7 @@ font-weight:650;color:var(--ik);text-decoration:none}
 a:focus-visible,input:focus-visible{outline:3px solid var(--at);outline-offset:3px}
 @media(max-width:600px){
 .loginscreen_logo{padding:1.75rem 1.15rem 2.5rem}
+.loginscreen_logo::before{top:calc(1.75rem + 4.6rem)}
 .col{padding:1.6rem 1.3rem 1.4rem}
 #heading{font-size:1.5rem}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -275,7 +284,7 @@ radial-gradient(var(--star) 1px,transparent 1.2px);
 background-size:9rem 7rem,13rem 11rem;background-position:0 0,4rem 3rem;
 animation:drift 5s linear infinite}
 @keyframes drift{to{background-position:-9rem 0,-9rem 3rem}}
-/* .loginscreen_logo is the card here. Same glass, same hairline as the login. */
+/* .loginscreen_logo is the card here. Same glass, same trail behind it. */
 html[data-gp=logout] .loginscreen_logo{position:relative;z-index:1;width:100%;max-width:24rem;
 margin:0;padding:1.9rem 1.7rem 1.7rem;text-align:left;border-radius:1rem;
 border:1px solid var(--sa);
@@ -285,9 +294,14 @@ html[data-gp=logout] .loginscreen_logo::before,html[data-gp=logout] .loginscreen
 content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
 html[data-gp=logout] .loginscreen_logo::before{background:var(--sf);opacity:var(--veil)}
 html[data-gp=logout] .loginscreen_logo::after{background:
-linear-gradient(90deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%)
-top/100% 3px no-repeat,
 linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 45%)}
+/* The trail again, behind the card. body is the centring container here, so the
+   band centres on it and lands across the card wherever flex puts it -- there is
+   no wrapper to hang it on and no markup can be added to this page. */
+html[data-gp=logout] body::after{content:"";position:fixed;left:0;width:100%;
+top:50%;height:6rem;margin-top:-3rem;pointer-events:none;background:
+linear-gradient(180deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,
+#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%)}
 /* The logo is painted by CSS, not by the logo variable, and the img PAN-OS
    wrote is hidden outright.
 
@@ -338,6 +352,7 @@ html[data-gp=logout] .buttonFixed-logout:focus-visible{outline:3px solid var(--a
 outline-offset:3px}
 @media(max-width:600px){
 html[data-gp=logout] body{padding:1.75rem 1.15rem;align-items:flex-start}
+html[data-gp=logout] body::after{top:calc(1.75rem + 4.6rem);margin-top:0}
 html[data-gp=logout] .loginscreen_logo{padding:1.6rem 1.3rem 1.5rem}
 html[data-gp=logout] #heading{font-size:1.5rem}}
 @media(prefers-reduced-motion:reduce){
