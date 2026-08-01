@@ -1,6 +1,7 @@
 {
   "name": "cyber-orange",
   "label": "Cyber Orange",
+  "kind": "brand",
   "_note": "Accent #FA582D. Its label is near-black: white on #FA582D is 3.23:1 and unreadable.",
   "_source": "Five-stop ramp: 0/250/500/750/1000.",
   "_ramp": {

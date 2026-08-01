@@ -1,6 +1,7 @@
 {
   "name": "strata-yellow",
   "label": "Strata Yellow",
+  "kind": "brand",
   "_note": "Accent #FFCB06. Vivid yellow can never carry white text, so the label is the 1000 tone.",
   "_source": "Five-stop ramp: 0/250/500/750/1000.",
   "_ramp": {

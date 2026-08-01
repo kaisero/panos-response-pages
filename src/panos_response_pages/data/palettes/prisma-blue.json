@@ -1,6 +1,7 @@
 {
   "name": "prisma-blue",
   "label": "Prisma Blue",
+  "kind": "brand",
   "_note": "Accent #00C0E8. Bright cyan also fails with white, so it too takes the dark label.",
   "_source": "Five-stop ramp: 0/250/500/750/1000.",
   "_ramp": {
