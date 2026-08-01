@@ -53,11 +53,26 @@ animation:drift 5s linear infinite}
 /* The flight. --fy is written by the script at the foot of the page; without it
    the lane sits where the default puts it and nothing is lost. */
 .fly{position:fixed;top:var(--fy,22vh);right:8vw;width:13rem;height:7.8rem;
-pointer-events:none;transition:top .25s ease-out;animation:bob .42s steps(2,end) infinite}
-.ny{position:absolute;inset:0;
-background:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 24'><path fill='%232a0a1c' d='M28 5h5v1h-5zM27 6h1v1h-1zM33 6h1v1h-1zM26 7h1v1h-1zM34 7h1v1h-1zM25 8h1v1h-1zM35 8h1v1h-1zM24 9h1v5h-1zM36 9h1v5h-1zM25 14h1v1h-1zM35 14h1v1h-1zM26 15h1v1h-1zM34 15h1v1h-1zM27 16h1v1h-1zM33 16h1v1h-1zM28 17h5v1h-5z'/><path fill='%23c81f6f' d='M28 6h5v1h-5zM27 7h1v1h-1zM33 7h1v1h-1zM26 8h1v1h-1zM34 8h1v1h-1zM25 9h1v5h-1zM35 9h1v5h-1zM26 14h1v1h-1zM34 14h1v1h-1zM27 15h1v1h-1zM33 15h1v1h-1zM28 16h5v1h-5z'/><path fill='%23ff4fa3' d='M28 7h5v1h-5zM27 8h2v1h-2zM32 8h2v1h-2zM26 9h2v1h-2zM34 9h1v1h-1zM26 10h1v4h-1zM34 11h1v3h-1zM27 13h1v2h-1zM33 13h1v2h-1zM28 14h1v2h-1zM32 14h1v2h-1zM29 15h3v1h-3z'/><path fill='%23ff8fc4' d='M29 8h3v7h-3zM28 9h1v5h-1zM27 10h1v3h-1zM32 11h1v3h-1zM33 12h1v1h-1z'/><path fill='%23ffe4f1' d='M20 8h2v1h-2zM32 9h2v2h-2zM34 10h1v1h-1zM33 11h1v1h-1zM16 12h1v1h-1zM22 15h2v1h-2z'/></svg>") center/contain no-repeat;
+pointer-events:none;transition:top .25s ease-out;animation:bob .3s steps(2,end) infinite}
+/* The artwork is inline markup, not a background url(): the legs and tail are
+   animated from this stylesheet, and CSS cannot reach inside a url() -- an SVG
+   behind one is an isolated document. tests/_nyan_sprite.py compiles it. */
+.ny{position:absolute;inset:0;width:100%;height:100%;
 filter:drop-shadow(0 0 .5rem var(--tw));
 filter:drop-shadow(0 0 .7rem color-mix(in srgb,var(--tt) 60%,transparent))}
+/* Frame swap, not a transform. Each leg and tail position is its own group and
+   only one is visible at a time; steps(1,end) holds each frame for its whole
+   segment, which is what makes it read as pixel animation rather than a fade. */
+.l1,.t1,.t2{opacity:0}
+.l0,.l1{animation:.36s steps(1,end) infinite}
+.t0,.t1,.t2{animation:.45s steps(1,end) infinite}
+.l0{animation-name:la}.l1{animation-name:lb}
+.t0{animation-name:ta}.t1{animation-name:tb}.t2{animation-name:tc}
+@keyframes la{50%{opacity:0}}
+@keyframes lb{0%{opacity:0}50%{opacity:1}}
+@keyframes ta{33%{opacity:0}}
+@keyframes tb{0%{opacity:0}33%{opacity:1}66%{opacity:0}}
+@keyframes tc{0%{opacity:0}66%{opacity:1}}
 /* The stepped trail: two copies of the same stripes, masked into alternating
    columns and offset. A mask on the parent would clip its own children and the
    two would cancel out, so both are pseudo-elements of an unmasked box. It sits
@@ -65,15 +80,18 @@ filter:drop-shadow(0 0 .7rem color-mix(in srgb,var(--tt) 60%,transparent))}
 .trail{position:absolute;right:76%;top:22%;height:52%;width:200vw}
 .trail::before,.trail::after{content:"";position:absolute;left:0;width:100%;height:84%;
 background:linear-gradient(180deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,
-#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%);animation:slide .45s linear infinite}
+#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%);animation:slide .28s linear infinite}
 .trail::before{top:0;
 -webkit-mask-image:repeating-linear-gradient(90deg,#000 0 .5rem,transparent .5rem 1rem);
 mask-image:repeating-linear-gradient(90deg,#000 0 .5rem,transparent .5rem 1rem)}
 .trail::after{top:16%;
 -webkit-mask-image:repeating-linear-gradient(90deg,transparent 0 .5rem,#000 .5rem 1rem);
 mask-image:repeating-linear-gradient(90deg,transparent 0 .5rem,#000 .5rem 1rem)}
-/* A click on empty sky. Nothing depends on it: the trail already moves. */
-html[data-warp] .trail::before,html[data-warp] .trail::after{animation-duration:.16s}
+/* A click on empty sky: the trail doubles its rate and the cat rolls once.
+   Nothing depends on either -- the flight is already moving without them. */
+html[data-warp] .trail::before,html[data-warp] .trail::after{animation-duration:.11s}
+html[data-warp] .ny{animation:spin .62s cubic-bezier(.3,1.4,.4,1)}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes bob{to{margin-top:.4rem}}
 @keyframes slide{to{-webkit-mask-position:-1rem 0;mask-position:-1rem 0}}
 /* The notice is held out of the lane rather than centred under it: behind the
@@ -149,7 +167,7 @@ main{justify-items:center;align-items:start;padding-top:9.5rem}
 </style>
 </head>
 <body>
-<div class="fly" aria-hidden="true"><span class="trail"></span><span class="ny"></span></div>
+<div class="fly" aria-hidden="true"><span class="trail"></span><svg class="ny" viewBox="0 0 40 24" shape-rendering="crispEdges"><path fill="#000" d="M7 3h20v17h-20zm-1 1h24v12h-24zm29 0h2v12h-2zm-5 1h1v12h-1zm4 0h4v2h-4zm-3 1h6v1h-6zm6 2h1v2h-1zm-6 1h6v6h-6zm6 3h1v3h-1zm-31 4h22v3h-22zm23 0h1v1h-1zm2 0h5v1h-5z"/><path fill="#fc9" d="M7 4h20v15h-20z"/><path fill="#f9c" d="M9 6h16v11h-16z"/><path fill="#f39" d="M11 7h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2z"/><path fill="#999" d="M28 5h2v2h-2zm7 0h2v2h-2zm-5 1h1v4h-1zm4 0h1v3h-1zm-5 1h1v9h-1zm2 0h3v2h-3zm4 0h1v9h-1zm-7 1h1v7h-1zm8 0h1v7h-1zm-4 1h2v1h-2zm0 1h1v3h-1zm-2 2h2v1h-2zm3 0h2v1h-2zm-2 1h1v1h-1zm2 0h1v1h-1zm-3 1h1v2h-1zm2 0h1v2h-1zm2 0h1v2h-1zm-3 1h1v1h-1zm2 0h1v1h-1z"/><path fill="#f99" d="M28 10h2v2h-2zm7 0h2v2h-2z"/><path fill="#fff" d="M30 9h1v1h-1zm3 0h1v1h-1z"/><g class="l0"><path fill="#000" d="M8 18h3v5h-3zm10 0h3v5h-3zm-11 1h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm-11 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M8 19h3v3h-3zm10 0h3v3h-3zm-5 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="l1"><path fill="#000" d="M13 18h3v5h-3zm10 0h3v5h-3zm-15 1h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm-15 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M13 19h3v3h-3zm10 0h3v3h-3zm-15 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="t0"><path fill="#000" d="M0 7h2v4h-2zm2 1h3v5h-3zm3 1h1v6h-1zm1 1h1v5h-1zm-5 1h7v1h-7zm6 1h1v2h-1zm-4 1h4v1h-4zm1 1h1v1h-1z"/><path fill="#999" d="M0 8h2v2h-2zm2 1h3v3h-3zm3 2h2v3h-2zm-1 1h1v2h-1z"/></g><g class="t1"><path fill="#000" d="M0 12h7v4h-7zm7 1h1v3h-1zm-5 3h5v1h-5z"/><path fill="#999" d="M0 13h7v2h-7zm2 2h5v1h-5z"/></g><g class="t2"><path fill="#000" d="M4 13h3v5h-3zm-1 1h5v3h-5zm-1 1h1v5h-1zm-2 1h7v1h-7zm5 2h1v1h-1zm-5 1h2v1h-2zm3 0h2v1h-2z"/><path fill="#999" d="M4 14h3v3h-3zm-2 2h2v3h-2zm-2 1h2v2h-2zm4 0h1v2h-1z"/></g></svg></div>
 <main>
 <div class="card">
 <p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
