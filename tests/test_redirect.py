@@ -174,8 +174,14 @@ class TestSafety(unittest.TestCase):
         redirector."""
         self.assertNotIn("<url/>", script_of(render(configured())))
 
-    def test_it_refuses_to_hand_off_to_the_blocked_host_itself(self):
-        self.assertIn("h.host===location.host", script_of(render(configured())))
+    def test_it_will_not_hop_again_from_a_blocked_sanctioned_app(self):
+        """The loop guard, and it checks EVERY target rather than this category's.
+        A hop only ever targets something in this table, so every cycle passes
+        through one of these hosts -- including cycles that never repeat a host,
+        which a this-target-only check would follow forever."""
+        self.assertIn(
+            "for(var k in R){h.href=R[k][1];if(h.host===location.host)return}", script_of(render(configured()))
+        )
 
     def test_it_checks_the_tone_the_category_map_resolved(self):
         self.assertIn("data-tone')!=='calm'", script_of(render(configured())))

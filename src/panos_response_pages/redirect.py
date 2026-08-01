@@ -19,10 +19,14 @@ of them fails in a way the author would not see:
 * **The target is an absolute https URL from config.** Never `<url/>` -- that
   value is chosen by whoever the user was trying to reach, and a redirect built
   from it would make every firewall serving this page an open redirector.
-* **The page refuses to hand off to its own host.** A response page is served
-  *as* the blocked site, so a target on the same host is a block page redirecting
-  to itself. That is the degenerate case of the loop this feature can cause; the
-  general case is a target the policy also blocks, which only policy can fix.
+* **At most one hop, ever.** A response page is served *as* the blocked site, so
+  `location.host` is the host the user was refused. If that is the host of any
+  sanctioned app in the table, this page is a blocked sanctioned app and the hop
+  that landed the user here was ours -- so it does not hop again. A hop only ever
+  targets something in this table, which means every cycle passes through one of
+  these hosts, including cycles that never repeat a host. What it cannot prevent
+  is the first hop into a blocked app: the target still has to be permitted by
+  the policy that produced the block, and only policy can do that.
 """
 
 from __future__ import annotations
@@ -171,10 +175,14 @@ def _script(cfg: Mapping[str, Any]) -> str:
         # The tone the category map just resolved, not the one config claims: a
         # page repainted critical at runtime must not then forward anyone.
         "if(!r||document.documentElement.getAttribute('data-tone')!=='calm')return;"
-        "var u=r[1],h=document.createElement('a');h.href=u;"
-        # A response page is served as the blocked site, so same-host means this
-        # page would redirect to itself.
-        "if(h.host===location.host)return;"
+        "var u=r[1],h=document.createElement('a');"
+        # The loop guard. A response page is served AS the blocked site, so
+        # location.host is the host the user was refused. If that is the host of
+        # any sanctioned app -- not merely this category's -- then this page is a
+        # blocked sanctioned app, and the hop that landed the user here was ours.
+        # Since a hop only ever targets something in this table, every cycle
+        # passes through one of these hosts, so stopping here stops all of them.
+        "for(var k in R){h.href=R[k][1];if(h.host===location.host)return}"
         "var n=r[0],t=r[2]||S,l=t,z,d=false;"
         "var m=document.getElementById('rxm'),o=document.getElementById('rxo');"
         "var i=document.getElementById('rxi'),p=document.getElementById('rxp');"
