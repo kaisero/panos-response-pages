@@ -11,7 +11,7 @@ import unittest
 import pytest
 import yaml
 
-from _paths import ROOT
+from _paths import DATA, ROOT
 
 pytestmark = pytest.mark.unit
 
@@ -157,6 +157,21 @@ class TestDocsSite(unittest.TestCase):
         text = page("styles.md")
         for needle in ("{{SCRIPTS}}", "<dl>", 'id="gloss"', "data-force-scheme"):
             self.assertIn(needle, text, f"styles.md missing contract item: {needle}")
+
+    def test_the_styles_table_lists_every_style(self):
+        """Nothing else notices an undocumented style.
+
+        The build discovers themes by glob, so a new one ships whether or not
+        anyone writes it down -- and the counts in this file are prose, which
+        goes stale silently. This is the one place that fails when it does.
+        """
+        # The first section only: later tables in this page list other things,
+        # and a style is documented by appearing in the one at the top.
+        intro = page("styles.md").split("\n## ")[0]
+        listed = set(re.findall(r"^\| `([a-z0-9-]+)` \|", intro, re.M))
+        shipped = {p.stem for p in (DATA / "themes").glob("*.json")}
+        self.assertEqual(shipped - listed, set(), "style(s) shipped but not in the styles.md table")
+        self.assertEqual(listed - shipped, set(), "styles.md lists style(s) that no longer exist")
 
     def test_documents_the_data_directory_resolution_order(self):
         text = page("index.md")
