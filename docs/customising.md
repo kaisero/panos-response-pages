@@ -11,7 +11,7 @@ documentation and are ignored by the build.
 | `supportEmail` | Target of every `mailto:` |
 | `logoSvg` | **Inline SVG, ≤2 KB optimised.** A traced-path export can be 40 KB and will silently break the page. Use `currentColor` so it inherits the theme. |
 | `continueGrantText` | Must match your URL Admin Override timeout |
-| `palette` | Colour scheme: `cyber-orange`, `strata-yellow` or `prisma-blue`. Override per build with `--palette` |
+| `palette` | Colour scheme: `cyber-orange`, `strata-yellow` or `prisma-blue`. Override per build with `--palette`. Setting it here also overrides a style that [pins its own](styles.md#a-style-that-owns-its-colour) |
 | `categories` | `category → {tone, gloss}`; tone is `calm`, `warn` or `critical` |
 | `defaultGloss` | Used for any category not in the map — keep it true of every category |
 

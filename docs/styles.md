@@ -1,8 +1,9 @@
 # Styles
 
-Six styles ship. `assist` is the default and the most conservative; the rest are
-the same eight pages under different layouts. Every one supports all three
-palettes and both colour schemes.
+Seven styles ship. `assist` is the default and the most conservative; the rest
+are the same nine pages under different layouts. Six of them wear any of the
+three brand palettes; `nyan` pins a palette of its own. All support both colour
+schemes.
 
 | Style | Layout |
 |---|---|
@@ -12,6 +13,45 @@ palettes and both colour schemes.
 | `glass` | Glass Panel — layered panel over an ambient field, facts as cards |
 | `beacon` | Beacon Field — drifting dot field with an animated seal |
 | `mesh` | Mesh Panel — masked hairline grid under a glass card |
+| `nyan` | Nyan Runway — pixel cat flying across a star field, glass notice beside its trail |
+
+## A style that owns its colour
+
+Layout and colour are separate axes on purpose: swapping an accent must not mean
+forking a shell, which is why six shells × three palettes is nine files rather
+than eighteen. `nyan` is the exception that proves where the axis ends. Its
+colour *is* the style — a spectrum trail over a night sky is not a thing you
+render in a customer's cyan — so it ships a palette and pins it:
+
+```json
+{ "name": "nyan", "shell": "nyan", "palette": "nyan" }
+```
+
+Palettes declare which sort they are:
+
+| `kind` | Meaning |
+|---|---|
+| `brand` | The customer axis. Any style may wear it, and it is what `--palette` chooses between |
+| `style` | Belongs to one shell, which pins it. Not a choice offered to a customer |
+
+The pin is the weakest of the four ways a palette gets chosen. In order:
+
+1. `--palette` on the command line
+2. `palette` in `config/<customer>.json` — the customer's own document
+3. the theme's pin
+4. the shipped default
+
+Rung 2 reads the customer file directly rather than the merged config, because
+`_defaults.json` ships a `palette` and the merged view therefore always carries
+one. Counting that as a choice would mean a pin could never fire. A theme that
+renders in something other than the build's palette says so at the foot of the
+build report — a style quietly wearing a colour nobody selected reads as a bug in
+the palette rather than as a decision in the theme.
+
+Only one guard differs by kind. `test_dark_grounds_are_tinted_not_saturated`
+caps a dark ground's saturation, so that a brand hue stays a whisper behind an
+interface; a style palette's dark ground is artwork, not a tinted neutral, and is
+exempt.
 
 ## Adding one
 
@@ -69,7 +109,7 @@ on *unknown* placeholders, never on a missing or misplaced one.
   order alone decides whether a calm page shows a bare coloured chip.
 
 How a shell *expresses* severity is its own business: `assist`, `banner`,
-`glass`, `beacon` and `mesh` use a pill, `record` uses an eyebrow, and `beacon`
+`glass`, `beacon`, `mesh` and `nyan` use a pill, `record` uses an eyebrow, and `beacon`
 additionally tints its seal rings. What no shell may do is repaint the brand row
 or the primary action by tone — the logo is the customer's and the action is the
 brand's.

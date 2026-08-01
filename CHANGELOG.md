@@ -4,6 +4,22 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A seventh style, `nyan`** — Nyan Runway. A pixel cat flying across a star
+  field beside the notice, laying a spectrum trail; legs and tail animate as a
+  frame swap, and a click on empty sky rolls it once and doubles the trail. The
+  notice sits out of the flight lane on a glass card, so the trail passes behind
+  it rather than through the words. The GlobalProtect imports take the same sky
+  and card, with the trail reduced to a hairline on the card edge.
+- **Style palettes.** Palettes now declare a `kind`: `brand` palettes are the
+  customer axis, a `style` palette belongs to one shell and is pinned by it with
+  a `palette` key in the theme. Resolution order is `--palette`, then the
+  customer's own config file, then the pin, then the default; a theme rendering
+  in anything other than the build's palette is named in the build report.
+
 ## [0.1.0]
 
 First release.
