@@ -1,12 +1,18 @@
 <!--
   Nyan Runway, ported to the GlobalProtect portal from shells/nyan.html.
 
-  The comet does not come with it. A sign-in form is not somewhere to fly a
-  decoration across, and the logout page cannot carry markup at all -- PAN-OS
-  owns that body -- so a flight would have to be built twice from different
-  parts. What crosses over is everything else: the palette, the sky and its
-  drifting stars, the glass card, and the trail itself reduced to a spectrum
-  hairline along the card's top edge. Enough that the two families read as one.
+  The cat does not come with it, and neither does the canvas the block pages
+  draw their sky on. A sign-in form is not somewhere to fly a decoration
+  across; more to the point, the Home Page import is script-only -- PAN-OS
+  embeds it mid-<head> and writes both bodies itself -- so there is no element
+  to draw on and no honest way to give the two imports the same sky.
+
+  What crosses over is everything that is style rather than motion: the
+  palette, the drifting star field, the trail reduced to a spectrum hairline
+  along the card's top edge, and the glass card itself -- a panel colour of its
+  own at a veil that stops short of opaque, so the sky reads through it. That
+  last part is what keeps this reading as the same family as the block pages,
+  where the same card is what lets the rainbow pass behind the notice.
 -->
 <!--@STYLE_LOGIN-->
 :root{
@@ -14,25 +20,25 @@
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
 --ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
---star:{{C_ACCENT_TEXT}};--veil:.9;--dot:.5}
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78}
 @media(prefers-color-scheme:dark){:root{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
 --ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
---star:#ffffff;--veil:.84;--dot:.75}}
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}}
 html[data-force-scheme=light]{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
 --ct:{{C_CRIT}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
---star:{{C_ACCENT_TEXT}};--veil:.9;--dot:.5}
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78}
 html[data-force-scheme=dark]{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
 --ct:{{C_D_CRIT}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
---star:#ffffff;--veil:.84;--dot:.75}
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}
 *{box-sizing:border-box}
 html{font-size:16px}
 @media(min-width:600px){html{font-size:20px}}
@@ -44,8 +50,10 @@ body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
 font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 -webkit-font-smoothing:antialiased}
 /* Two dot fields at different scales drifting as one. A repeating texture
-   rather than a surface, and cheaper than the block pages' version. */
-body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:var(--dot);
+   rather than a surface. The block pages draw their stars on a canvas and get
+   twinkle and parallax for it; that needs an element this family cannot have,
+   so these stay gradients. --star carries its own alpha, as it does there. */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;
 background-image:radial-gradient(var(--star) 1.3px,transparent 1.5px),
 radial-gradient(var(--star) 1px,transparent 1.2px);
 background-size:9rem 7rem,13rem 11rem;background-position:0 0,4rem 3rem;
@@ -55,14 +63,16 @@ animation:drift 5s linear infinite}
    means the markup below still looks like the page PAN-OS shipped. */
 .loginscreen_logo{position:relative;width:100%;max-width:29rem;margin:0 auto;
 padding:clamp(2rem,9vh,4.5rem) 1.5rem 3rem}
-/* Glass, matching the block pages. The blur is what keeps the form legible over
-   a lit sky; browsers without backdrop-filter keep the veil alone. */
+/* Glass, matching the block pages: the palette's own `surface` rather than the
+   ground, so the panel is a colour and not the sky with the life turned off.
+   The blur is what keeps the form legible over a lit sky; browsers without
+   backdrop-filter keep the veil alone. */
 .col{position:relative;z-index:1;padding:1.8rem 1.6rem 1.6rem;border-radius:1rem;
 border:1px solid var(--sa);
 -webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
 box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.45)}
 .col::before,.col::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
-.col::before{background:var(--gr);opacity:var(--veil)}
+.col::before{background:var(--sf);opacity:var(--veil)}
 /* Two layers: the trail, reduced to a hairline along the top edge, over the
    highlight that makes the panel read as glass rather than as a hole. */
 .col::after{background:
@@ -231,22 +241,22 @@ html[data-gp=logout]{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---star:{{C_ACCENT_TEXT}};--veil:.9;--dot:.5;font-size:16px;overflow-x:hidden}
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78;font-size:16px;overflow-x:hidden}
 @media(prefers-color-scheme:dark){html[data-gp=logout]{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---star:#ffffff;--veil:.84;--dot:.75}}
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}}
 html[data-gp=logout][data-force-scheme=light]{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---star:{{C_ACCENT_TEXT}};--veil:.9;--dot:.5}
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78}
 html[data-gp=logout][data-force-scheme=dark]{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---star:#ffffff;--veil:.84;--dot:.75}
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}
 html[data-gp=logout] *{box-sizing:border-box}
 @media(min-width:600px){html[data-gp=logout]{font-size:20px}}
 /* The body is the centring container here. On the login page that job belonged
@@ -260,7 +270,7 @@ font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial
 /* The star field as a pseudo-element: no markup can be added to this page, and
    body::before paints the same texture the login page gets from a rule. */
 html[data-gp=logout] body::before{content:"";position:fixed;inset:0;pointer-events:none;
-opacity:var(--dot);background-image:radial-gradient(var(--star) 1.3px,transparent 1.5px),
+background-image:radial-gradient(var(--star) 1.3px,transparent 1.5px),
 radial-gradient(var(--star) 1px,transparent 1.2px);
 background-size:9rem 7rem,13rem 11rem;background-position:0 0,4rem 3rem;
 animation:drift 5s linear infinite}
@@ -273,7 +283,7 @@ border:1px solid var(--sa);
 box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.45)}
 html[data-gp=logout] .loginscreen_logo::before,html[data-gp=logout] .loginscreen_logo::after{
 content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
-html[data-gp=logout] .loginscreen_logo::before{background:var(--gr);opacity:var(--veil)}
+html[data-gp=logout] .loginscreen_logo::before{background:var(--sf);opacity:var(--veil)}
 html[data-gp=logout] .loginscreen_logo::after{background:
 linear-gradient(90deg,#f00 0 16.66%,#f90 0 33.3%,#ff0 0 50%,#3f0 0 66.6%,#09f 0 83.3%,#63f 0 100%)
 top/100% 3px no-repeat,
