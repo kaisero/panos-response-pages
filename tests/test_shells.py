@@ -34,6 +34,11 @@ PLACEHOLDERS = (
     "COMPANY",
     "LOGO_SVG",
     "SCRIPTS",
+    # Both empty on every page but the URL block one, and on every build that has
+    # not opted in -- so a shell missing them builds clean and simply never shows
+    # the handoff, in that one theme, for the one customer who turned it on.
+    "REDIRECT_CSS",
+    "REDIRECT",
 )
 
 # Selector/body pairs. At-rule wrappers (@media, @keyframes) contain nested

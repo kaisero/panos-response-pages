@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from panos_response_pages import redirect
 from panos_response_pages.errors import BuildError
 from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
 from panos_response_pages.templates import parse_sections, read, substitute
@@ -59,6 +60,11 @@ def build_page(
     }
     parts = {k: substitute(v, base) for k, v in parts.items()}
 
+    # Three empty strings unless this is the URL block page and a customer opted
+    # in, so every other page -- and every build with the feature off -- is
+    # byte-identical to one from before it existed.
+    redirect_css, redirect_html, redirect_js = redirect.emit(cfg, page)
+
     values = dict(base)
     values.update(
         {
@@ -71,18 +77,24 @@ def build_page(
             "TONE": parts.get("TONE", "calm"),
             "SEVERITY": SEV_LABEL.get(parts.get("TONE", "calm"), ""),
             "MARK": parts.get("MARK", cfg["marks"]["shield"]),
+            "REDIRECT_CSS": redirect_css,
+            "REDIRECT": redirect_html,
             # The frame-buster is correct on a live page -- a response page rendered
             # inside a third-party iframe is a broken state. But it must not ship in
             # preview builds, or every gallery iframe would replace the gallery itself.
             # Emit the category map only where it can actually be used: a page that
             # declares no id="cat" (safe-search has no <category/> token) would carry
             # ~1.7 KB of dead JSON.
+            # The redirect script runs LAST: it reads the tone the category
+            # lookup resolved, and a calm-only guard against an attribute that
+            # has not been set yet would arm on every page.
             "SCRIPTS": ("" if preview else FRAME_BUSTER)
             + category_js(
                 cfg["categories"],
                 cfg["defaultGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1" or 'id="cat"' not in parts["FACTS"],
-            ),
+            )
+            + redirect_js,
         }
     )
     values.update({f"C_{k.upper()}": v for k, v in palette["colors"].items()})
