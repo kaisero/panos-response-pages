@@ -327,20 +327,58 @@ def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> 
 
 def format_report(result: BuildResult) -> str:
     """The size table. This is the tool's product, not chatter, so it goes to
-    stdout as plain text and stays parseable by eye."""
-    lines = [f"\n  {'theme':10} {'page':24} {'bytes':>7}  {'of limit':>9}  status", "  " + "-" * 66]
+    stdout as plain text and stays parseable by eye.
+
+    One row per style and palette rather than per page. A page row each would be
+    252 lines, and the only number that can fail is the largest -- so the row
+    carries that page, and anything that warns or fails is then named in full
+    underneath, where a short list is read and a long table is not.
+    """
+    worst: dict[tuple[str, str], PageResult] = {}
     for r in result.results:
+        key = (r.theme, r.palette)
+        if key not in worst or r.size > worst[key].size:
+            worst[key] = r
+
+    lines = [
+        f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  status",
+        "  " + "-" * 78,
+    ]
+    for (theme, palette), r in worst.items():
+        status = _worst_status(result, theme, palette)
         pct = f"{r.size / MAX_BYTES * 100:.0f}%"
-        lines.append(f"  {r.theme:10} {r.page:24} {r.size:>7}  {pct:>9}  {r.status}")
-        lines += [f"      ! {e}" for e in r.errors]
-        lines += [f"      ~ {w}" for w in r.warnings]
-    lines.append("  " + "-" * 66)
+        lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status}")
+    lines.append("  " + "-" * 78)
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )
+
+    flagged = [r for r in result.results if r.errors or r.warnings]
+    if flagged:
+        lines.append("")
+        for r in flagged:
+            lines.append(f"  {r.theme}/{r.palette}/{r.page}  {r.size} B  {r.status}")
+            lines += [f"      ! {e}" for e in r.errors]
+            lines += [f"      ~ {w}" for w in r.warnings]
+    else:
+        lines += ["", "  no page warns or fails"]
+
     if result.portal_results:
         lines += _portal_report(result)
     return "\n".join(lines)
+
+
+def _worst_status(result: BuildResult, theme: str, palette: str) -> str:
+    """FAIL beats warn beats ok, across every page of one combination.
+
+    Taken from the whole combination, not from the largest page: a page can warn
+    for a reason that has nothing to do with its size, and the row must not read
+    `ok` while a line underneath it says otherwise.
+    """
+    rows = [r for r in result.results if r.theme == theme and r.palette == palette]
+    if any(r.errors for r in rows):
+        return "FAIL"
+    return "warn" if any(r.warnings for r in rows) else "ok"
 
 
 def _portal_report(result: BuildResult) -> list[str]:

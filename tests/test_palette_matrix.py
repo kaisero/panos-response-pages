@@ -13,7 +13,7 @@ import unittest
 
 from _paths import DATA
 from panos_response_pages import palettes
-from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages.builder import build_all, format_report, load_themes
 from panos_response_pages.errors import BuildError
 from panos_response_pages.validate import PAGE_TOKENS
 
@@ -123,6 +123,51 @@ class TestNarrowing(unittest.TestCase):
             self.assertEqual({(r.theme, r.palette) for r in result.results}, {("glass", "nyan")})
             self.assertTrue((out / "deploy" / "glass" / "nyan" / "url-block-page.html").is_file())
             self.assertFalse((out / "deploy" / "glass" / "cyber-orange").exists())
+
+
+class TestReport(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.result = build_all(data_dir=DATA, out_dir=pathlib.Path(cls.tmp.name), preview=False)
+        cls.result.portal_results.clear()
+        cls.text = format_report(cls.result)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_one_row_per_combination_not_per_page(self):
+        """252 page rows is long enough that a single warn in the middle scrolls
+        past unread, which defeats the only purpose the table has.
+
+        Counted between the rules rather than by matching `ok`, so the test still
+        measures the table when a row's status is `warn` or `FAIL`.
+        """
+        lines = self.text.splitlines()
+        rules = [i for i, ln in enumerate(lines) if set(ln.strip()) == {"-"}]
+        self.assertEqual(len(rules), 2, "the table should be fenced by exactly two rules")
+        self.assertEqual(rules[1] - rules[0] - 1, len(THEMES) * len(PALETTES))
+
+    def test_each_row_names_the_largest_page(self):
+        """The only page that can breach the ceiling is the largest one, so it
+        is the one the row has to be about."""
+        row = next(ln for ln in self.text.splitlines() if "nyan" in ln and "cyber-orange" in ln)
+        self.assertIn("url-block-page", row)
+        self.assertIn("15558", row)
+
+    def test_palette_does_not_change_page_size(self):
+        """The collapsed row is only honest if a palette cannot make a page
+        bigger. If this ever fails, the report must stop collapsing."""
+        by_page: dict[tuple[str, str], set[int]] = {}
+        for r in self.result.results:
+            by_page.setdefault((r.theme, r.page), set()).add(r.size)
+        for (theme, page), sizes in by_page.items():
+            with self.subTest(theme=theme, page=page):
+                self.assertEqual(len(sizes), 1, f"{theme}/{page} differs by palette: {sorted(sizes)}")
+
+    def test_a_clean_build_says_so(self):
+        self.assertIn("no page warns or fails", self.text)
 
 
 if __name__ == "__main__":
