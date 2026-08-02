@@ -57,9 +57,9 @@ class PageResult:
     size: int
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    # Which palette this row was actually rendered in. A build no longer has one
-    # answer -- a theme may pin its own -- and a style quietly rendering in a
-    # colour nobody asked for is the kind of thing only a report can catch.
+    # Which palette this row was rendered in. Every theme now renders in every
+    # palette by design, so this is not a verdict on the row -- it is the
+    # coordinate that says which cell of the theme x palette matrix it is.
     palette: str = ""
 
     @property
@@ -206,7 +206,15 @@ def build_all(
     # The gallery's opening view, taken from the first theme: `opening_palette`
     # only consults a theme for its pin, and the pin is a property of the style
     # a reviewer will pick, not of the one that happens to sort first.
-    palette = loaded[opening_palette(cfg, chosen, themes[0], palette_name)]
+    #
+    # `loaded` is keyed only by the names `palettes.select` already validated
+    # against --palette, so a name arriving from the customer config or a
+    # theme's own pin has never been checked -- and `loaded[...]` would raise
+    # a raw KeyError instead of the BuildError every other bad name gets.
+    opening_name = opening_palette(cfg, chosen, themes[0], palette_name)
+    if opening_name not in loaded:
+        raise BuildError(f"unknown palette '{opening_name}'. Available: {', '.join(sorted(loaded))}")
+    palette = loaded[opening_name]
 
     for th in themes:
         for pname in palette_names:

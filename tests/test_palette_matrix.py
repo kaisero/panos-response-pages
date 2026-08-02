@@ -5,7 +5,9 @@ used to choose that one palette choose something else instead -- so every test
 here guards a meaning that changed rather than a behaviour that is new.
 """
 
+import json
 import pathlib
+import shutil
 import tempfile
 import unittest
 
@@ -77,6 +79,40 @@ class TestMatrix(unittest.TestCase):
         """The layout is a breaking change, and a leftover file at the old path
         is worse than none: an upload script would keep finding a stale page."""
         self.assertEqual(list((self.out / "deploy" / "glass").glob("*.html")), [])
+
+
+class TestUnknownOpeningPalette(unittest.TestCase):
+    """`loaded` is keyed only by the names `palettes.select` already validated
+    against --palette. A name arriving some other way -- the customer's own
+    config, or a theme's pin -- was never checked, and indexing straight into
+    `loaded` with it raised a raw KeyError instead of the BuildError every
+    other unknown palette name gets."""
+
+    def test_an_unknown_customer_palette_is_a_build_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = pathlib.Path(tmp) / "data"
+            shutil.copytree(DATA, data_dir)
+            (data_dir / "config" / "acme.json").write_text(json.dumps({"palette": "lilac"}))
+
+            with self.assertRaises(BuildError) as caught:
+                build_all(data_dir=data_dir, out_dir=pathlib.Path(tmp) / "out", customer="acme", preview=False)
+            self.assertIn("lilac", str(caught.exception))
+
+    def test_an_unknown_theme_pin_is_a_build_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = pathlib.Path(tmp) / "data"
+            shutil.copytree(DATA, data_dir)
+            # assist sorts first alphabetically among the shipped themes, so
+            # its pin is the one `opening_palette` consults with no --palette
+            # and no customer override in play.
+            theme_path = data_dir / "themes" / "assist.json"
+            theme = json.loads(theme_path.read_text())
+            theme["palette"] = "lilac"
+            theme_path.write_text(json.dumps(theme))
+
+            with self.assertRaises(BuildError) as caught:
+                build_all(data_dir=data_dir, out_dir=pathlib.Path(tmp) / "out", preview=False)
+            self.assertIn("lilac", str(caught.exception))
 
 
 class TestNarrowing(unittest.TestCase):

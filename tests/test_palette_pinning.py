@@ -11,7 +11,9 @@ regression `customer_keys()` exists to prevent, and the fourth test here is the
 one that would catch it coming back.
 """
 
+import json
 import pathlib
+import shutil
 import tempfile
 import unittest
 
@@ -25,10 +27,10 @@ class TestOpeningPalette(unittest.TestCase):
     """The pin used to decide what got built. It now decides what a reviewer
     sees first, and nothing else -- every combination is on disk either way."""
 
-    def opening(self, theme_name, customer="contoso", palette_name=None):
-        cfg = load_config(customer, DATA / "config")
-        chosen = customer_keys(customer, DATA / "config")
-        theme = next(t for t in load_themes(DATA) if t["name"] == theme_name)
+    def opening(self, theme_name, customer="contoso", palette_name=None, data_dir=DATA):
+        cfg = load_config(customer, data_dir / "config")
+        chosen = customer_keys(customer, data_dir / "config")
+        theme = next(t for t in load_themes(data_dir) if t["name"] == theme_name)
         return opening_palette(cfg, chosen, theme, palette_name)
 
     def test_a_pin_decides_when_nothing_else_speaks(self):
@@ -50,6 +52,17 @@ class TestOpeningPalette(unittest.TestCase):
             result = build_all(data_dir=DATA, out_dir=pathlib.Path(tmp), theme="nyan", preview=False)
             built = {r.palette for r in result.results}
             self.assertEqual(built, set(palettes.available(DATA / "palettes")))
+
+    def test_the_customer_s_own_config_outranks_the_pin(self):
+        """nyan pins itself to "nyan". A customer file that sets its own
+        `palette` is the customer's document, their call -- it must win over
+        the theme's pin, same as it wins over the shipped default."""
+        with tempfile.TemporaryDirectory() as tmp:
+            data_dir = pathlib.Path(tmp) / "data"
+            shutil.copytree(DATA, data_dir)
+            (data_dir / "config" / "acme.json").write_text(json.dumps({"palette": "prisma-blue"}))
+
+            self.assertEqual(self.opening("nyan", customer="acme", data_dir=data_dir), "prisma-blue")
 
 
 if __name__ == "__main__":
