@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en" data-tone="{{TONE}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="pragma" content="no-cache">
+<title>{{TITLE}}</title>
+<style>
+:root{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+/* The sky is the palette's own ground -- the dark scheme reads as night, the
+   light one as dusk -- so the body wears --gr directly. --star carries its own
+   alpha, because the canvas reads it as a fill and a separate token to dim it
+   was a second declaration in all four blocks; the trail is the one thing that
+   never takes a brand colour, which is why this style pins a palette. */
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78;
+--tt:var(--at);--tw:var(--aw)}
+@media(prefers-color-scheme:dark){:root{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}}
+html[data-force-scheme=light]{
+--gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
+--ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
+--ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
+--wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78}
+html[data-force-scheme=dark]{
+--gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
+--ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
+--ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
+--wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
+--sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}
+html[data-tone=warn]{--tt:var(--wnt);--tw:var(--ww)}
+html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
+*{box-sizing:border-box}
+html{font-size:16px}
+@media(min-width:600px){html{font-size:19px}}
+body{margin:0;min-height:100vh;overflow-x:hidden;background:var(--gr);color:var(--ik);
+font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+-webkit-font-smoothing:antialiased}
+/* The sky is drawn, not tiled. A gradient dot field lands on a lattice you can
+   see, and it cannot bend a trail around a moving cat -- and both of those are
+   the picture here, so the flight is simulated on a canvas instead. */
+#sky{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+/* The flight. The script writes `top` and a bob transform; these are the
+   resting values it starts from, and the ones that stand if it never runs. */
+.fly{position:fixed;top:22vh;right:8vw;width:13rem;height:7.8rem;pointer-events:none}
+/* The artwork is inline markup, not a background url(): the legs and tail are
+   animated from this stylesheet, and CSS cannot reach inside a url() -- an SVG
+   behind one is an isolated document. tests/_nyan_sprite.py compiles it. */
+.ny{position:absolute;inset:0;width:100%;height:100%;
+filter:drop-shadow(0 0 .5rem var(--tw));
+filter:drop-shadow(0 0 .7rem color-mix(in srgb,var(--tt) 60%,transparent))}
+/* Frame swap, not a transform. Each leg and tail position is its own group and
+   only one is visible at a time; steps(1,end) holds each frame for its whole
+   segment, which is what makes it read as pixel animation rather than a fade. */
+.l1,.t1,.t2{opacity:0}
+.l0,.l1{animation:.36s steps(1,end) infinite}
+.t0,.t1,.t2{animation:.45s steps(1,end) infinite}
+.l0{animation-name:la}.l1{animation-name:lb}
+.t0{animation-name:ta}.t1{animation-name:tb}.t2{animation-name:tc}
+@keyframes la{50%{opacity:0}}
+@keyframes lb{0%{opacity:0}50%{opacity:1}}
+@keyframes ta{33%{opacity:0}}
+@keyframes tb{0%{opacity:0}33%{opacity:1}66%{opacity:0}}
+@keyframes tc{0%{opacity:0}66%{opacity:1}}
+/* A click on empty sky: the cat rolls once, and the script doubles the sky's
+   rate to match. Nothing depends on either. */
+html[data-warp] .ny{animation:spin .62s cubic-bezier(.3,1.4,.4,1)}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* The notice is held out of the lane rather than centred under it: behind the
+   card the artwork is a smear, and dimming a block notice to make room for a
+   decoration is backwards. */
+main{position:relative;min-height:100vh;display:grid;align-items:center;justify-items:start;
+padding:clamp(1.5rem,6vh,3rem) clamp(1.15rem,7vw,5rem)}
+/* Glass, not a flat panel: the trail passes under the notice and is meant to be
+   seen doing it, so the veil stops well short of opaque and the blur is what
+   keeps the text legible over it. Browsers without backdrop-filter keep the veil
+   alone -- readable, but the rainbow behind it stays sharp. */
+.card{position:relative;z-index:1;width:100%;max-width:32rem;padding:1.9rem 1.7rem 1.7rem;
+border-radius:1rem;border:1px solid var(--sa);
+-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);
+box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.45)}
+.card::before,.card::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
+.card::before{background:var(--sf);opacity:var(--veil)}
+.card::after{background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 45%)}
+.brand{display:flex;align-items:center;gap:.55rem;color:var(--at);margin:0 0 1.5rem}
+.brand svg{width:1.25rem;height:1.25rem}
+.brand span{font-size:.83rem;font-weight:600;letter-spacing:.03em}
+.brand .sev{margin-left:auto;font-size:.6rem;font-weight:700;letter-spacing:.09em;
+text-transform:uppercase;color:var(--tt);background:var(--tw);padding:.25rem .7rem;border-radius:999px}
+.sev:empty{display:none}
+.mark{margin:0 0 .8rem;color:var(--tt);line-height:0}
+.mark svg{width:2.1rem;height:2.1rem}
+h1{margin:0 0 .6rem;font-size:1.95rem;line-height:1.07;letter-spacing:-.035em;font-weight:700;
+text-wrap:balance}
+.gloss{margin:0 0 1.4rem;color:var(--im);font-size:.95rem;line-height:1.66}
+dl{margin:0 0 1.4rem;border-top:1px solid var(--sa)}
+.f{display:flex;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--sa)}
+dt{width:5rem;flex:none;font-size:.68rem;color:var(--if)}
+dd{margin:0;min-width:0;font-size:.72rem;font-weight:600;overflow-wrap:anywhere}
+dd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.66rem;font-weight:500}
+.acts{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem 1rem}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.8rem;
+padding:.7rem 1.5rem;border-radius:.45rem;background:var(--ac);color:var(--ai);text-decoration:none;
+font-size:.88rem;font-weight:650;border:1px solid transparent;cursor:pointer;
+box-shadow:0 .4rem 1.1rem rgba(0,0,0,.3);
+box-shadow:0 .45rem 1.4rem color-mix(in srgb,var(--ac) 42%,transparent)}
+.btn:hover{filter:brightness(1.08)}
+/* PAN-OS injects the Continue form as markup, so these are styled blind. */
+.acts form{margin:0;display:inline-flex}
+.acts input[type=submit],.acts input[type=button],.acts button{
+font:inherit;font-size:.88rem;font-weight:650;min-height:2.8rem;padding:.7rem 1.5rem;
+border-radius:.45rem;border:1px solid var(--sa);background:var(--sa);color:var(--ik);
+cursor:pointer;-webkit-appearance:none;appearance:none}
+.acts input[type=submit]:hover,.acts button:hover{filter:brightness(.96)}
+.plain{width:100%;font-size:.78rem;color:var(--if);margin:0}
+.plain a,.note a{color:var(--at)}
+.infobox,.warnline{display:flex;align-items:flex-start;gap:.55rem;margin:1.4rem 0 0;
+padding:.75rem .85rem;border-radius:.5rem;background:var(--sa);border-left:3px solid var(--at);
+color:var(--ik);font-size:.78rem;line-height:1.55}
+.infobox>svg,.warnline>svg{flex:none;width:1rem;height:1rem;margin-top:.15rem;color:var(--at)}
+.infobox>span,.warnline>span{flex:1;min-width:0}
+.warnline{border-left-color:var(--tt)}
+.warnline>svg{color:var(--tt)}
+.note{margin:1.4rem 0 0;font-size:.76rem;color:var(--if);line-height:1.6}
+a:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid var(--tt);outline-offset:3px}
+/* Between these two the lane still fits, but only if the notice and the flight
+   both give ground. The lower bound is the width of the review gallery's desktop
+   frame, so that frame shows the side-by-side layout rather than the stacked one. */
+@media(min-width:821px) and (max-width:1100px){.card{max-width:26rem}.fly{width:10rem;height:6rem}}
+@media(max-width:820px){
+/* No lane to the side, so the flight gets a reserved band above the notice. The
+   card is taller than the viewport on most of these pages, and without the
+   reservation it covers the artwork completely. */
+main{justify-items:center;align-items:start;padding-top:9.5rem}
+.fly{top:2rem;right:auto;left:50%;margin-left:-4.5rem;width:9rem;height:5.4rem}}
+@media(max-width:600px){main{padding:8.5rem 1.15rem 2rem}h1{font-size:1.7rem}
+.card{padding:1.6rem 1.3rem 1.4rem}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="fly" aria-hidden="true"><svg class="ny" viewBox="0 0 40 24" shape-rendering="crispEdges"><path fill="#000" d="M7 3h20v17h-20zm-1 1h24v12h-24zm29 0h2v12h-2zm-5 1h1v12h-1zm4 0h4v2h-4zm-3 1h6v1h-6zm6 2h1v2h-1zm-6 1h6v6h-6zm6 3h1v3h-1zm-31 4h22v3h-22zm23 0h1v1h-1zm2 0h5v1h-5z"/><path fill="#fc9" d="M7 4h20v15h-20z"/><path fill="#f9c" d="M9 6h16v11h-16z"/><path fill="#f39" d="M11 7h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2z"/><path fill="#999" d="M28 5h2v2h-2zm7 0h2v2h-2zm-5 1h1v4h-1zm4 0h1v3h-1zm-5 1h1v9h-1zm2 0h3v2h-3zm4 0h1v9h-1zm-7 1h1v7h-1zm8 0h1v7h-1zm-4 1h2v1h-2zm0 1h1v3h-1zm-2 2h2v1h-2zm3 0h2v1h-2zm-2 1h1v1h-1zm2 0h1v1h-1zm-3 1h1v2h-1zm2 0h1v2h-1zm2 0h1v2h-1zm-3 1h1v1h-1zm2 0h1v1h-1z"/><path fill="#f99" d="M28 10h2v2h-2zm7 0h2v2h-2z"/><path fill="#fff" d="M30 9h1v1h-1zm3 0h1v1h-1z"/><g class="l0"><path fill="#000" d="M8 18h3v5h-3zm10 0h3v5h-3zm-11 1h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm-11 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M8 19h3v3h-3zm10 0h3v3h-3zm-5 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="l1"><path fill="#000" d="M13 18h3v5h-3zm10 0h3v5h-3zm-15 1h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm-15 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M13 19h3v3h-3zm10 0h3v3h-3zm-15 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="t0"><path fill="#000" d="M0 7h2v4h-2zm2 1h3v5h-3zm3 1h1v6h-1zm1 1h1v5h-1zm-5 1h7v1h-7zm6 1h1v2h-1zm-4 1h4v1h-4zm1 1h1v1h-1z"/><path fill="#999" d="M0 8h2v2h-2zm2 1h3v3h-3zm3 2h2v3h-2zm-1 1h1v2h-1z"/></g><g class="t1"><path fill="#000" d="M0 12h7v4h-7zm7 1h1v3h-1zm-5 3h5v1h-5z"/><path fill="#999" d="M0 13h7v2h-7zm2 2h5v1h-5z"/></g><g class="t2"><path fill="#000" d="M4 13h3v5h-3zm-1 1h5v3h-5zm-1 1h1v5h-1zm-2 1h7v1h-7zm5 2h1v1h-1zm-5 1h2v1h-2zm3 0h2v1h-2z"/><path fill="#999" d="M4 14h3v3h-3zm-2 2h2v3h-2zm-2 1h2v2h-2zm4 0h1v2h-1z"/></g></svg></div>
+<main>
+<div class="card">
+<p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
+<p class="mark" aria-hidden="true">{{MARK}}</p>
+<h1>{{HEADLINE}}</h1>
+<p class="gloss" id="gloss">{{GLOSS}}</p>
+<dl>{{FACTS}}</dl>
+<div class="acts">{{ACTIONS}}</div>
+{{EXTRA}}
+</div>
+</main>
+{{SCRIPTS}}
+<script>(function(){
+/* The flight is simulated rather than animated. The trail is a record of where
+   the cat has been, so it bends when the cat is steered instead of sliding as
+   one rigid bar, and the stars keep their own pace across it. CSS can do
+   neither, which is the whole reason there is a canvas here. */
+var on=addEventListener,rnd=Math.random,PLUS=[0,1,2,1],
+sky=document.getElementById("sky"),cx=sky.getContext("2d"),
+fly=document.querySelector(".fly"),doc=document.documentElement,
+BOW=["#f00","#f90","#ff0","#3f0","#09f","#63f"],
+still=matchMedia("(prefers-reduced-motion:reduce)").matches,
+W,H,px,catH,nose,steer,ink,stars,path=[],ty,cy,t=0,warp;
+function size(){
+/* Clear the steer first: the rect has to report the lane the stylesheet puts
+   the flight in at this width, not the one the last pointer left it at. */
+fly.style.top="";
+var r=fly.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2),i;
+W=innerWidth;H=innerHeight;catH=r.height;px=r.width/40;
+/* The trail leaves from the tart's left edge, which is a fifth into the sprite */
+nose=r.left+r.width*.2;
+/* Below the side-by-side breakpoint the notice owns the middle of the screen
+   and the flight keeps a reserved band above it, so steering is off. */
+steer=W>820;
+sky.width=W*d;sky.height=H*d;cx.setTransform(d,0,0,d,0,0);
+ink=getComputedStyle(doc).getPropertyValue("--star")||"#fff";
+if(!steer||ty==null)ty=cy=r.top;
+stars=[];
+for(i=0;i<46;i++)stars.push({x:rnd()*W,y:rnd()*H,
+s:2+Math.round(rnd()*2),f:rnd()*4,v:.4+rnd()});
+}
+function frame(){
+t++;
+var sp=warp?2.6:1,seg=Math.max(6,px*2),band=catH*.52,sh=band/6,i,b,s,x,y;
+cx.clearRect(0,0,W,H);
+/* A star is a plus that swells and shrinks over four frames -- the shape the
+   original's sky is made of, and the reason it is drawn and not a dot. */
+cx.fillStyle=ink;
+for(i=0;i<stars.length;i++){s=stars[i];
+s.x-=s.v*3.4*sp;s.f+=.12*sp;
+if(s.x<-20){s.x=W+20;s.y=rnd()*H}
+b=PLUS[~~s.f%4];
+if(b){cx.fillRect(s.x-s.s*b,s.y,s.s*(2*b+1),s.s);cx.fillRect(s.x,s.y-s.s*b,s.s,s.s*(2*b+1))}
+else cx.fillRect(s.x,s.y,s.s,s.s)}
+cy+=(ty-cy)*.12;
+/* Bob in whole sprite pixels: a smooth sub-pixel bob reads as blur on pixel art */
+var bob=still?0:Math.round(Math.sin(t*.16)*1.5)*px;
+if(steer)fly.style.top=cy+"px";
+fly.style.transform="translateY("+bob+"px)";
+/* One sample per frame, then walked left. The step is stored with the sample
+   rather than derived from its index, so the staircase travels with the ribbon
+   instead of standing still while the colours run through it. */
+path.unshift([cy+bob+catH*.458,t>>2&1]);
+if(path.length>420)path.length=420;
+for(i=0;i<path.length;i++){
+x=nose-i*seg*sp;
+if(x<-seg)break;
+y=path[i][0]-band/2+(path[i][1]?0:sh*.55);
+for(b=0;b<6;b++){cx.fillStyle=BOW[b];cx.fillRect(x-seg,y+b*sh,seg+1,sh+1)}}
+if(!still)requestAnimationFrame(frame)}
+on("resize",size);size();
+on("pointermove",function(e){
+if(steer)ty=Math.max(10,Math.min(H-catH-10,e.clientY-catH/2))},{passive:true});
+on("click",function(e){
+if(e.target.closest&&e.target.closest("a,button,input,form"))return;
+warp=1;doc.setAttribute("data-warp","");
+setTimeout(function(){warp=0;doc.removeAttribute("data-warp")},900)});
+/* Reduced motion still gets the picture, just held still: a full ribbon behind
+   a resting cat, drawn once. */
+if(still)for(;t<420;t++)path.push([cy+catH*.458,t>>2&1]);
+frame();
+})();</script>
+</body>
+</html>

@@ -27,7 +27,7 @@ and options take a look at the dedicated
 </div>
 
 *Shown in the **Beacon Field** style. The
-[Preview](preview/index.html){ target="_blank" } gallery adds the other five styles,
+[Preview](preview/index.html){ target="_blank" } gallery adds the other six styles,
 mobile widths and the four GlobalProtect login states.*
 
 ## Install
@@ -86,6 +86,6 @@ not there — so it is all-or-nothing, and `init` makes copying everything cheap
 ## Where to go next
 
 - [CLI reference](cli.md) — every command and flag
-- [Styles](styles.md) — the six shells and the contract a new one must meet
+- [Styles](styles.md) — the seven shells and the contract a new one must meet
 - [Copy rules](copy-rules.md) — what the page is not allowed to claim
 - [Customising](customising.md) — config keys
