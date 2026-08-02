@@ -1,6 +1,6 @@
 # GlobalProtect portal pages
 
-Two imports, styled across all six themes, covering four surfaces of the
+Two imports, styled across all seven themes, covering four surfaces of the
 GlobalProtect portal.
 
 | Import object | Serves | Styled |

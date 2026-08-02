@@ -1,7 +1,7 @@
 {
   "company": "Example Corp",
   "supportEmail": "servicedesk@example.com",
-  "_palette": "Colour scheme, from palettes/. One of: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette.",
+  "_palette": "Colour scheme, from palettes/. One of the brand palettes: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette. Setting it here also overrides a style that pins its own palette, which nyan does -- leave it out of a customer file unless that is what you want.",
   "palette": "cyber-orange",
   "_logoSvg": "Placeholder mark. Replace with the customer's logo as INLINE SVG, optimised to <= 2 KB. A traced-path export can be 40 KB and will silently break the page. Keep viewBox 0 0 24 24 and use currentColor so it inherits the theme accent.",
   "logoSvg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"M12 8.2v4.4\"/><path d=\"M12 15.6h.01\"/></svg>",

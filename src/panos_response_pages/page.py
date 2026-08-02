@@ -64,7 +64,7 @@ def build_page(
     # The gallery's Redirect toggle, which shows the handoff on a config that has
     # not enabled it yet. Preview-only and asserted so: `redirect_demo` reaching a
     # deploy build would ship a countdown that loops instead of handing over.
-    demo = redirect_demo and page == redirect.PAGE
+    demo = redirect_demo and page == redirect.PAGE and redirect.supported(theme)
     if demo and not preview:
         raise BuildError("redirect_demo is a preview-only build; it must never reach deploy/")
     # Everything downstream reads the demo config, not just the redirect: the
@@ -72,10 +72,11 @@ def build_page(
     # the page renders a redirect for a category it cannot describe.
     eff = redirect.demo_config(cfg) if demo else cfg
 
-    # Three empty strings unless this is the URL block page and a customer opted
-    # in, so every other page -- and every build with the feature off -- is
-    # byte-identical to one from before it existed.
-    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, loop=demo)
+    # Three empty strings unless this is the URL block page, the style declares
+    # room for the notice, and a customer opted in -- so every other page, every
+    # style without it, and every build with the feature off is byte-identical to
+    # one from before it existed.
+    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, loop=demo)
 
     values = dict(base)
     values.update(

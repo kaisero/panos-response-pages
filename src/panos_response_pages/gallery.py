@@ -208,6 +208,7 @@ def build_gallery(
     # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
     # than assumed so a caller that built no demo simply gets no toggle payload.
     data.update({f"{t['name']}|{RX_KEY}": blobs[(t["name"], RX_KEY)] for t in themes if (t["name"], RX_KEY) in blobs})
+    rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], RX_KEY) in blobs})
     payload = json.dumps(data).replace("</", "<\\/")
     css = GALLERY_CSS.format(**palette["colors"])
 
@@ -235,14 +236,17 @@ def build_gallery(
 <script>
 var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light",
 state:"{states[0] if states else ""}",redirect:"off"}};
-var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}";
+// Which styles have room for the notice. nyan does not -- its URL block page is
+// 15558 B before a flat 3173 B notice, against a 17999 B ceiling -- so selecting
+// it must take the control away rather than offer an On with nothing behind it.
+var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}",RXOK={rx_ok};
 // The login surface is one import in four server-driven states, and the url
 // block page is one page built with and without the sanctioned-app handoff. Both
 // controls compose into the key rather than selecting a page of their own.
 function key(){{
   var p=S.page;
   if(p==="portal:login") p=p+"-"+S.state;
-  if(p===RXPAGE&&S.redirect==="on") p=p+RXSUF;
+  if(p===RXPAGE&&S.redirect==="on"&&RXOK[S.theme]) p=p+RXSUF;
   return S.theme+"|"+p;
 }}
 // A frame never shrinks below this. Block pages fill their frame and want to be
@@ -291,7 +295,7 @@ function render(){{
   var g=document.getElementById("stategrp");
   if(g) g.hidden = S.page!=="portal:login";
   var r=document.getElementById("rxgrp");
-  if(r) r.hidden = S.page!==RXPAGE;
+  if(r) r.hidden = S.page!==RXPAGE||!RXOK[S.theme];
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));

@@ -30,16 +30,19 @@ class TestListings(unittest.TestCase):
         self.assertIn(__version__, r.output)
 
     def test_themes_lists_every_style_with_its_label(self):
-        r = runner.invoke(app, ["themes"])
+        r = runner.invoke(app, ["themes", "--config-dir", str(DATA)])
         self.assertEqual(r.exit_code, 0, r.output)
         for name in ("assist", "record", "banner", "glass", "beacon", "mesh"):
             self.assertIn(name, r.output)
         self.assertIn("Assistive Panel", r.output, "the label is what tells them apart")
 
     def test_palettes_lists_every_palette(self):
-        r = runner.invoke(app, ["palettes"])
+        # --config-dir, not the resolved default: on a machine with a
+        # ~/.panos_response_pages this would otherwise assert against whatever
+        # that directory holds rather than against what the repository ships.
+        r = runner.invoke(app, ["palettes", "--config-dir", str(DATA)])
         self.assertEqual(r.exit_code, 0, r.output)
-        for name in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for name in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(name, r.output)
 
     def test_pages_lists_the_tokens_each_page_type_provides(self):
@@ -54,10 +57,10 @@ class TestPossibleValues(unittest.TestCase):
     question rather than just refuse."""
 
     def test_unknown_palette_reports_what_is_available(self):
-        r = runner.invoke(app, ["build", "--palette", "lilac"])
+        r = runner.invoke(app, ["build", "--palette", "lilac", "--config-dir", str(DATA)])
         self.assertEqual(r.exit_code, 2, r.output)
         self.assertIn("unknown palette", r.output)
-        for name in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for name in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(name, r.output)
 
     def test_unknown_theme_reports_what_is_available(self):

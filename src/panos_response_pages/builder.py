@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from panos_response_pages import datadir, redirect
-from panos_response_pages.config import load_config
+from panos_response_pages.config import customer_keys, load_config
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
 from panos_response_pages.gallery import build_gallery
@@ -56,6 +56,10 @@ class PageResult:
     size: int
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    # Which palette this row was actually rendered in. A build no longer has one
+    # answer -- a theme may pin its own -- and a style quietly rendering in a
+    # colour nobody asked for is the kind of thing only a report can catch.
+    palette: str = ""
 
     @property
     def status(self) -> str:
@@ -79,6 +83,7 @@ class PortalResult:
     encoded: int
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    palette: str = ""
 
     @property
     def status(self) -> str:
@@ -145,7 +150,36 @@ def build_all(
     defaults when that shim goes.
     """
     cfg = load_config(customer, data_dir / "config")
-    palette = load_palette(palette_name or cfg.get("palette", "cyber-orange"), data_dir / "palettes")
+    chosen = customer_keys(customer, data_dir / "config")
+    palette_dir = data_dir / "palettes"
+
+    # The build-level palette: what the six brand styles wear, and what the
+    # gallery's own chrome is drawn in. Resolved without any theme's opinion.
+    palette = load_palette(palette_name or cfg.get("palette", "cyber-orange"), palette_dir)
+
+    def palette_for(th: Mapping[str, Any]) -> dict[str, Any]:
+        """This theme's palette, first hit wins.
+
+        1. --palette, because asking for it on the command line means it
+        2. `palette` in the CUSTOMER's config file -- their document, their call
+        3. the theme's own pin, for a style that owns its colour
+        4. the shipped default
+
+        Step 2 is why `chosen` exists rather than a plain `cfg["palette"]`:
+        _defaults.json sets a palette, so the merged config always carries one
+        and a pin would never fire.
+        """
+        name = (
+            palette_name
+            or (str(cfg["palette"]) if "palette" in chosen else None)
+            or th.get("palette")
+            or cfg.get("palette", "cyber-orange")
+        )
+        if name == palette["name"]:
+            return dict(palette)
+        return loaded.setdefault(str(name), load_palette(str(name), palette_dir))
+
+    loaded: dict[str, dict[str, Any]] = {}
     themes = load_themes(data_dir, theme)
     pages = sorted(PAGE_TOKENS)
     template_dir = data_dir / "templates"
@@ -162,6 +196,7 @@ def build_all(
     portal_blobs: dict[tuple[str, str], str] = {}
 
     for th in themes:
+        th_palette = palette_for(th)
         deploy_dir = out_dir / deploy_subdir / th["name"]
         prev_dir = out_dir / preview_subdir / th["name"]
         if write:
@@ -173,7 +208,7 @@ def build_all(
             # strip_output runs here, before validate(), so the bytes that are
             # measured are the bytes that ship. It must not run any earlier:
             # parse_sections() needs the <!--@SLOT--> markers intact.
-            deployable = strip_output(build_page(page, th, cfg, palette, False, template_dir))
+            deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
             size, errors, warnings = validate(page, th["name"], deployable)
             if write:
                 # write_bytes, never write_text: write_text translates "\n" to
@@ -183,7 +218,7 @@ def build_all(
                 (deploy_dir / f"{page}.html").write_bytes(deployable.encode("utf-8"))
 
             if preview:
-                pv = strip_output(build_page(page, th, cfg, palette, True, template_dir))
+                pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
                 blobs[th["name"], page] = pv
                 if write:
                     (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))
@@ -194,19 +229,22 @@ def build_all(
                 # config until someone opts in. PREVIEW ONLY: it is not measured
                 # against the byte ceiling and never written under deploy/,
                 # because its countdown loops rather than hands over.
-                if page == redirect.PAGE:
-                    demo = strip_output(build_page(page, th, cfg, palette, True, template_dir, redirect_demo=True))
+                #
+                # th_palette, not the build-level palette: a style that pins its
+                # own colour must demonstrate the notice in the colour it wears.
+                if page == redirect.PAGE and redirect.supported(th):
+                    demo = strip_output(build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True))
                     blobs[th["name"], f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
                     if write:
                         (prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html").write_bytes(demo.encode("utf-8"))
 
-            results.append(PageResult(th["name"], page, size, errors, warnings))
+            results.append(PageResult(th["name"], page, size, errors, warnings, th_palette["name"]))
 
         imports: dict[str, str] = {}
         for page in PORTAL_PAGES:
             # build_portal_page strips on the way out, so these are already the
             # bytes the firewall receives; nothing may touch them afterwards.
-            imports[page] = build_portal_page(page, th, cfg, palette, False, portal_templates)
+            imports[page] = build_portal_page(page, th, cfg, th_palette, False, portal_templates)
             size, errors, warnings = validate_portal(imports[page])
             encoded = encoded_size(imports[page])
             if write:
@@ -216,7 +254,7 @@ def build_all(
                 # glob from sweeping a portal import into a block-page upload.
                 (deploy_dir / "portal").mkdir(parents=True, exist_ok=True)
                 (deploy_dir / "portal" / f"{page}.html").write_bytes(imports[page].encode("utf-8"))
-            portal_results.append(PortalResult(th["name"], page, size, encoded, errors, warnings))
+            portal_results.append(PortalResult(th["name"], page, size, encoded, errors, warnings, th_palette["name"]))
 
         if preview:
             # Spliced. PREVIEW ONLY, and never written anywhere `validate`
@@ -265,9 +303,22 @@ def format_report(result: BuildResult) -> str:
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )
+    lines += _pinned_report(result)
     if result.portal_results:
         lines += _portal_report(result)
     return "\n".join(lines)
+
+
+def _pinned_report(result: BuildResult) -> list[str]:
+    """Themes that did not render in the build's palette.
+
+    A style may pin its own colour, and the only thing worse than that happening
+    is it happening quietly: a theme wearing a palette nobody selected reads as a
+    bug in the palette rather than as a decision in the theme.
+    """
+    build_palette = result.palette["name"]
+    pinned = sorted({(r.theme, r.palette) for r in result.results if r.palette and r.palette != build_palette})
+    return ["", *(f"  {theme} renders in its own palette: {name}" for theme, name in pinned)] if pinned else []
 
 
 def _portal_report(result: BuildResult) -> list[str]:

@@ -2,5 +2,7 @@
   "name": "beacon",
   "label": "Beacon Field",
   "shell": "beacon",
+  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3173 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
+  "redirect": true,
   "_note": "A drifting dot field with an animated seal beside the content. The seal's rings take the severity colour, so the page reads its own tone from across the room. The prototype's scan sweep is deliberately absent."
 }

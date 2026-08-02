@@ -22,6 +22,9 @@ from panos_response_pages.palettes import load_palette
 from panos_response_pages.validate import PAGE_TOKENS, WARN_BYTES, validate
 
 THEMES = load_themes(DATA)
+
+# Styles that declare room for the notice. nyan does not -- see redirect.supported.
+SUPPORTING = [t for t in THEMES if redirect.supported(t)]
 PALETTE = load_palette("cyber-orange", DATA / "palettes")
 TEMPLATES = DATA / "templates"
 
@@ -47,8 +50,17 @@ def render(cfg, page="url-block-page", theme=None):
 
 
 def script_of(html):
-    """The redirect script only -- the last <script> on the page."""
-    return re.findall(r"<script>(.*?)</script>", html, re.S)[-1]
+    """The redirect script only.
+
+    Found by its contents, not by position. It used to be "the last <script> on
+    the page", which held until a shell appended one of its own after
+    {{SCRIPTS}} -- nyan does, for the flight -- and every assertion about the
+    redirect then ran against the wrong script and failed for the wrong reason.
+    """
+    for block in re.findall(r"<script>(.*?)</script>", html, re.S):
+        if "var R=" in block:
+            return block
+    return ""
 
 
 def map_of(html):
@@ -99,7 +111,7 @@ class TestOnlyTheUrlBlockPage(unittest.TestCase):
 
     def test_emit_is_empty_for_every_other_page(self):
         for page in sorted(PAGE_TOKENS):
-            parts = redirect.emit(configured(), page)
+            parts = redirect.emit(configured(), page, SUPPORTING[0])
             if page == redirect.PAGE:
                 self.assertTrue(all(parts))
             else:
@@ -107,10 +119,10 @@ class TestOnlyTheUrlBlockPage(unittest.TestCase):
 
 
 class TestEveryTheme(unittest.TestCase):
-    def test_every_shell_renders_the_notice_and_its_styles(self):
+    def test_every_supporting_shell_renders_the_notice_and_its_styles(self):
         """A style is a shell plus a theme and both are discovered by globbing, so
         a shell that never got the slots would build clean and ship nothing."""
-        for theme in THEMES:
+        for theme in SUPPORTING:
             html = render(configured(), theme=theme)
             self.assertIn('id="rx"', html, f"{theme['name']} has no notice markup")
             self.assertIn(".rx{", html, f"{theme['name']} has no notice CSS")
@@ -121,12 +133,44 @@ class TestEveryTheme(unittest.TestCase):
         the six themes and in every palette."""
         self.assertNotIn("#", redirect.CSS)
 
-    def test_no_theme_is_pushed_over_the_warning_line(self):
-        for theme in THEMES:
+    def test_a_style_that_does_not_declare_it_costs_nothing(self):
+        """Opting out has to be as free as the feature being off, or the flag is
+        just a switch for whether the page is broken."""
+        for theme in [t for t in THEMES if not redirect.supported(t)]:
+            html = render(configured(), theme=theme)
+            for fragment in ('id="rx"', ".rx{", "rxg", "data-off"):
+                self.assertNotIn(fragment, html, f"{theme['name']} opted out but carries {fragment}")
+
+    def test_the_flag_is_honest_about_what_fits(self):
+        """The point of the flag. `supported` is a claim in a JSON file that
+        nothing else checks, and the cost of it being wrong is invisible: PAN-OS
+        drops an oversize page and serves its own default, so the style looks
+        like it was never imported rather than like it was too big.
+        """
+        for theme in SUPPORTING:
             html = render(configured(), theme=theme)
             size, errors, _warnings = validate(redirect.PAGE, theme["name"], html)
-            self.assertEqual(errors, [], f"{theme['name']}: {errors}")
-            self.assertLess(size, WARN_BYTES, f"{theme['name']} is {size} B with the redirect on")
+            self.assertEqual(errors, [], f"{theme['name']} claims redirect support: {errors}")
+            self.assertLess(
+                size,
+                WARN_BYTES,
+                f"{theme['name']} claims redirect support but is {size} B with the notice on "
+                f'-- either shrink the style or drop "redirect" from its theme file',
+            )
+
+    def test_a_style_that_cannot_fit_it_has_not_claimed_it(self):
+        """The other direction: a style opted out for a reason, and the reason is
+        checkable. If this fails because the style now fits, delete it and set the
+        flag -- do not delete it to make the suite green."""
+        for theme in [t for t in THEMES if not redirect.supported(t)]:
+            forced = dict(theme)
+            forced["redirect"] = True
+            size, _errors, _warnings = validate(redirect.PAGE, theme["name"], render(configured(), theme=forced))
+            self.assertGreaterEqual(
+                size,
+                WARN_BYTES,
+                f"{theme['name']} does not declare redirect support but fits at {size} B",
+            )
 
 
 class TestTimer(unittest.TestCase):
@@ -361,10 +405,18 @@ class TestPreviewDemo(unittest.TestCase):
         self.demo(cfg)
         self.assertEqual(cfg, before)
 
-    def test_every_theme_renders_it(self):
-        for th in THEMES:
+    def test_every_supporting_theme_renders_it(self):
+        for th in SUPPORTING:
             with self.subTest(theme=th["name"]):
                 self.assertIn('<div class="rx"', self.demo(theme=th))
+
+    def test_a_style_without_room_gets_no_demo_either(self):
+        """The gallery must not offer a toggle whose On is a page the customer
+        could never deploy -- the preview would be advertising a combination the
+        firewall drops."""
+        for th in [t for t in THEMES if not redirect.supported(t)]:
+            with self.subTest(theme=th["name"]):
+                self.assertNotIn('<div class="rx"', self.demo(theme=th))
 
 
 class TestPreviewDemoIsNotShipped(unittest.TestCase):

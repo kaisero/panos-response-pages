@@ -42,8 +42,9 @@ panos-response-pages init               # copy the templates out to customise th
 clickthrough gallery for review — style, page, viewport and colour scheme — built
 with sample data standing in for the PAN-OS tokens.
 
-Six styles ship, all supporting three brand palettes and both colour schemes:
-`assist`, `record`, `banner`, `glass`, `beacon`, `mesh`. See [Styles].
+Seven styles ship, all supporting both colour schemes. Six wear any of the three
+brand palettes: `assist`, `record`, `banner`, `glass`, `beacon`, `mesh`. `nyan`
+pins a palette of its own. See [Styles].
 
 ## Development
 

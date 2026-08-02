@@ -56,10 +56,18 @@ def contrast(a, b):
 
 
 class TestPalettes(unittest.TestCase):
-    def test_the_three_palettes_exist(self):
+    def test_the_shipped_palettes_exist(self):
         names = sorted(p.stem for p in PALETTES)
-        for expected in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for expected in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(expected, names)
+
+    def test_every_palette_declares_its_kind(self):
+        """Brand palettes are the customer axis: any style may wear any of them.
+        A style palette belongs to one shell and is pinned by it. The guards
+        below differ by kind, so it is declared rather than guessed at."""
+        for path in PALETTES:
+            kind = json.loads(path.read_text(encoding="utf-8")).get("kind")
+            self.assertIn(kind, ("brand", "style"), f"{path.stem} declares no kind")
 
     def test_palettes_match_their_declared_ramps(self):
         """Each palette declares a five-stop ramp. The 500 stop is the accent
@@ -68,6 +76,7 @@ class TestPalettes(unittest.TestCase):
             "cyber-orange": ["#FFBF9C", "#FF724D", "#FA582D", "#B23808", "#190000"],
             "strata-yellow": ["#FFF0CC", "#FFDE73", "#FFCB06", "#D69F25", "#261B01"],
             "prisma-blue": ["#D9F8FC", "#56D6F4", "#00C0E8", "#0196B3", "#001D2B"],
+            "nyan": ["#FFE4F1", "#FF8FC4", "#FF4FA3", "#C81F6F", "#2A0A1C"],
         }
         for path in PALETTES:
             d = json.loads(path.read_text(encoding="utf-8"))
@@ -92,9 +101,16 @@ class TestPalettes(unittest.TestCase):
         """Regression guard. Deriving the dark ground by mixing the ramp's 1000
         stop toward black preserved its saturation -- 91-100% at 4% lightness,
         which reads brown for yellow and muddy for the rest. A dark UI ground
-        wants the brand hue as a whisper."""
+        wants the brand hue as a whisper.
+
+        Scoped to brand palettes, which is who that argument is about. A style
+        palette's dark ground is artwork rather than a tinted neutral -- the sky
+        IS the picture -- and it is worn by the one shell built around it."""
         for path in PALETTES:
-            c = json.loads(path.read_text(encoding="utf-8"))["colors"]
+            palette = json.loads(path.read_text(encoding="utf-8"))
+            if palette.get("kind") == "style":
+                continue
+            c = palette["colors"]
             for key in ("d_ground", "d_surface", "d_surface_alt"):
                 h = c[key].lstrip("#")
                 r, g, b = (int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))

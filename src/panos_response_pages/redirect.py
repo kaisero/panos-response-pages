@@ -114,6 +114,23 @@ def enabled(cfg: Mapping[str, Any]) -> bool:
     return bool(red.get("enabled")) and bool(_entries(cfg))
 
 
+def supported(theme: Mapping[str, Any]) -> bool:
+    """Whether this style has room for the notice. Declared, not measured.
+
+    The notice is a flat 3173 B and PAN-OS drops an oversize response page
+    *silently* -- it serves its own default instead, so the failure looks like
+    the page was never imported. nyan's URL block page is 15558 B before the
+    notice, against a 17999 B ceiling, so it cannot have it.
+
+    A per-theme flag rather than a size check at build time because the two
+    answers are different: a size check would refuse the build for the customer
+    who turned the redirect on, punishing them for a property of the style. The
+    flag says up front which styles offer the feature, and the test suite holds
+    the flag honest by measuring every style that claims it.
+    """
+    return bool(theme.get("redirect"))
+
+
 def demo_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
     """`cfg` with the redirect forced on, for the gallery's Redirect toggle.
 
@@ -278,16 +295,17 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
     )
 
 
-def emit(cfg: Mapping[str, Any], page: str, *, loop: bool = False) -> tuple[str, str, str]:
+def emit(cfg: Mapping[str, Any], page: str, theme: Mapping[str, Any], *, loop: bool = False) -> tuple[str, str, str]:
     """(css, markup, script) for this page. Three empty strings when it does not apply.
 
-    Validation runs for every page, not just the one that renders the notice, so
-    a bad redirect config fails the build rather than quietly doing nothing.
+    Validation runs for every page and every style, not just the one that renders
+    the notice, so a bad redirect config fails the build rather than quietly
+    doing nothing on the one combination that would have shown it.
 
     `loop` is the gallery's demo build and must never be set for anything written
     under `deploy/` -- see `_script`.
     """
     check(cfg)
-    if page != PAGE or not enabled(cfg):
+    if page != PAGE or not enabled(cfg) or not supported(theme):
         return "", "", ""
     return CSS, HTML, _script(cfg, loop=loop)

@@ -18,6 +18,21 @@ def load_config(customer: str, config_dir: pathlib.Path) -> dict[str, Any]:
     return cfg
 
 
+def customer_keys(customer: str, config_dir: pathlib.Path) -> set[str]:
+    """Which top-level keys this customer's own file sets.
+
+    load_config() merges the customer document over the defaults, so a value's
+    presence in the result says nothing about who chose it -- and _defaults.json
+    ships a `palette`, which means every build looks like it asked for one.
+
+    A theme that pins its own palette has to tell "the shipped default" apart
+    from "this customer said so", because only the second outranks the pin.
+    That distinction is the whole of what this answers.
+    """
+    override = config_dir / f"{customer}.json"
+    return set(json.loads(read(override))) if override.exists() else set()
+
+
 def deep_merge(base: dict[str, Any], extra: Mapping[str, Any]) -> dict[str, Any]:
     for k, v in extra.items():
         if isinstance(v, dict) and isinstance(base.get(k), dict):

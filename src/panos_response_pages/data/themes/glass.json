@@ -2,5 +2,7 @@
   "name": "glass",
   "label": "Glass Panel",
   "shell": "glass",
+  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3173 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
+  "redirect": true,
   "_note": "A layered panel floating over an ambient field of blurred discs. The facts are cards on an auto-fit grid, so a two-fact page reflows rather than leaving a hole."
 }
