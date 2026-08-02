@@ -428,10 +428,10 @@ class TestPreviewDemoIsNotShipped(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             out = pathlib.Path(tmp)
-            build_all(data_dir=DATA, out_dir=out, theme=THEMES[0]["name"], preview=True)
+            build_all(data_dir=DATA, out_dir=out, theme=THEMES[0]["name"], palette_name="cyber-orange", preview=True)
             name = f"url-block-page{redirect.PREVIEW_SUFFIX}.html"
-            self.assertTrue((out / "preview" / THEMES[0]["name"] / name).is_file())
-            self.assertFalse((out / "deploy" / THEMES[0]["name"] / name).exists())
+            self.assertTrue((out / "preview" / THEMES[0]["name"] / "cyber-orange" / name).is_file())
+            self.assertFalse((out / "deploy" / THEMES[0]["name"] / "cyber-orange" / name).exists())
 
     def test_it_is_not_counted_as_a_page(self):
         """`results` is asserted against the length of PAGE_TOKENS elsewhere; a
@@ -442,7 +442,13 @@ class TestPreviewDemoIsNotShipped(unittest.TestCase):
         from panos_response_pages.builder import build_all
 
         with tempfile.TemporaryDirectory() as tmp:
-            r = build_all(data_dir=DATA, out_dir=pathlib.Path(tmp), theme=THEMES[0]["name"], preview=True)
+            r = build_all(
+                data_dir=DATA,
+                out_dir=pathlib.Path(tmp),
+                theme=THEMES[0]["name"],
+                palette_name="cyber-orange",
+                preview=True,
+            )
             self.assertEqual(sorted(x.page for x in r.results), sorted(set(PAGE_TOKENS)))
 
 

@@ -13,6 +13,11 @@ import tempfile
 from _paths import DATA
 from panos_response_pages.builder import BuildResult, build_all
 
+# The shipped default (`_defaults.json`), and so the palette every existing
+# single-palette assertion meant before the matrix existed. Tests that only
+# need *a* build read this one rather than picking arbitrarily.
+DEFAULT_PALETTE = "cyber-orange"
+
 
 @functools.lru_cache(maxsize=1)
 def built() -> tuple[pathlib.Path, BuildResult]:

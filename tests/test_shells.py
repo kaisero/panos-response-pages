@@ -16,7 +16,7 @@ import json
 import re
 import unittest
 
-from _build import deploy_dir
+from _build import DEFAULT_PALETTE, deploy_dir
 from _paths import DATA
 
 SHELLS = sorted((DATA / "templates/shells").glob("*.html"))
@@ -441,14 +441,14 @@ class BuiltOutput(unittest.TestCase):
         """Counted before iterating: a theme that silently produced nothing would
         otherwise pass every per-file check by having no files."""
         root = deploy_dir()
-        found = sorted(p.relative_to(root).as_posix() for p in root.glob("*/*.html"))
-        want = sorted(f"{t['name']}/{p}.html" for t in self.themes for p in self.pages)
+        found = sorted(p.relative_to(root).as_posix() for p in root.glob(f"*/{DEFAULT_PALETTE}/*.html"))
+        want = sorted(f"{t['name']}/{DEFAULT_PALETTE}/{p}.html" for t in self.themes for p in self.pages)
         self.assertEqual(found, want)
 
     def test_every_page_of_every_theme_stays_within_budget(self):
         for t in self.themes:
             for page in self.pages:
-                path = deploy_dir() / t["name"] / f"{page}.html"
+                path = deploy_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html"
                 size = len(path.read_bytes())
                 with self.subTest(theme=t["name"], page=page):
                     self.assertLess(

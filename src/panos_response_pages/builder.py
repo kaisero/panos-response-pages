@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
-from collections.abc import Mapping
+from collections.abc import Container, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +21,7 @@ from panos_response_pages.errors import BuildError
 from panos_response_pages.gallery import build_gallery
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
+from panos_response_pages.palettes import select as palettes_select
 from panos_response_pages.portal.page import build_portal_page
 from panos_response_pages.portal.splice import LOGIN_PREVIEWS, splice_home, splice_login
 from panos_response_pages.portal.validate import MAX_ENCODED, SOFT_MAX, encoded_size, validate_portal
@@ -44,7 +45,7 @@ PORTAL_PREVIEWS = (*LOGIN_PREVIEWS, "getsoftware", "logout")
 # whose relative URLs resolve against the gallery document, hence two answers.
 PREVIEW_ASSETS = "portal"
 ASSETS_FROM_GALLERY = f"{PREVIEW_ASSETS}/"
-ASSETS_FROM_PAGE = f"../../{PREVIEW_ASSETS}/"
+ASSETS_FROM_PAGE = f"../../../{PREVIEW_ASSETS}/"
 
 
 @dataclass
@@ -101,6 +102,9 @@ class BuildResult:
     # and its length is asserted against PAGE_TOKENS. A second family appearing
     # in it would break an invariant that has nothing to do with the portal.
     portal_results: list[PortalResult] = field(default_factory=list)
+    # Every palette this run built, in build order. `palette` above is now only
+    # the one the gallery opens on, so it can no longer answer "what was built".
+    palettes: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def failed(self) -> bool:
@@ -124,6 +128,35 @@ def load_themes(data_dir: pathlib.Path, only: str | None = None) -> list[dict[st
         if not themes:
             raise BuildError(f"no theme {only}")
     return themes
+
+
+def opening_palette(
+    cfg: Mapping[str, Any],
+    chosen: Container[str],
+    theme: Mapping[str, Any],
+    palette_name: str | None,
+) -> str:
+    """Which palette the gallery opens on, first hit wins.
+
+    1. --palette, because asking for it on the command line means it
+    2. `palette` in the CUSTOMER's config file -- their document, their call
+    3. the theme's own pin, for a style that owns its colour
+    4. the shipped default
+
+    The same precedence that used to decide which palette a theme was BUILT in.
+    Every theme is now built in every palette, so all this decides is which one
+    a reviewer sees first -- and the dropdown moves off it in one click.
+
+    Step 2 is why `chosen` exists rather than a plain `cfg["palette"]`:
+    _defaults.json sets a palette, so the merged config always carries one and a
+    pin would never fire.
+    """
+    return str(
+        palette_name
+        or (cfg["palette"] if "palette" in chosen else None)
+        or theme.get("palette")
+        or cfg.get("palette", "cyber-orange")
+    )
 
 
 def build_all(
@@ -153,33 +186,6 @@ def build_all(
     chosen = customer_keys(customer, data_dir / "config")
     palette_dir = data_dir / "palettes"
 
-    # The build-level palette: what the six brand styles wear, and what the
-    # gallery's own chrome is drawn in. Resolved without any theme's opinion.
-    palette = load_palette(palette_name or cfg.get("palette", "cyber-orange"), palette_dir)
-
-    def palette_for(th: Mapping[str, Any]) -> dict[str, Any]:
-        """This theme's palette, first hit wins.
-
-        1. --palette, because asking for it on the command line means it
-        2. `palette` in the CUSTOMER's config file -- their document, their call
-        3. the theme's own pin, for a style that owns its colour
-        4. the shipped default
-
-        Step 2 is why `chosen` exists rather than a plain `cfg["palette"]`:
-        _defaults.json sets a palette, so the merged config always carries one
-        and a pin would never fire.
-        """
-        name = (
-            palette_name
-            or (str(cfg["palette"]) if "palette" in chosen else None)
-            or th.get("palette")
-            or cfg.get("palette", "cyber-orange")
-        )
-        if name == palette["name"]:
-            return dict(palette)
-        return loaded.setdefault(str(name), load_palette(str(name), palette_dir))
-
-    loaded: dict[str, dict[str, Any]] = {}
     themes = load_themes(data_dir, theme)
     pages = sorted(PAGE_TOKENS)
     template_dir = data_dir / "templates"
@@ -192,91 +198,112 @@ def build_all(
 
     results: list[PageResult] = []
     portal_results: list[PortalResult] = []
-    blobs: dict[tuple[str, str], str] = {}
-    portal_blobs: dict[tuple[str, str], str] = {}
+    blobs: dict[tuple[str, str, str], str] = {}
+    portal_blobs: dict[tuple[str, str, str], str] = {}
+
+    palette_names = palettes_select(palette_dir, palette_name)
+    loaded = {name: load_palette(name, palette_dir) for name in palette_names}
+    # The gallery's opening view, taken from the first theme: `opening_palette`
+    # only consults a theme for its pin, and the pin is a property of the style
+    # a reviewer will pick, not of the one that happens to sort first.
+    palette = loaded[opening_palette(cfg, chosen, themes[0], palette_name)]
 
     for th in themes:
-        th_palette = palette_for(th)
-        deploy_dir = out_dir / deploy_subdir / th["name"]
-        prev_dir = out_dir / preview_subdir / th["name"]
-        if write:
-            deploy_dir.mkdir(parents=True, exist_ok=True)
-            if preview:
-                prev_dir.mkdir(parents=True, exist_ok=True)
-
-        for page in pages:
-            # strip_output runs here, before validate(), so the bytes that are
-            # measured are the bytes that ship. It must not run any earlier:
-            # parse_sections() needs the <!--@SLOT--> markers intact.
-            deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
-            size, errors, warnings = validate(page, th["name"], deployable)
+        for pname in palette_names:
+            th_palette = loaded[pname]
+            deploy_dir = out_dir / deploy_subdir / th["name"] / pname
+            prev_dir = out_dir / preview_subdir / th["name"] / pname
             if write:
-                # write_bytes, never write_text: write_text translates "\n" to
-                # os.linesep, so on Windows every line would gain a byte AFTER
-                # validate() measured the string, and an oversize page would
-                # ship with the report still saying ok.
-                (deploy_dir / f"{page}.html").write_bytes(deployable.encode("utf-8"))
+                deploy_dir.mkdir(parents=True, exist_ok=True)
+                if preview:
+                    prev_dir.mkdir(parents=True, exist_ok=True)
 
-            if preview:
-                pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
-                blobs[th["name"], page] = pv
+            for page in pages:
+                # strip_output runs here, before validate(), so the bytes that are
+                # measured are the bytes that ship. It must not run any earlier:
+                # parse_sections() needs the <!--@SLOT--> markers intact.
+                deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
+                size, errors, warnings = validate(page, th["name"], deployable)
                 if write:
-                    (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))
+                    # write_bytes, never write_text: write_text translates "\n" to
+                    # os.linesep, so on Windows every line would gain a byte AFTER
+                    # validate() measured the string, and an oversize page would
+                    # ship with the report still saying ok.
+                    (deploy_dir / f"{page}.html").write_bytes(deployable.encode("utf-8"))
 
-                # The second url-block blob the gallery's Redirect toggle switches
-                # to. Built unconditionally so the toggle can demonstrate the
-                # handoff on a config that has not enabled it -- which is every
-                # config until someone opts in. PREVIEW ONLY: it is not measured
-                # against the byte ceiling and never written under deploy/,
-                # because its countdown loops rather than hands over.
-                #
-                # th_palette, not the build-level palette: a style that pins its
-                # own colour must demonstrate the notice in the colour it wears.
-                if page == redirect.PAGE and redirect.supported(th):
-                    demo = strip_output(build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True))
-                    blobs[th["name"], f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
+                if preview:
+                    pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
+                    blobs[th["name"], pname, page] = pv
                     if write:
-                        (prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html").write_bytes(demo.encode("utf-8"))
+                        (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))
 
-            results.append(PageResult(th["name"], page, size, errors, warnings, th_palette["name"]))
+                    # The second url-block blob the gallery's Redirect toggle switches
+                    # to. Built unconditionally so the toggle can demonstrate the
+                    # handoff on a config that has not enabled it -- which is every
+                    # config until someone opts in. PREVIEW ONLY: it is not measured
+                    # against the byte ceiling and never written under deploy/,
+                    # because its countdown loops rather than hands over.
+                    #
+                    # th_palette, not the build-level palette: a style that pins its
+                    # own colour must demonstrate the notice in the colour it wears.
+                    if page == redirect.PAGE and redirect.supported(th):
+                        demo = strip_output(
+                            build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True)
+                        )
+                        blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
+                        if write:
+                            (prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html").write_bytes(demo.encode("utf-8"))
 
-        imports: dict[str, str] = {}
-        for page in PORTAL_PAGES:
-            # build_portal_page strips on the way out, so these are already the
-            # bytes the firewall receives; nothing may touch them afterwards.
-            imports[page] = build_portal_page(page, th, cfg, th_palette, False, portal_templates)
-            size, errors, warnings = validate_portal(imports[page])
-            encoded = encoded_size(imports[page])
-            if write:
-                # A subdirectory, not a portal-login.html prefix: the two
-                # families are imported into different PAN-OS objects, and
-                # keeping them apart on disk is what stops a `deploy/<theme>/*`
-                # glob from sweeping a portal import into a block-page upload.
-                (deploy_dir / "portal").mkdir(parents=True, exist_ok=True)
-                (deploy_dir / "portal" / f"{page}.html").write_bytes(imports[page].encode("utf-8"))
-            portal_results.append(PortalResult(th["name"], page, size, encoded, errors, warnings, th_palette["name"]))
+                results.append(PageResult(th["name"], page, size, errors, warnings, pname))
 
-        if preview:
-            # Spliced. PREVIEW ONLY, and never written anywhere `validate`
-            # walks: each of these carries PAN-OS' own prefix and a captured
-            # form, which the import guards reject on sight -- correctly.
-            portal_blobs.update(
-                {(th["name"], name): text for name, text in _splice(imports, ASSETS_FROM_GALLERY, fixtures).items()}
-            )
-            if write:
-                (prev_dir / "portal").mkdir(parents=True, exist_ok=True)
-                for name, text in _splice(imports, ASSETS_FROM_PAGE, fixtures).items():
-                    (prev_dir / "portal" / f"{name}.html").write_bytes(text.encode("utf-8"))
+            imports: dict[str, str] = {}
+            for page in PORTAL_PAGES:
+                # build_portal_page strips on the way out, so these are already the
+                # bytes the firewall receives; nothing may touch them afterwards.
+                imports[page] = build_portal_page(page, th, cfg, th_palette, False, portal_templates)
+                size, errors, warnings = validate_portal(imports[page])
+                encoded = encoded_size(imports[page])
+                if write:
+                    # A subdirectory, not a portal-login.html prefix: the two
+                    # families are imported into different PAN-OS objects, and
+                    # keeping them apart on disk is what stops a `deploy/<theme>/*`
+                    # glob from sweeping a portal import into a block-page upload.
+                    (deploy_dir / "portal").mkdir(parents=True, exist_ok=True)
+                    (deploy_dir / "portal" / f"{page}.html").write_bytes(imports[page].encode("utf-8"))
+                portal_results.append(PortalResult(th["name"], page, size, encoded, errors, warnings, pname))
+
+            if preview:
+                # Spliced. PREVIEW ONLY, and never written anywhere `validate`
+                # walks: each of these carries PAN-OS' own prefix and a captured
+                # form, which the import guards reject on sight -- correctly.
+                portal_blobs.update(
+                    {
+                        (th["name"], pname, name): text
+                        for name, text in _splice(imports, ASSETS_FROM_GALLERY, fixtures).items()
+                    }
+                )
+                if write:
+                    (prev_dir / "portal").mkdir(parents=True, exist_ok=True)
+                    for name, text in _splice(imports, ASSETS_FROM_PAGE, fixtures).items():
+                        (prev_dir / "portal" / f"{name}.html").write_bytes(text.encode("utf-8"))
 
     if preview and write:
         # The captured portal asset tree, once, beside the gallery. jQuery is in
         # here, and without it the prefixes' ready handler never runs and every
         # login preview shows an empty logo box.
         shutil.copytree(fixtures / "portal", out_dir / preview_subdir / PREVIEW_ASSETS, dirs_exist_ok=True)
-        gallery = build_gallery(themes, pages, blobs, cfg, palette, portal_blobs, PORTAL_PREVIEWS)
+        # The gallery still renders one palette -- its own dropdown for the
+        # colour axis is a later step. Narrowed here, not by changing
+        # build_gallery's shape: every other caller of blobs/portal_blobs
+        # keys off the full (theme, palette, page) matrix.
+        gallery_blobs = {(t, p): v for (t, pn, p), v in blobs.items() if pn == palette["name"]}
+        gallery_portal_blobs = {(t, p): v for (t, pn, p), v in portal_blobs.items() if pn == palette["name"]}
+        gallery = build_gallery(themes, pages, gallery_blobs, cfg, palette, gallery_portal_blobs, PORTAL_PREVIEWS)
         (out_dir / preview_subdir / "index.html").write_bytes(gallery.encode("utf-8"))
 
-    return BuildResult(results, data_dir, data_reason, palette, out_dir, portal_results)
+    return BuildResult(
+        results, data_dir, data_reason, palette, out_dir, portal_results, [loaded[n] for n in palette_names]
+    )
 
 
 def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> dict[str, str]:
@@ -303,22 +330,9 @@ def format_report(result: BuildResult) -> str:
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )
-    lines += _pinned_report(result)
     if result.portal_results:
         lines += _portal_report(result)
     return "\n".join(lines)
-
-
-def _pinned_report(result: BuildResult) -> list[str]:
-    """Themes that did not render in the build's palette.
-
-    A style may pin its own colour, and the only thing worse than that happening
-    is it happening quietly: a theme wearing a palette nobody selected reads as a
-    bug in the palette rather than as a decision in the theme.
-    """
-    build_palette = result.palette["name"]
-    pinned = sorted({(r.theme, r.palette) for r in result.results if r.palette and r.palette != build_palette})
-    return ["", *(f"  {theme} renders in its own palette: {name}" for theme, name in pinned)] if pinned else []
 
 
 def _portal_report(result: BuildResult) -> list[str]:

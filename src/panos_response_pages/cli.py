@@ -122,7 +122,7 @@ def build(
     ] = None,
     palette: Annotated[
         str | None,
-        typer.Option("--palette", "-p", autocompletion=_complete_palette, help="Override the config's palette."),
+        typer.Option("--palette", "-p", autocompletion=_complete_palette, help="Build one palette only."),
     ] = None,
     out: Annotated[pathlib.Path, typer.Option("--out", "-o", help="Where to write.")] = pathlib.Path("out"),
     config_dir: Annotated[
@@ -141,7 +141,6 @@ def build(
     log.info("data directory %s (%s)", data_dir, reason)
 
     _require(theme, _names("themes", ".json", data_dir), "theme")
-    _require(palette, _names("palettes", ".json", data_dir), "palette")
 
     try:
         result = build_all(
@@ -175,10 +174,10 @@ def build(
         typer.echo(format_report(result))
         if preview:
             typer.echo(f"\n  gallery: {out / 'preview' / 'index.html'}")
-        typer.echo(f"  palette: {result.palette['name']}  ({result.palette['label']})")
+        typer.echo(f"  gallery opens on: {result.palette['name']}  ({result.palette['label']})")
         typer.echo(f"  data:    {data_dir} ({reason})")
-        typer.echo(f"  deploy:  {out / 'deploy'}/<style>/<page>.html")
-        typer.echo(f"  portal:  {out / 'deploy'}/<style>/portal/<login|home>.html\n")
+        typer.echo(f"  deploy:  {out / 'deploy'}/<style>/<palette>/<page>.html")
+        typer.echo(f"  portal:  {out / 'deploy'}/<style>/<palette>/portal/<login|home>.html\n")
 
     if result.failed:
         log.error("one or more pages would fail silently on PAN-OS")

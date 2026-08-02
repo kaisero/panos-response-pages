@@ -25,3 +25,19 @@ def load_palette(name: str, palette_dir: pathlib.Path) -> dict[str, Any]:
 
 def available(palette_dir: pathlib.Path) -> list[str]:
     return sorted(p.stem for p in palette_dir.glob("*.json"))
+
+
+def select(palette_dir: pathlib.Path, only: str | None = None) -> list[str]:
+    """Which palettes this run builds. Every one, unless narrowed to a single.
+
+    Mirrors how `--theme` narrows the style axis, so the two axes of the matrix
+    behave the same way and one flag does not have to be learned twice.
+    """
+    names = available(palette_dir)
+    if not names:
+        raise BuildError(f"no palettes found in {palette_dir}")
+    if only is None:
+        return names
+    if only not in names:
+        raise BuildError(f"unknown palette '{only}'. Available: {', '.join(names)}")
+    return [only]
