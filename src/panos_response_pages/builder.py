@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from panos_response_pages import datadir
+from panos_response_pages import datadir, redirect
 from panos_response_pages.config import load_config
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
@@ -187,6 +187,18 @@ def build_all(
                 blobs[th["name"], page] = pv
                 if write:
                     (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))
+
+                # The second url-block blob the gallery's Redirect toggle switches
+                # to. Built unconditionally so the toggle can demonstrate the
+                # handoff on a config that has not enabled it -- which is every
+                # config until someone opts in. PREVIEW ONLY: it is not measured
+                # against the byte ceiling and never written under deploy/,
+                # because its countdown loops rather than hands over.
+                if page == redirect.PAGE:
+                    demo = strip_output(build_page(page, th, cfg, palette, True, template_dir, redirect_demo=True))
+                    blobs[th["name"], f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
+                    if write:
+                        (prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html").write_bytes(demo.encode("utf-8"))
 
             results.append(PageResult(th["name"], page, size, errors, warnings))
 

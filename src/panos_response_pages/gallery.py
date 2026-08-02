@@ -20,6 +20,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from panos_response_pages import redirect
+
 GALLERY_CSS = """
 :root{{--bg:{ground};--srf:{surface};--srf2:{surface_alt};--fg:{ink};--mut:{ink_muted};
 --line:{surface_alt};--acc:{accent};--acci:{accent_ink};--acct:{accent_text}}}
@@ -87,6 +89,11 @@ color:var(--mut);font-size:.78rem;line-height:1.6}}
 
 # How each portal preview is labelled in the controls. The file names are keys
 # and stay terse; these are what a reviewer reads.
+# The url-block page built with the sanctioned-app handoff forced on. Keyed off
+# the page list rather than in it: `pages` is PAGE_TOKENS, and this variant is not
+# a page PAN-OS serves.
+RX_KEY = f"{redirect.PAGE}{redirect.PREVIEW_SUFFIX}"
+
 PORTAL_LABELS = {
     "login": "Login",
     "getsoftware": "Get software",
@@ -169,6 +176,19 @@ def build_gallery(
         else ""
     )
 
+    # Same shape as the login states: one page rendered two ways, so it composes
+    # into the key rather than becoming an entry in the page list. Always built,
+    # so the toggle demonstrates the handoff to someone whose config has not
+    # enabled it -- which is every config until they opt in.
+    # Offered only if the demo blob was actually built: the control is useless
+    # without something to switch to, and an On that renders an empty frame reads
+    # as a broken preview rather than as a feature nobody asked for.
+    redirect_seg = (
+        seg("redirect", "Redirect", [("off", "Off"), ("on", "On")], "off", ' id="rxgrp" hidden')
+        if any((t["name"], RX_KEY) in blobs for t in themes)
+        else ""
+    )
+
     # The style is fixed at build time, so there is nothing to choose between --
     # the selector only appears if this build actually produced more than one.
     theme_ctl = ""
@@ -184,6 +204,10 @@ def build_gallery(
     data.update(
         {f"{t['name']}|portal:{p}": (portal_blobs or {})[(t["name"], p)] for t in themes for p in portal_previews}
     )
+    # The redirect demo, keyed off the page list rather than in it -- `pages` is
+    # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
+    # than assumed so a caller that built no demo simply gets no toggle payload.
+    data.update({f"{t['name']}|{RX_KEY}": blobs[(t["name"], RX_KEY)] for t in themes if (t["name"], RX_KEY) in blobs})
     payload = json.dumps(data).replace("</", "<\\/")
     css = GALLERY_CSS.format(**palette["colors"])
 
@@ -197,21 +221,28 @@ def build_gallery(
   {theme_ctl}
   {page_ctl}
   {state_seg}
+  {redirect_seg}
   {view_seg}
   {scheme_seg}
 </div>
 <main><div class="stage" id="stage"></div></main>
 <p class="foot">Sample data stands in for the PAN-OS tokens so the pages render; the files under
    <code>deploy/</code> keep the tokens intact. The portal frames are spliced onto captured PAN-OS
-   prefixes to show the whole served page — <strong>preview only, never importable</strong>.</p>
+   prefixes to show the whole served page — <strong>preview only, never importable</strong>.
+   <strong>Redirect: On</strong> shows the sanctioned-app handoff on a calm category, and its countdown
+   <strong>restarts</strong> so the motion stays visible — the served page hands over once and does not
+   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.</p>
 <script>
 var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light",
-state:"{states[0] if states else ""}"}};
-// The login surface is one import in four server-driven states, so the state
-// control composes into the key rather than selecting a page of its own.
+state:"{states[0] if states else ""}",redirect:"off"}};
+var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}";
+// The login surface is one import in four server-driven states, and the url
+// block page is one page built with and without the sanctioned-app handoff. Both
+// controls compose into the key rather than selecting a page of their own.
 function key(){{
   var p=S.page;
   if(p==="portal:login") p=p+"-"+S.state;
+  if(p===RXPAGE&&S.redirect==="on") p=p+RXSUF;
   return S.theme+"|"+p;
 }}
 // A frame never shrinks below this. Block pages fill their frame and want to be
@@ -259,6 +290,8 @@ function frame(kind){{
 function render(){{
   var g=document.getElementById("stategrp");
   if(g) g.hidden = S.page!=="portal:login";
+  var r=document.getElementById("rxgrp");
+  if(r) r.hidden = S.page!==RXPAGE;
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));

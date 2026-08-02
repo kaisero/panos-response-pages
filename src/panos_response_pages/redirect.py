@@ -31,6 +31,7 @@ of them fails in a way the author would not see:
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import Mapping
 from typing import Any
@@ -42,6 +43,23 @@ from panos_response_pages.errors import BuildError
 PAGE = "url-block-page"
 
 DEFAULT_SECONDS = 10
+
+# What the gallery's demo build is called, as a blob key and as a file beside the
+# ordinary preview. A suffix rather than a tenth page: PAGE_TOKENS is the set of
+# pages PAN-OS serves, and a preview-only variant is not one of them.
+PREVIEW_SUFFIX = "-redirect"
+
+# What the gallery demonstrates when a config maps nothing of its own. It is the
+# worked example from `_defaults.json`, deliberately: someone who reaches for the
+# config after seeing this in the preview finds the same names written down.
+#
+# `online-storage-and-backup` is not one of the shipped `categories`, so
+# demo_config() has to contribute a tone and a gloss for it as well -- the
+# redirect refuses a category the map does not resolve to `calm`, and that check
+# is not relaxed for the preview.
+DEMO_CATEGORY = "online-storage-and-backup"
+DEMO_APP = {"app": "Company Drive", "url": "https://drive.example.com/"}
+DEMO_GLOSS = "Personal file-storage services are not available on the company network."
 
 # Copy that is not per-category, and so is not worth a config key each. Kept
 # together here so it is findable when someone wants to change the wording.
@@ -94,6 +112,49 @@ def enabled(cfg: Mapping[str, Any]) -> bool:
     """Both halves must be true: a toggle with no mapping table does nothing."""
     red = cfg.get("redirect") or {}
     return bool(red.get("enabled")) and bool(_entries(cfg))
+
+
+def demo_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """`cfg` with the redirect forced on, for the gallery's Redirect toggle.
+
+    PREVIEW ONLY. Never reaches a file under `deploy/`: the caller passes it
+    solely to build the second url-block blob the toggle switches to.
+
+    Forced rather than read, so the toggle demonstrates the feature to someone
+    evaluating it -- including on the shipped config, where `categories` is empty
+    and there is nothing real to show. A config that maps its own categories is
+    shown its own, so what the preview demonstrates is the customer's copy and
+    their target as soon as they write one; only the `enabled` flag is overridden.
+
+    Deep-copied because the caller holds the live config and builds the other
+    eight pages from it afterwards.
+    """
+    out = copy.deepcopy(dict(cfg))
+    red = dict(out.get("redirect") or {})
+    red.setdefault("seconds", DEFAULT_SECONDS)
+    red.setdefault("message", "Taking you to {app} — the approved alternative for this.")
+    red["enabled"] = True
+
+    if not red.get("categories"):
+        red["categories"] = {DEMO_CATEGORY: dict(DEMO_APP)}
+        cats = dict(out.get("categories") or {})
+        cats.setdefault(DEMO_CATEGORY, {"tone": "calm", "gloss": DEMO_GLOSS})
+        out["categories"] = cats
+
+    out["redirect"] = red
+    return out
+
+
+def demo_category(cfg: Mapping[str, Any]) -> str:
+    """Which category the preview must render for the notice to arm.
+
+    The page keys on the substituted `<category/>` value, and the sample one is
+    `command-and-control` -- critical, which the redirect correctly refuses. So a
+    demo build has to say which category it is standing in for, and the answer is
+    the first mapped one rather than a constant: a customer who maps a category
+    should see the preview arm on theirs.
+    """
+    return next(iter(_entries(cfg)), DEMO_CATEGORY)
 
 
 def check(cfg: Mapping[str, Any]) -> None:
@@ -163,8 +224,16 @@ def _map(cfg: Mapping[str, Any]) -> dict[str, list[Any]]:
     return out
 
 
-def _script(cfg: Mapping[str, Any]) -> str:
+def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
     red = cfg["redirect"]
+    # The one line that differs in a preview build. Shipped, reaching zero hands
+    # the user over exactly once. In the gallery there is nobody to hand over --
+    # the frame is a srcdoc iframe on file://, so navigating it would leave the
+    # preview, need the network, and land on whatever drive.example.com resolves
+    # to. Restarting instead keeps the countdown, Stay, Escape and Go now paths
+    # byte-for-byte the ones that ship, and leaves the motion visible for as long
+    # as a reviewer looks at it. Nothing in production loops; the gallery says so.
+    go = "l=t;w()" if loop else "if(d)return;d=true;q();location.replace(u)"
     return (
         "<script>(function(){"
         "var R=" + json.dumps(_map(cfg), separators=(",", ":")) + ";"
@@ -190,7 +259,7 @@ def _script(cfg: Mapping[str, Any]) -> str:
         "m.textContent=(r[3]||D).replace('{app}',n);g.href=u;b.hidden=false;"
         "function w(){i.textContent=l;p.style.width=((t-l)/t*100)+'%'}"
         "function q(){if(z){clearInterval(z);z=null}}"
-        "function go(){if(d)return;d=true;q();location.replace(u)}"
+        "function go(){" + go + "}"
         "function no(){if(d)return;d=true;q();b.setAttribute('data-off','1');"
         "m.hidden=true;o.hidden=false;v.textContent=" + json.dumps(CANCELLED_ANNOUNCE) + "}"
         "w();"
@@ -209,13 +278,16 @@ def _script(cfg: Mapping[str, Any]) -> str:
     )
 
 
-def emit(cfg: Mapping[str, Any], page: str) -> tuple[str, str, str]:
+def emit(cfg: Mapping[str, Any], page: str, *, loop: bool = False) -> tuple[str, str, str]:
     """(css, markup, script) for this page. Three empty strings when it does not apply.
 
     Validation runs for every page, not just the one that renders the notice, so
     a bad redirect config fails the build rather than quietly doing nothing.
+
+    `loop` is the gallery's demo build and must never be set for anything written
+    under `deploy/` -- see `_script`.
     """
     check(cfg)
     if page != PAGE or not enabled(cfg):
         return "", "", ""
-    return CSS, HTML, _script(cfg)
+    return CSS, HTML, _script(cfg, loop=loop)

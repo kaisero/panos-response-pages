@@ -35,6 +35,7 @@ def build_page(
     palette: Mapping[str, Any],
     preview: bool,
     template_dir: pathlib.Path,
+    redirect_demo: bool = False,
 ) -> str:
     shell = read(template_dir / "shells" / f"{theme['shell']}.html")
     parts = parse_sections(read(template_dir / "pages" / f"{page}.html"))
@@ -60,10 +61,21 @@ def build_page(
     }
     parts = {k: substitute(v, base) for k, v in parts.items()}
 
+    # The gallery's Redirect toggle, which shows the handoff on a config that has
+    # not enabled it yet. Preview-only and asserted so: `redirect_demo` reaching a
+    # deploy build would ship a countdown that loops instead of handing over.
+    demo = redirect_demo and page == redirect.PAGE
+    if demo and not preview:
+        raise BuildError("redirect_demo is a preview-only build; it must never reach deploy/")
+    # Everything downstream reads the demo config, not just the redirect: the
+    # category the notice keys on needs a tone and a gloss from the same map, or
+    # the page renders a redirect for a category it cannot describe.
+    eff = redirect.demo_config(cfg) if demo else cfg
+
     # Three empty strings unless this is the URL block page and a customer opted
     # in, so every other page -- and every build with the feature off -- is
     # byte-identical to one from before it existed.
-    redirect_css, redirect_html, redirect_js = redirect.emit(cfg, page)
+    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, loop=demo)
 
     values = dict(base)
     values.update(
@@ -90,8 +102,8 @@ def build_page(
             # has not been set yet would arm on every page.
             "SCRIPTS": ("" if preview else FRAME_BUSTER)
             + category_js(
-                cfg["categories"],
-                cfg["defaultGloss"],
+                eff["categories"],
+                eff["defaultGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1" or 'id="cat"' not in parts["FACTS"],
             )
             + redirect_js,
@@ -116,6 +128,14 @@ def build_page(
         raise BuildError(f"unresolved placeholder(s) in {page}: {', '.join(leftover)}")
 
     if preview:
-        out = TOKEN_RE.sub(lambda m: SAMPLE[m.group(1)], out)
+        sample = SAMPLE
+        if demo:
+            # The sample category is command-and-control, which is critical, and
+            # the redirect refuses a category that is not calm. Standing in the
+            # mapped one is what arms the notice -- and it is honest about it:
+            # this is the page a user hitting that category actually gets, gloss
+            # and tone included, not the usual sample with a banner bolted on.
+            sample = {**SAMPLE, "category": redirect.demo_category(eff)}
+        out = TOKEN_RE.sub(lambda m: sample[m.group(1)], out)
 
     return out

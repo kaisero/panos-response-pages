@@ -277,5 +277,122 @@ class TestMap(unittest.TestCase):
         self.assertEqual(cfg["categories"], before)
 
 
+class TestPreviewDemo(unittest.TestCase):
+    """The gallery's Redirect toggle.
+
+    It exists so the handoff can be evaluated before it is switched on, which
+    means it deliberately ignores `redirect.enabled`. Everything here guards the
+    consequence of that: a preview-only build that can never be mistaken for, or
+    leak into, the bytes the firewall serves.
+    """
+
+    def demo(self, cfg=None, theme=None):
+        return strip_output(
+            build_page("url-block-page", theme or THEMES[0], cfg or shipped(), PALETTE, True, TEMPLATES, True)
+        )
+
+    def test_it_arms_on_a_config_that_has_not_enabled_it(self):
+        """The whole point: `enabled` is false on every config until someone opts
+        in, and a toggle that showed nothing until then would demonstrate the
+        feature only to people who had already committed to it."""
+        cfg = shipped()
+        self.assertFalse(cfg["redirect"]["enabled"])
+        self.assertFalse(cfg["redirect"]["categories"])
+        self.assertIn('<div class="rx"', self.demo(cfg))
+
+    def test_it_stands_in_a_calm_category_or_the_notice_could_never_show(self):
+        """The sample category is command-and-control, which is critical, and the
+        page refuses to forward anyone off a security block -- correctly. Without
+        this substitution the demo would render a notice its own script hides."""
+        self.assertIn(f'id="cat">{redirect.DEMO_CATEGORY}<', self.demo())
+        self.assertIn(
+            'id="cat">command-and-control<',
+            build_page("url-block-page", THEMES[0], shipped(), PALETTE, True, TEMPLATES),
+        )
+
+    def test_a_configured_category_is_demonstrated_instead_of_the_built_in_one(self):
+        """A customer who has mapped their own targets is shown theirs. The demo
+        entry is a fallback for an empty table, not an override of a full one."""
+        html = self.demo(configured())
+        self.assertIn('id="cat">social-networking<', html)
+        self.assertIn("Company Engage", html)
+        self.assertNotIn(redirect.DEMO_APP["app"], html)
+
+    def test_the_demo_category_gets_a_tone_and_a_gloss_of_its_own(self):
+        """It is not one of the shipped `categories`, and a redirect on a category
+        the map cannot resolve to `calm` is refused by the page's own guard."""
+        cfg = redirect.demo_config(shipped())
+        self.assertEqual(cfg["categories"][redirect.DEMO_CATEGORY]["tone"], "calm")
+        self.assertIn(redirect.DEMO_CATEGORY, map_of(self.demo()))
+
+    def test_it_loops_instead_of_navigating(self):
+        """A srcdoc frame on file:// has nowhere to hand over to: navigating it
+        would leave the gallery and need the network."""
+        script = script_of(self.demo())
+        self.assertIn("function go(){l=t;w()}", script)
+        self.assertNotIn("location.replace", script)
+
+    def test_everything_but_the_handover_is_the_script_that_ships(self):
+        """Stay, Escape, the background-tab pause and the loop guard are not
+        preview stand-ins -- a demo that reimplemented them would stop being
+        evidence about the page that ships."""
+        script = script_of(self.demo(configured()))
+        for shipped_behaviour in ("document.hidden", "'Escape'", "h.host===location.host", "data-off"):
+            self.assertIn(shipped_behaviour, script)
+
+    def test_the_looping_build_can_never_be_a_deploy_build(self):
+        """The one mistake that would ship a countdown that never hands over."""
+        with self.assertRaises(BuildError):
+            build_page("url-block-page", THEMES[0], configured(), PALETTE, False, TEMPLATES, True)
+
+    def test_it_changes_nothing_for_any_other_page(self):
+        """`redirect_demo` is ignored off the url-block page rather than being an
+        error, so the builder can pass it without knowing which page it is on."""
+        for page in sorted(set(PAGE_TOKENS) - {"url-block-page"}):
+            with self.subTest(page=page):
+                plain = build_page(page, THEMES[0], shipped(), PALETTE, True, TEMPLATES)
+                self.assertEqual(build_page(page, THEMES[0], shipped(), PALETTE, True, TEMPLATES, True), plain)
+
+    def test_it_does_not_mutate_the_config_the_other_pages_are_built_from(self):
+        """The builder holds one config and builds nine pages from it afterwards.
+        A demo that switched the redirect on in place would arm every one."""
+        cfg = shipped()
+        before = copy.deepcopy(cfg)
+        self.demo(cfg)
+        self.assertEqual(cfg, before)
+
+    def test_every_theme_renders_it(self):
+        for th in THEMES:
+            with self.subTest(theme=th["name"]):
+                self.assertIn('<div class="rx"', self.demo(theme=th))
+
+
+class TestPreviewDemoIsNotShipped(unittest.TestCase):
+    def test_the_builder_writes_it_only_under_preview(self):
+        import pathlib
+        import tempfile
+
+        from panos_response_pages.builder import build_all
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            build_all(data_dir=DATA, out_dir=out, theme=THEMES[0]["name"], preview=True)
+            name = f"url-block-page{redirect.PREVIEW_SUFFIX}.html"
+            self.assertTrue((out / "preview" / THEMES[0]["name"] / name).is_file())
+            self.assertFalse((out / "deploy" / THEMES[0]["name"] / name).exists())
+
+    def test_it_is_not_counted_as_a_page(self):
+        """`results` is asserted against the length of PAGE_TOKENS elsewhere; a
+        preview variant appearing there would be a page PAN-OS never serves."""
+        import pathlib
+        import tempfile
+
+        from panos_response_pages.builder import build_all
+
+        with tempfile.TemporaryDirectory() as tmp:
+            r = build_all(data_dir=DATA, out_dir=pathlib.Path(tmp), theme=THEMES[0]["name"], preview=True)
+            self.assertEqual(sorted(x.page for x in r.results), sorted(set(PAGE_TOKENS)))
+
+
 if __name__ == "__main__":
     unittest.main()
