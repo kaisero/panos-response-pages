@@ -300,14 +300,13 @@ def build_all(
         # here, and without it the prefixes' ready handler never runs and every
         # login preview shows an empty logo box.
         shutil.copytree(fixtures / "portal", out_dir / preview_subdir / PREVIEW_ASSETS, dirs_exist_ok=True)
-        # The gallery still renders one palette -- its own dropdown for the
-        # colour axis is a later step. Narrowed here, not by changing
-        # build_gallery's shape: every other caller of blobs/portal_blobs
-        # keys off the full (theme, palette, page) matrix.
-        gallery_blobs = {(t, p): v for (t, pn, p), v in blobs.items() if pn == palette["name"]}
-        gallery_portal_blobs = {(t, p): v for (t, pn, p), v in portal_blobs.items() if pn == palette["name"]}
-        gallery = build_gallery(themes, pages, gallery_blobs, cfg, palette, gallery_portal_blobs, PORTAL_PREVIEWS)
+        result_palettes = [loaded[n] for n in palette_names]
+        gallery, sidecars = build_gallery(
+            themes, pages, blobs, cfg, palette, result_palettes, portal_blobs, PORTAL_PREVIEWS
+        )
         (out_dir / preview_subdir / "index.html").write_bytes(gallery.encode("utf-8"))
+        for name, text in sidecars.items():
+            (out_dir / preview_subdir / name).write_bytes(text.encode("utf-8"))
 
     return BuildResult(
         results, data_dir, data_reason, palette, out_dir, portal_results, [loaded[n] for n in palette_names]

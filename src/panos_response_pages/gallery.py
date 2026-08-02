@@ -108,12 +108,13 @@ PORTAL_LABELS = {
 def build_gallery(
     themes: Sequence[Mapping[str, Any]],
     pages: Sequence[str],
-    blobs: Mapping[tuple[str, str], str],
+    blobs: Mapping[tuple[str, str, str], str],
     cfg: Mapping[str, Any],
     palette: Mapping[str, Any],
-    portal_blobs: Mapping[tuple[str, str], str] | None = None,
+    palettes: Sequence[Mapping[str, Any]],
+    portal_blobs: Mapping[tuple[str, str, str], str] | None = None,
     portal_previews: Sequence[str] = (),
-) -> str:
+) -> tuple[str, dict[str, str]]:
     """Self-contained preview: every page inlined via iframe srcdoc.
 
     Frames are sized to their content after load, so nothing scrolls inside a
@@ -185,7 +186,7 @@ def build_gallery(
     # as a broken preview rather than as a feature nobody asked for.
     redirect_seg = (
         seg("redirect", "Redirect", [("off", "Off"), ("on", "On")], "off", ' id="rxgrp" hidden')
-        if any((t["name"], RX_KEY) in blobs for t in themes)
+        if any((t["name"], palette["name"], RX_KEY) in blobs for t in themes)
         else ""
     )
 
@@ -200,19 +201,45 @@ def build_gallery(
     view_seg = seg("view", "Viewport", view_items, "both", caption=False, push=True)
     scheme_seg = seg("scheme", "Colour scheme", [("light", "Light"), ("dark", "Dark")], "light", caption=False)
 
-    data = {f"{t['name']}|{p}": blobs[(t["name"], p)] for t in themes for p in pages}
-    data.update(
-        {f"{t['name']}|portal:{p}": (portal_blobs or {})[(t["name"], p)] for t in themes for p in portal_previews}
-    )
+    def blob_map(pname: str) -> dict[str, str]:
+        """Every frame for one palette, keyed <style>|<palette>|<page>."""
+        out = {f"{t['name']}|{pname}|{p}": blobs[(t["name"], pname, p)] for t in themes for p in pages}
+        out.update(
+            {
+                f"{t['name']}|{pname}|{RX_KEY}": blobs[(t["name"], pname, RX_KEY)]
+                for t in themes
+                if (t["name"], pname, RX_KEY) in blobs
+            }
+        )
+        out.update(
+            {
+                f"{t['name']}|{pname}|portal:{p}": (portal_blobs or {})[(t["name"], pname, p)]
+                for t in themes
+                for p in portal_previews
+            }
+        )
+        return out
+
+    def encode(obj: dict[str, str]) -> str:
+        # </ would close the <script> that carries this, wherever it appears
+        # inside a blob -- which it does, in every page that has a </style>.
+        return json.dumps(obj).replace("</", "<\\/")
+
+    opening = palette["name"]
+    payload = encode(blob_map(opening))
+    sidecars = {
+        f"blobs-{p['name']}.js": f"PP({json.dumps(p['name'])},{encode(blob_map(p['name']))})"
+        for p in palettes
+        if p["name"] != opening
+    }
+
     # The redirect demo, keyed off the page list rather than in it -- `pages` is
     # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
     # than assumed so a caller that built no demo simply gets no toggle payload.
-    data.update({f"{t['name']}|{RX_KEY}": blobs[(t["name"], RX_KEY)] for t in themes if (t["name"], RX_KEY) in blobs})
-    rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], RX_KEY) in blobs})
-    payload = json.dumps(data).replace("</", "<\\/")
+    rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], opening, RX_KEY) in blobs})
     css = GALLERY_CSS.format(**palette["colors"])
 
-    return f"""<!DOCTYPE html>
+    gallery_html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Response page preview — {html.escape(cfg["company"])}</title>
@@ -234,8 +261,23 @@ def build_gallery(
    <strong>restarts</strong> so the motion stays visible — the served page hands over once and does not
    loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.</p>
 <script>
-var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light",
+var D={payload},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
+palette:"{palette["name"]}",view:"both",scheme:"light",
 state:"{states[0] if states else ""}",redirect:"off"}};
+LOADED[S.palette]=1;
+// Each palette but the opening one arrives as a sibling classic script that
+// calls this. A module would be CORS-checked and fail on file://, and fetch()
+// is unavailable there for the same reason -- which is why this is a <script
+// src> and not a request.
+function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[name]=1}}
+function need(pal,done){{
+  if(LOADED[pal]) return done();
+  var s=document.createElement("script");
+  s.src="blobs-"+pal+".js";
+  s.onload=done;
+  s.onerror=function(){{LOADED[pal]=1;done()}};
+  document.head.appendChild(s);
+}}
 // Which styles have room for the notice. nyan does not -- its URL block page is
 // 15558 B before a flat 3173 B notice, against a 17999 B ceiling -- so selecting
 // it must take the control away rather than offer an On with nothing behind it.
@@ -247,7 +289,7 @@ function key(){{
   var p=S.page;
   if(p==="portal:login") p=p+"-"+S.state;
   if(p===RXPAGE&&S.redirect==="on"&&RXOK[S.theme]) p=p+RXSUF;
-  return S.theme+"|"+p;
+  return S.theme+"|"+S.palette+"|"+p;
 }}
 // A frame never shrinks below this. Block pages fill their frame and want to be
 // shrink-wrapped, so their floor is 0. The portal pages are a small card centred
@@ -291,7 +333,7 @@ function frame(kind){{
   c.textContent=kind;
   f.appendChild(c); return f;
 }}
-function render(){{
+function draw(){{
   var g=document.getElementById("stategrp");
   if(g) g.hidden = S.page!=="portal:login";
   var r=document.getElementById("rxgrp");
@@ -300,6 +342,7 @@ function render(){{
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
 }}
+function render(){{ need(S.palette,draw); }}
 document.querySelectorAll(".bar select").forEach(function(sel){{
   sel.addEventListener("change",function(){{
     S[Object.keys(sel.dataset)[0]]=sel.value;
@@ -324,3 +367,5 @@ render();
 </script>
 </body></html>
 """
+
+    return gallery_html, sidecars
