@@ -105,6 +105,37 @@ def token_names(block):
     return set(re.findall(r"--([a-z0-9_]+)\s*:", block))
 
 
+# Elements that never close, so an opening tag must not push onto the stack. The
+# SVG shape tags are here because the marks are inlined into the shells and are
+# written self-closing anyway -- this is belt and braces for one that is not.
+VOID_TAGS = frozenset(("br", "img", "meta", "input", "hr", "link", "source", "use", "path", "circle", "rect", "stop"))
+
+
+def redirect_slot_parent(body):
+    """(tag, class attribute) of the element that directly encloses {{REDIRECT}}.
+
+    A depth counter over the tag stream rather than a parser: the shells are
+    generated from templates in this repository, so the markup is known to be
+    well formed, and the alternative is a dependency for one assertion.
+    """
+    stack = []
+    for m in re.finditer(r"<(/?)([\w-]+)([^>]*?)(/?)>|\{\{(\w+)\}\}", body):
+        if m.group(5):
+            if m.group(5) == "REDIRECT":
+                return stack[-1] if stack else (None, "")
+            continue
+        tag = m.group(2).lower()
+        if m.group(4) or tag in VOID_TAGS:
+            continue
+        if m.group(1):
+            if stack:
+                stack.pop()
+            continue
+        found = re.search(r'class="([^"]*)"', m.group(3))
+        stack.append((tag, found.group(1) if found else ""))
+    return None, ""
+
+
 class ShellContract(unittest.TestCase):
     """Each test loops every shell so a new one cannot arrive unchecked."""
 
@@ -117,6 +148,35 @@ class ShellContract(unittest.TestCase):
         for name, text in sorted(self.shells.items()):
             with self.subTest(shell=name):
                 yield name, text, style_of(text)
+
+    def test_the_redirect_slot_is_never_a_child_of_a_multi_column_grid(self):
+        """The notice is optional, so its container must not place children by
+        counting them. `assist` did: its head was a two-column grid holding the
+        mark and the text as loose items, with the mark spanning two rows -- so
+        which column each text item landed in depended on how many there were.
+        Filling the slot pushed the gloss into the mark's column and squeezed the
+        headline and the notice into a 138 px gutter, with Stay clipped outside
+        its own box. Nothing failed: the page built, validated and shipped.
+
+        A single-column grid is fine, and so is flex -- neither reflows when a
+        sibling appears. It is the second track that makes placement positional.
+        """
+        for name, text, css in self.each():
+            tag, classes = redirect_slot_parent(text.split("<body>", 1)[-1])
+            self.assertIsNotNone(tag, f"{name} has no {{{{REDIRECT}}}} in its body")
+            selectors = [f".{c}" for c in classes.split()] + [tag]
+            body = ";".join(
+                decl for selector, decl in rules(css) for one in selector.split(",") if one.strip() in selectors
+            )
+            if "display:grid" not in body.replace(" ", ""):
+                continue
+            tracks = re.search(r"grid-template-columns:([^;}]*)", body)
+            self.assertFalse(
+                tracks and len(tracks.group(1).split()) > 1,
+                f'{name}: {{{{REDIRECT}}}} is a direct child of <{tag} class="{classes}">, '
+                f"a {len(tracks.group(1).split()) if tracks else 0}-column grid -- adding the "
+                f"notice will move its siblings into the wrong column",
+            )
 
     # ---- structure ---------------------------------------------------------
 
