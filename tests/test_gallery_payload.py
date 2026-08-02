@@ -6,11 +6,13 @@ looked at -- so each palette but the opening one is a sibling file, fetched the
 first time it is asked for.
 """
 
+import json
+import re
 import unittest
 
 from _paths import DATA
-from panos_response_pages import palettes
-from panos_response_pages.builder import build_all
+from panos_response_pages import palettes, redirect
+from panos_response_pages.builder import build_all, load_themes
 
 PALETTES = palettes.available(DATA / "palettes")
 
@@ -59,6 +61,23 @@ class TestSplit(unittest.TestCase):
 
     def test_the_key_carries_both_axes(self):
         self.assertIn('S.theme+"|"+S.palette+"|"+p', self.index)
+
+    def test_rxok_names_exactly_the_redirect_capable_themes(self):
+        """RXOK is what `draw()` checks to decide whether the Redirect toggle
+        shows at all. A previous fix corrected its lookup, and the lookup
+        beside it in `redirect_seg`, from 2-tuple to 3-tuple blob keys; had it
+        been missed, the toggle would have silently vanished for every style
+        -- including nyan, which never gets the toggle because its theme does
+        not set `redirect: true` in the first place.
+        """
+        themes = load_themes(DATA)
+        expected = {t["name"] for t in themes if redirect.supported(t)}
+        self.assertNotIn("nyan", expected)
+
+        m = re.search(r"RXOK=(\{.*?\});", self.index)
+        self.assertIsNotNone(m, "RXOK not found in generated index.html")
+        rxok = json.loads(m.group(1))
+        self.assertEqual(set(rxok), expected)
 
     def test_the_index_stays_small(self):
         """One palette's worth, not four. A regression here is silent -- the

@@ -270,12 +270,23 @@ LOADED[S.palette]=1;
 // is unavailable there for the same reason -- which is why this is a <script
 // src> and not a request.
 function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[name]=1}}
+// One <script src> per palette, ever. Two renders of the same not-yet-loaded
+// palette -- flipping the viewport while a sidecar is still in flight -- must
+// not append a second element and re-fetch the file; the second caller queues
+// behind the first and both run when it resolves.
+var INFLIGHT={{}};
 function need(pal,done){{
   if(LOADED[pal]) return done();
+  if(INFLIGHT[pal]){{INFLIGHT[pal].push(done);return}}
+  INFLIGHT[pal]=[done];
   var s=document.createElement("script");
   s.src="blobs-"+pal+".js";
-  s.onload=done;
-  s.onerror=function(){{LOADED[pal]=1;done()}};
+  function settle(){{
+    var q=INFLIGHT[pal];delete INFLIGHT[pal];
+    for(var i=0;i<q.length;i++) q[i]();
+  }}
+  s.onload=settle;
+  s.onerror=function(){{LOADED[pal]=1;settle()}};
   document.head.appendChild(s);
 }}
 // Which styles have room for the notice. nyan does not -- its URL block page is
