@@ -85,6 +85,23 @@ iframe{{border:0;display:block;width:100%;background:var(--srf)}}
 color:var(--mut);font-size:.78rem;line-height:1.6}}
 .foot code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}}
 @media(max-width:900px){{h1{{width:100%;margin:0 0 .2rem}}.gap{{display:none}}}}
+.pal{{position:relative}}
+.pal>button{{display:inline-flex;align-items:center;gap:.45rem;height:2rem;padding:0 1.6rem 0 .5rem;
+border:1px solid var(--line);border-radius:.55rem;background:var(--srf);color:var(--fg);
+font-size:.8rem;font-weight:550;cursor:pointer}}
+.pal>button::after{{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
+border:.26rem solid transparent;border-top-color:var(--mut)}}
+.sw{{flex:none;width:.85rem;height:.85rem;border-radius:50%;
+box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}}
+.pal ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
+padding:.25rem;list-style:none;border:1px solid var(--line);border-radius:.55rem;
+background:var(--srf);box-shadow:0 .6rem 1.6rem rgba(10,20,30,.22)}}
+.pal ul[hidden]{{display:none}}
+.pal li{{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
+font-size:.8rem;white-space:nowrap;cursor:pointer}}
+.pal li:hover,.pal li[data-on]{{background:var(--srf2)}}
+.pal li[aria-selected=true]::after{{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}}
+.pal li:focus-visible{{outline:3px solid var(--acct);outline-offset:-3px}}
 """
 
 # How each portal preview is labelled in the controls. The file names are keys
@@ -171,6 +188,26 @@ def build_gallery(
         page_opts += f'<optgroup label="GlobalProtect portal">{options(portal_items, "")}</optgroup>'
     page_ctl = f'<label class="ctl"><span>Page</span><select data-page>{page_opts}</select></label>'
 
+    def swatch(p: Mapping[str, Any]) -> str:
+        return f'<span class="sw" style="background:{html.escape(str(p["colors"]["accent"]))}"></span>'
+
+    pal_rows = "".join(
+        f'<li role="option" data-palette="{html.escape(p["name"])}" '
+        f'aria-selected="{str(p["name"] == palette["name"]).lower()}" tabindex="-1">'
+        f"{swatch(p)}{html.escape(str(p['label']))}</li>"
+        for p in palettes
+    )
+    # Only when there is a choice: a one-entry dropdown is a label pretending to
+    # be a control, and `--palette` narrowing the build is a normal thing to do.
+    palette_ctl = (
+        f'<div class="ctl pal" id="palgrp"><span>Palette</span>'
+        f'<button type="button" id="palbtn" aria-haspopup="listbox" aria-expanded="false">'
+        f'{swatch(palette)}<span id="pallabel">{html.escape(str(palette["label"]))}</span></button>'
+        f'<ul role="listbox" id="pallist" aria-label="Palette" hidden>{pal_rows}</ul></div>'
+        if len(palettes) > 1
+        else ""
+    )
+
     state_seg = (
         seg("state", "Login state", [(s, PORTAL_LABELS[s]) for s in states], states[0], ' id="stategrp" hidden')
         if surfaces
@@ -248,6 +285,7 @@ def build_gallery(
   <h1>Response page preview</h1>
   {theme_ctl}
   {page_ctl}
+  {palette_ctl}
   {state_seg}
   {redirect_seg}
   {view_seg}
@@ -374,6 +412,58 @@ document.querySelectorAll(".seg button").forEach(function(b){{
 addEventListener("resize",function(){{
   document.querySelectorAll("iframe").forEach(fit);
 }});
+(function(){{
+  var grp=document.getElementById("palgrp");
+  if(!grp) return;
+  var btn=document.getElementById("palbtn"),list=document.getElementById("pallist"),
+      rows=[].slice.call(list.querySelectorAll("[role=option]")),at=0;
+  rows.forEach(function(r,i){{if(r.getAttribute("aria-selected")==="true")at=i}});
+  function mark(i){{
+    at=(i+rows.length)%rows.length;
+    rows.forEach(function(r,j){{
+      if(j===at) r.setAttribute("data-on",""); else r.removeAttribute("data-on");
+    }});
+    rows[at].focus();
+  }}
+  function open(){{
+    list.hidden=false;btn.setAttribute("aria-expanded","true");mark(at);
+  }}
+  function close(back){{
+    list.hidden=true;btn.setAttribute("aria-expanded","false");
+    if(back!==false) btn.focus();
+  }}
+  function choose(i){{
+    var r=rows[i];
+    rows.forEach(function(o){{o.setAttribute("aria-selected",String(o===r))}});
+    S.palette=r.getAttribute("data-palette");
+    btn.querySelector(".sw").style.background=r.querySelector(".sw").style.background;
+    document.getElementById("pallabel").textContent=r.textContent;
+    document.documentElement.setAttribute("data-pal",S.palette);
+    close();render();
+  }}
+  btn.addEventListener("click",function(){{list.hidden?open():close()}});
+  list.addEventListener("click",function(e){{
+    var r=e.target.closest("[role=option]");
+    if(r) choose(rows.indexOf(r));
+  }});
+  grp.addEventListener("keydown",function(e){{
+    if(e.key==="Escape"){{if(!list.hidden){{e.preventDefault();close()}}return}}
+    if(list.hidden){{
+      if(e.key==="ArrowDown"||e.key==="Enter"||e.key===" "){{e.preventDefault();open()}}
+      return;
+    }}
+    if(e.key==="ArrowDown"){{e.preventDefault();mark(at+1)}}
+    else if(e.key==="ArrowUp"){{e.preventDefault();mark(at-1)}}
+    else if(e.key==="Home"){{e.preventDefault();mark(0)}}
+    else if(e.key==="End"){{e.preventDefault();mark(rows.length-1)}}
+    else if(e.key==="Enter"||e.key===" "){{e.preventDefault();choose(at)}}
+  }});
+  // Pointer-down, not click: a click listener fires after the browser has
+  // already moved focus, so the popup would close with focus somewhere else.
+  document.addEventListener("pointerdown",function(e){{
+    if(!list.hidden&&!grp.contains(e.target)) close(false);
+  }});
+}})();
 render();
 </script>
 </body></html>
