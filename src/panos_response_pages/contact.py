@@ -34,10 +34,13 @@ from panos_response_pages.errors import BuildError
 EMAIL = "email"
 URL = "url"
 
-# What the link is called when there is no address to print. Not per-customer
-# config: it is one string, and a customer who wants different wording is
-# describing a copy change, not a configuration.
-URL_LINK_TEXT = "IT support"
+# What the link is called when there is no address to print, unless the customer
+# says otherwise via `supportLabel`. A ticket queue has a name -- "Service Desk",
+# "Helpdesk", "IT Support" -- and a page that calls it something else is telling
+# the user to go somewhere they cannot find. The default is here rather than only
+# in _defaults.json so that a config assembled without that document still names
+# something, instead of rendering an anchor with no text.
+DEFAULT_URL_LABEL = "IT support"
 
 
 def _set(cfg: Mapping[str, Any], key: str) -> str:
@@ -89,8 +92,15 @@ def href(cfg: Mapping[str, Any], mailto: str) -> str:
 
 
 def name(cfg: Mapping[str, Any]) -> str:
-    """Human-facing link text, for the places that print the contact inline."""
-    return URL_LINK_TEXT if mode(cfg) == URL else _set(cfg, "supportEmail")
+    """Human-facing link text, for the places that print the contact inline.
+
+    Email mode prints the address itself, which is both the label and the
+    destination. URL mode has no such string, so it prints `supportLabel`, or a
+    default when the customer has not named their queue.
+    """
+    if mode(cfg) == EMAIL:
+        return _set(cfg, "supportEmail")
+    return _set(cfg, "supportLabel") or DEFAULT_URL_LABEL
 
 
 def to_attr(cfg: Mapping[str, Any]) -> str:

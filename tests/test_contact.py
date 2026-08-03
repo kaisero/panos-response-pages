@@ -128,8 +128,23 @@ class TestValues(unittest.TestCase):
     def test_name_is_the_address_in_email_mode(self):
         assert contact.name(self.EMAIL_CFG) == "it@example.com"
 
-    def test_name_is_a_fixed_label_in_url_mode(self):
+    def test_name_falls_back_to_a_default_label_in_url_mode(self):
         assert contact.name(self.URL_CFG) == "IT support"
+
+    def test_name_uses_the_configured_label_in_url_mode(self):
+        cfg = {**self.URL_CFG, "supportLabel": "the Service Desk"}
+        assert contact.name(cfg) == "the Service Desk"
+
+    def test_a_blank_label_falls_back_to_the_default(self):
+        """Blanking a key is how this project turns one off, so a blank label
+        must mean "unset" rather than an anchor with no text."""
+        cfg = {**self.URL_CFG, "supportLabel": "   "}
+        assert contact.name(cfg) == "IT support"
+
+    def test_the_label_is_ignored_in_email_mode(self):
+        """Email mode prints the address, which is its own label."""
+        cfg = {**self.EMAIL_CFG, "supportLabel": "the Service Desk"}
+        assert contact.name(cfg) == "it@example.com"
 
     def test_data_to_attribute_only_exists_in_email_mode(self):
         assert contact.to_attr(self.EMAIL_CFG) == ' data-to="it@example.com"'
