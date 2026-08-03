@@ -172,3 +172,23 @@ class TestBuildRefusesBadConfig(unittest.TestCase):
         cfg = shipped(supportEmail="")
         with pytest.raises(BuildError):
             build_page("url-block-page", THEMES[0], cfg, PALETTE, False, TEMPLATES)
+
+
+@pytest.mark.integration
+class TestRuntimeRewrite(unittest.TestCase):
+    def test_email_mode_still_rebuilds_the_href(self):
+        """The rebuild is what folds the fact table into the mail body."""
+        assert "a.href='mailto:'" in render(shipped())
+
+    def test_url_mode_does_not_rebuild_the_href(self):
+        html = render(shipped(**URL_CFG_KEYS))
+        assert "a.href=" not in html
+        assert "getElementById('rep')" not in html
+
+    def test_url_mode_still_fills_the_timestamp(self):
+        """The rep block shares an IIFE with the clock; dropping one must not
+        drop the other."""
+        assert "getElementById('ts')" in render(shipped(**URL_CFG_KEYS))
+
+    def test_url_mode_still_resolves_the_category(self):
+        assert "getElementById('cat')" in render(shipped(**URL_CFG_KEYS))

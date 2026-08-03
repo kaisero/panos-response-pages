@@ -22,7 +22,12 @@ TONE_CSS = {"calm": "calm", "warn": "warn", "critical": "crit"}
 SEV_LABEL = {"calm": "", "warn": "Caution", "crit": "Security risk"}
 
 
-def category_js(categories: Mapping[str, Mapping[str, str]], default_gloss: str, lock_copy: bool) -> str:
+def category_js(
+    categories: Mapping[str, Mapping[str, str]],
+    default_gloss: str,
+    lock_copy: bool,
+    email_mode: bool = True,
+) -> str:
     """Compact category -> [tone, gloss] map plus the client-side selector.
 
     PAN-OS exposes no severity or reason variable and serves one page per type,
@@ -32,6 +37,10 @@ def category_js(categories: Mapping[str, Mapping[str, str]], default_gloss: str,
     The credential pages use it: a phishing interstitial must not be repainted calm
     because of how its category maps, and its tailored copy ("this page asked for
     your password") is more useful than the generic category sentence.
+
+    email_mode drops the mailto rebuild entirely. It is not a size optimisation:
+    the rebuild assigns a.href unconditionally, so leaving it in would overwrite
+    a configured ticket URL the moment the page finished loading.
     """
     for name, v in categories.items():
         if v["tone"] not in TONE_CSS:
@@ -55,22 +64,29 @@ def category_js(categories: Mapping[str, Mapping[str, str]], default_gloss: str,
             "else if(g)g.textContent=" + json.dumps(default_gloss) + ";}"
         )
     )
+    # The mailto rebuild, and only in email mode. It exists to fold the page's
+    # own fact table into the mail body, which is something an href cannot carry.
+    report = (
+        (
+            "var a=document.getElementById('rep');"
+            "if(a){var p=[];"
+            "[].forEach.call(document.querySelectorAll('dl .f'),function(f){"
+            "var k=f.querySelector('dt'),v=f.querySelector('dd');"
+            "if(k&&v&&v.textContent.trim())p.push(k.textContent.trim()+': '+v.textContent.trim());});"
+            "a.href='mailto:'+a.getAttribute('data-to')"
+            "+'?subject='+encodeURIComponent(a.getAttribute('data-subject'))"
+            "+'&body='+encodeURIComponent(a.getAttribute('data-intro')+'\\n\\n'"
+            "+p.join('\\n')+'\\n\\n'+a.getAttribute('data-prompt')+'\\n');}"
+        )
+        if email_mode
+        else ""
+    )
     return (
         "<script>(function(){"
         + ("" if lock_copy else "var M=" + json.dumps(compact, separators=(",", ":")) + ";")
         + lookup
         + "var t=document.getElementById('ts');"
-        "if(t)t.textContent=new Date().toLocaleString();"
-        "var a=document.getElementById('rep');"
-        "if(a){var p=[];"
-        "[].forEach.call(document.querySelectorAll('dl .f'),function(f){"
-        "var k=f.querySelector('dt'),v=f.querySelector('dd');"
-        "if(k&&v&&v.textContent.trim())p.push(k.textContent.trim()+': '+v.textContent.trim());});"
-        "a.href='mailto:'+a.getAttribute('data-to')"
-        "+'?subject='+encodeURIComponent(a.getAttribute('data-subject'))"
-        "+'&body='+encodeURIComponent(a.getAttribute('data-intro')+'\\n\\n'"
-        "+p.join('\\n')+'\\n\\n'+a.getAttribute('data-prompt')+'\\n');}"
-        "})();</script>"
+        "if(t)t.textContent=new Date().toLocaleString();" + report + "})();</script>"
     )
 
 

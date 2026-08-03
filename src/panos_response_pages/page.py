@@ -113,6 +113,7 @@ def build_page(
                 eff["categories"],
                 eff["defaultGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1" or 'id="cat"' not in parts["FACTS"],
+                email_mode=contact.mode(cfg) == contact.EMAIL,
             )
             + redirect_js,
         }
