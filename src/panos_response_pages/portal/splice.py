@@ -44,6 +44,7 @@ first and then had to be told about:
 
 from __future__ import annotations
 
+import functools
 import pathlib
 import re
 from collections.abc import Mapping
@@ -99,7 +100,21 @@ _FORM_TOKEN = re.compile(r"<pan_form\s*/>")
 _ASSET_REF = re.compile(r"""(["'])portal/""")
 
 
+@functools.cache
 def _fixture(name: str, fixtures: pathlib.Path | None) -> str:
+    """One captured PAN-OS file, read once per path per process.
+
+    The login prefix is 8.4 KB and was read 224 times in a full build -- once
+    per theme x palette x surface -- for a file that cannot change while the
+    process runs. These are packaged captures, and the only caller that passes a
+    `fixtures` directory of its own is a test doctoring a copy, which gets a
+    fresh tempdir path each time and so a fresh entry.
+
+    Scoped deliberately to the fixtures rather than put on templates.read():
+    templates ARE edited in place by tests that copy the data tree, rebuild,
+    change a file and rebuild again, and a cache there would serve them stale
+    bytes and fail somewhere far from the cause.
+    """
     return read((fixtures or FIXTURES) / name)
 
 
