@@ -101,7 +101,7 @@ No action is required today either way: the largest page this project generates 
 |---|---|
 | `<base>` | Resolves relative URLs against the **blocked site** |
 | `<link>` | External stylesheet — not self-contained |
-| `src="http…"` / `href="http…"` | External reference (`mailto:` excepted) |
+| `src="http…"` / `href="http…"` | External reference (`mailto:` excepted, plus an `https://` href on the `id="rep"` contact anchor when the config sets `supportUrl` instead of `supportEmail`) |
 
 **The origin argument is what makes this stricter than the GP pages.** A block page is
 served *as if it were the blocked site*. Any relative URL resolves against a host the
@@ -121,8 +121,7 @@ using `currentColor`, no webfonts, no images.
 | "nothing you typed", "was not sent", "left your device" | Asserts data was not transmitted. The page has no visibility into what the browser sent. |
 | "for everyone", "everybody", "not just you" | Asserts the policy applies to all users. Different users match different rules. |
 
-Both classes make claims the page cannot substantiate. See
-[copy rules](../copy-rules.md).
+Both classes make claims the page cannot substantiate.
 
 ## What is not covered here
 
