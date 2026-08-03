@@ -14,8 +14,9 @@ documentation and are ignored by the build.
 | `logoSvg` | **Inline SVG, ≤2 KB optimised.** A traced-path export can be 40 KB and will silently break the page. Use `currentColor` so it inherits the theme. |
 | `continueGrantText` | Must match your URL Admin Override timeout |
 | `palette` | Which palette the preview gallery opens on: `cyber-orange`, `strata-yellow` or `prisma-blue`. Every style is built in every palette regardless; override per build with `--palette`. Setting it here also outranks a style that [pins its own](styles.md#a-style-that-owns-its-colour) |
-| `categories` | `category → {tone, gloss}`; tone is `calm`, `warn` or `critical` |
+| `categories` | `category → {tone, gloss}`; tone is `calm`, `warn` or `critical`. An **empty** `gloss` means "no tailored copy" and falls back to `defaultGloss`/`riskGloss` — that is how a category earns a tone without paying for a sentence |
 | `defaultGloss` | Used for any category not in the map — keep it true of every category |
+| `riskGloss` | The same, for a `warn` or `critical` category. Separate because a banner reading "Security risk" over "restricted by company policy" contradicts itself |
 | `redirect` | Opt-in handoff to a sanctioned app on the URL block page. Off by default — see [below](#redirecting-to-a-sanctioned-app) |
 
 Each page declares its own `<!--@MARK-->` — an inline SVG shown as a large
@@ -29,6 +30,22 @@ one page per type, so per-category messaging cannot happen server-side.
 The two credential pages set `<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->`, which pins
 their tone and gloss to what the template declares. A phishing interstitial must
 not be repainted calm because of how its category happens to map.
+
+### Why the map is not all 90 categories
+
+The Category row shows a **friendly label** — `online-storage-and-backup`
+renders as "Online Storage and Backup". It is derived from the slug in the
+browser rather than mapped, so all 90 PAN-OS categories get one, as will any
+category Palo Alto adds after this build. An explicit label for each is ~3.3 KB
+of JSON against ~0.2 KB of code, and the pages have no room for the difference.
+
+The same arithmetic is why `categories` lists only the categories where the
+default would be *wrong*. A category absent from the map renders calm with
+`defaultGloss`, which is already the right answer for most of them — writing all
+90 out with that same sentence adds ~5.6 KB and breaches the byte ceiling
+without changing a single page. Entries are worth their bytes only for a
+tailored gloss, or for a tone the default would get wrong; the latter cost
+nothing but the tone, by leaving `gloss` empty.
 
 ## Sending users to a ticket system
 
