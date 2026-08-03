@@ -30,6 +30,8 @@ PORTAL_PAGES = {
     "login": ("global-protect-portal-custom-login-page", "login.esp, getsoftwarepage.esp", LOGIN_VARS),
     "home": ("global-protect-portal-custom-home-page", "logout.esp, portal home page", HOME_VARS),
 }
+# This table carries CLI-only metadata, so it cannot simply BE builder.PORTAL_PAGES
+# -- but it must cover the same imports. test_cli.py asserts the two agree.
 
 app = typer.Typer(
     name="panos-response-pages",
@@ -150,25 +152,33 @@ def build(
             theme=theme,
             palette_name=palette,
             preview=preview,
-            data_reason=reason,
         )
     except BuildError as exc:
         log.error("%s", exc)
         raise typer.Exit(1) from exc
 
+    # Keyed by palette as well as theme and page, or the four palette rows of one
+    # theme collapse into four identical lines that name no palette between them.
+    #
+    # Warnings and errors go to the log only in JSON mode: format_report below is
+    # the channel for them otherwise, and emitting both meant every warning was
+    # printed twice over -- once here per palette, once in the report's flagged
+    # section. Debug lines are unconditional; nothing else carries per-page sizes.
     for r in result.results:
-        for w in r.warnings:
-            log.warning("%s/%s: %s", r.theme, r.page, w)
-        for e in r.errors:
-            log.error("%s/%s: %s", r.theme, r.page, e)
-        log.debug("%s/%s: %d B", r.theme, r.page, r.size)
+        if ctx.obj["json"]:
+            for w in r.warnings:
+                log.warning("%s/%s/%s: %s", r.theme, r.palette, r.page, w)
+            for e in r.errors:
+                log.error("%s/%s/%s: %s", r.theme, r.palette, r.page, e)
+        log.debug("%s/%s/%s: %d B", r.theme, r.palette, r.page, r.size)
 
     for pr in result.portal_results:
-        for w in pr.warnings:
-            log.warning("%s/portal/%s: %s", pr.theme, pr.page, w)
-        for e in pr.errors:
-            log.error("%s/portal/%s: %s", pr.theme, pr.page, e)
-        log.debug("%s/portal/%s: %d B (%d encoded)", pr.theme, pr.page, pr.size, pr.encoded)
+        if ctx.obj["json"]:
+            for w in pr.warnings:
+                log.warning("%s/%s/portal/%s: %s", pr.theme, pr.palette, pr.page, w)
+            for e in pr.errors:
+                log.error("%s/%s/portal/%s: %s", pr.theme, pr.palette, pr.page, e)
+        log.debug("%s/%s/portal/%s: %d B (%d encoded)", pr.theme, pr.palette, pr.page, pr.size, pr.encoded)
 
     if not ctx.obj["json"]:
         typer.echo(format_report(result))
@@ -268,7 +278,7 @@ def validate_cmd(
                 log.warning("%s: reads as the %s import, not %s -- checking it as %s", path, kind, path.stem, kind)
             _size, errors, warnings = validate_portal(text)
         elif path.stem in PAGE_TOKENS:
-            _size, errors, warnings = validate(path.stem, path.parent.name, read(path))
+            _size, errors, warnings = validate(path.stem, read(path))
         else:
             log.debug("skipping %s: not a known page type", path)
             continue

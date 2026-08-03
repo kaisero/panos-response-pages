@@ -11,9 +11,10 @@ import json
 import re
 import unittest
 
+from _build import preview_dir
 from _paths import DATA
 from panos_response_pages import palettes, redirect
-from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages.builder import load_themes
 from panos_response_pages.errors import BuildError
 from panos_response_pages.gallery import CHROME_KEYS, build_gallery
 from panos_response_pages.palettes import load_palette
@@ -24,17 +25,8 @@ PALETTES = palettes.available(DATA / "palettes")
 class TestSplit(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import pathlib
-        import tempfile
-
-        cls.tmp = tempfile.TemporaryDirectory()
-        cls.out = pathlib.Path(cls.tmp.name)
-        build_all(data_dir=DATA, out_dir=cls.out, preview=True)
-        cls.index = (cls.out / "preview" / "index.html").read_text(encoding="utf-8")
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.tmp.cleanup()
+        cls.preview = preview_dir()
+        cls.index = (cls.preview / "index.html").read_text(encoding="utf-8")
 
     def test_the_opening_palette_is_inline(self):
         """The first frame must render without a second file arriving, or the
@@ -46,7 +38,7 @@ class TestSplit(unittest.TestCase):
             if name == "cyber-orange":
                 continue
             with self.subTest(palette=name):
-                self.assertTrue((self.out / "preview" / f"blobs-{name}.js").is_file())
+                self.assertTrue((self.preview / f"blobs-{name}.js").is_file())
 
     def test_the_other_palettes_are_not_also_inline(self):
         """The whole point. If they are inline as well, the split cost a file
@@ -54,7 +46,7 @@ class TestSplit(unittest.TestCase):
         self.assertNotIn("prisma-blue|url-block-page", self.index)
 
     def test_a_payload_file_registers_itself(self):
-        text = (self.out / "preview" / "blobs-prisma-blue.js").read_text(encoding="utf-8")
+        text = (self.preview / "blobs-prisma-blue.js").read_text(encoding="utf-8")
         self.assertTrue(text.startswith("PP("))
         self.assertIn("prisma-blue|url-block-page", text)
 
@@ -92,43 +84,13 @@ class TestSplit(unittest.TestCase):
 class TestChrome(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import pathlib
-        import tempfile
-
-        cls.tmp = tempfile.TemporaryDirectory()
-        out = pathlib.Path(cls.tmp.name)
-        build_all(data_dir=DATA, out_dir=out, preview=True)
-        cls.index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        cls.index = (preview_dir() / "index.html").read_text(encoding="utf-8")
         cls.css = cls.index.split("<style>", 1)[1].split("</style>", 1)[0]
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.tmp.cleanup()
-
-    def test_every_palette_has_a_light_chrome_block(self):
-        for name in PALETTES:
-            with self.subTest(palette=name):
-                self.assertIn(f':root[data-pal="{name}"]{{--bg:', self.css)
-
-    def test_every_palette_has_a_dark_chrome_block(self):
-        """Half the reviewers are in dark mode. A palette whose dark block was
-        dropped falls back to the opening palette's, so the toolbar and the
-        frame disagree about which palette is being previewed."""
-        for name in PALETTES:
-            with self.subTest(palette=name):
-                self.assertIn(f'@media(prefers-color-scheme:dark){{:root[data-pal="{name}"]{{--bg:', self.css)
 
     def test_the_opening_palette_also_paints_without_the_attribute(self):
         """data-pal is set by the dropdown's handler. Before anyone touches it
         there is no attribute, and a toolbar with no colours is not a preview."""
         self.assertIn(":root{--bg:", self.css)
-
-    def test_the_chrome_blocks_carry_real_colours(self):
-        """`.format()` on a sheet that still held placeholders used to be how
-        these were produced; a block reading `--bg:{ground}` would satisfy every
-        assertion above."""
-        self.assertNotIn("{ground}", self.css)
-        self.assertRegex(self.css, r':root\[data-pal="nyan"\]\{--bg:#[0-9a-fA-F]{3,8}')
 
     @staticmethod
     def _block_tokens(css: str, pattern: str) -> dict[str, str]:
@@ -145,11 +107,15 @@ class TestChrome(unittest.TestCase):
 
     def test_each_palette_s_chrome_carries_its_own_colours(self):
         """The mutation this guards against: every block emitting the opening
-        palette's colours instead of its own. The four tests above only check
-        that a selector exists and that *something* hex-shaped follows it --
-        they cannot tell one palette's colours from another's, so that mutation
-        passes them all while making the toolbar lie about every non-opening
-        palette."""
+        palette's colours instead of its own. Weaker forms of this test -- that
+        the selector exists, that *something* hex-shaped follows it -- all pass
+        under that mutation while the toolbar lies about every non-opening
+        palette, so this asserts the parsed block equals the palette's real
+        values. `_block_tokens` fails on a missing block, which is why the
+        existence checks are not stated separately.
+
+        Half the reviewers are in dark mode, and a palette whose dark block was
+        dropped falls back to the opening palette's -- hence both schemes."""
         for name in PALETTES:
             with self.subTest(palette=name):
                 colors = load_palette(name, DATA / "palettes")["colors"]
@@ -209,13 +175,7 @@ class TestPaletteListboxFollowsClick(unittest.TestCase):
     one they had just picked."""
 
     def test_choose_updates_the_keyboard_cursor(self):
-        import pathlib
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            out = pathlib.Path(tmp)
-            build_all(data_dir=DATA, out_dir=out, preview=True)
-            index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        index = (preview_dir() / "index.html").read_text(encoding="utf-8")
         squeezed = re.sub(r"\s+", "", index)
         self.assertIn("functionchoose(i){at=i;", squeezed)
 
@@ -226,13 +186,7 @@ class TestMissingSidecarIsVisible(unittest.TestCase):
     The load failure must now be visible in the frame itself."""
 
     def test_the_gallery_carries_a_note_for_a_failed_sidecar_load(self):
-        import pathlib
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            out = pathlib.Path(tmp)
-            build_all(data_dir=DATA, out_dir=out, preview=True)
-            index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        index = (preview_dir() / "index.html").read_text(encoding="utf-8")
         self.assertIn("FAILED[pal]=1", index)
         self.assertIn("failed to load", index)
 

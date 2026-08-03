@@ -40,7 +40,7 @@ class Settings:
 
 
 def _as_bool(value: Any, fallback: bool) -> bool:
-    return bool(value) if isinstance(value, bool) else fallback
+    return value if isinstance(value, bool) else fallback
 
 
 def load(path: pathlib.Path | None = None) -> Settings:

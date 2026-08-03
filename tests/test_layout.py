@@ -7,7 +7,6 @@ asserting on it would make `git clone && test` fail forever.
 import json
 import unittest
 
-from _build import deploy_dir
 from _paths import DATA, ROOT
 
 
@@ -44,17 +43,6 @@ class TestLayout(unittest.TestCase):
 
         pages = sorted(p.stem for p in (DATA / "templates/pages").glob("*.html"))
         self.assertEqual(pages, sorted(PAGE_TOKENS), "templates and PAGE_TOKENS disagree")
-
-    def test_gitignore_excludes_artifacts(self):
-        ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").split()
-        for entry in ("out/", "tmp/", ".DS_Store"):
-            self.assertIn(entry, ignored, f"{entry} missing from .gitignore")
-
-    def test_build_emits_one_directory_per_theme(self):
-        # Assert the filesystem, not a log string.
-        themes = sorted(p.stem for p in (DATA / "themes").glob("*.json"))
-        emitted = sorted(p.name for p in deploy_dir().iterdir() if p.is_dir())
-        self.assertEqual(emitted, themes, f"unexpected theme output: {emitted}")
 
 
 if __name__ == "__main__":

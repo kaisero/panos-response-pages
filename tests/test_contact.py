@@ -47,7 +47,7 @@ def render(cfg, page="url-block-page", theme=None):
 
 
 def portal(cfg, page="login", theme=None):
-    return build_portal_page(page, theme or THEMES[0], cfg, PALETTE, preview=False, template_dir=TEMPLATES)
+    return build_portal_page(page, theme or THEMES[0], cfg, PALETTE, template_dir=TEMPLATES)
 
 
 def rep_anchor(html):

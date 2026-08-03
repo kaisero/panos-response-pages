@@ -118,7 +118,7 @@ class TestRenamingTheCompany(unittest.TestCase):
         palette = load_palette("cyber-orange", DATA / "palettes")
         theme = next(t for t in load_themes(DATA) if t["name"] == "glass")
         self.pages = {
-            page: build_portal_page(page, theme, cfg, palette, preview=False, template_dir=DATA / "templates")
+            page: build_portal_page(page, theme, cfg, palette, template_dir=DATA / "templates")
             for page in ("login", "home")
         }
 

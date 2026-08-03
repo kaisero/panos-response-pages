@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="pragma" content="no-cache">
 <title>{{TITLE}}</title>
 <style>
 :root{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
 /* The sky is the palette's own ground -- the dark scheme reads as night, the
    light one as dusk -- so the body wears --gr directly. --star carries its own
    alpha, because the canvas reads it as a fill and a separate token to dim it
@@ -22,19 +21,19 @@
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
+--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
 --sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}}
 html[data-force-scheme=light]{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
 --sf:{{C_SURFACE}};--star:{{C_ACCENT_TEXT}}80;--veil:.78}
 html[data-force-scheme=dark]{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
+--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};
 --sf:{{C_D_SURFACE}};--star:#ffffffbf;--veil:.72}
 html[data-tone=warn]{--tt:var(--wnt);--tw:var(--ww)}
 html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
@@ -42,12 +41,12 @@ html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
 html{font-size:16px}
 @media(min-width:600px){html{font-size:19px}}
 body{margin:0;min-height:100vh;overflow-x:hidden;background:var(--gr);color:var(--ik);
-font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
--webkit-font-smoothing:antialiased}
+font:1rem/1.7 system-ui,sans-serif;
+}
 /* The sky is drawn, not tiled. A gradient dot field lands on a lattice you can
    see, and it cannot bend a trail around a moving cat -- and both of those are
    the picture here, so the flight is simulated on a canvas instead. */
-#sky{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+#sky{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
 /* The flight. The script writes `top` and a bob transform; these are the
    resting values it starts from, and the ones that stand if it never runs. */
 .fly{position:fixed;top:22vh;right:8vw;width:13rem;height:7.8rem;pointer-events:none}
@@ -58,11 +57,11 @@ font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial
 filter:drop-shadow(0 0 .5rem var(--tw));
 filter:drop-shadow(0 0 .7rem color-mix(in srgb,var(--tt) 60%,transparent))}
 /* Frame swap, not a transform. Each leg and tail position is its own group and
-   only one is visible at a time; steps(1,end) holds each frame for its whole
+   only one is visible at a time; steps(1) holds each frame for its whole
    segment, which is what makes it read as pixel animation rather than a fade. */
 .l1,.t1,.t2{opacity:0}
-.l0,.l1{animation:.36s steps(1,end) infinite}
-.t0,.t1,.t2{animation:.45s steps(1,end) infinite}
+.l0,.l1{animation:.36s steps(1) infinite}
+.t0,.t1,.t2{animation:.45s steps(1) infinite}
 .l0{animation-name:la}.l1{animation-name:lb}
 .t0{animation-name:ta}.t1{animation-name:tb}.t2{animation-name:tc}
 @keyframes la{50%{opacity:0}}
@@ -89,7 +88,7 @@ border-radius:1rem;border:1px solid var(--sa);
 box-shadow:0 1.4rem 3.4rem rgba(0,0,0,.45)}
 .card::before,.card::after{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit}
 .card::before{background:var(--sf);opacity:var(--veil)}
-.card::after{background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0) 45%)}
+.card::after{background:linear-gradient(#ffffff21,#0000 45%)}
 .brand{display:flex;align-items:center;gap:.55rem;color:var(--at);margin:0 0 1.5rem}
 .brand svg{width:1.25rem;height:1.25rem}
 .brand span{font-size:.83rem;font-weight:600;letter-spacing:.03em}
@@ -105,7 +104,7 @@ dl{margin:0 0 1.4rem;border-top:1px solid var(--sa)}
 .f{display:flex;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--sa)}
 dt{width:5rem;flex:none;font-size:.68rem;color:var(--if)}
 dd{margin:0;min-width:0;font-size:.72rem;font-weight:600;overflow-wrap:anywhere}
-dd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.66rem;font-weight:500}
+dd.mono{font-family:ui-monospace,Consolas,monospace;font-size:.66rem;font-weight:500}
 .acts{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem 1rem}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.8rem;
 padding:.7rem 1.5rem;border-radius:.45rem;background:var(--ac);color:var(--ai);text-decoration:none;
@@ -130,7 +129,7 @@ color:var(--ik);font-size:.78rem;line-height:1.55}
 .warnline{border-left-color:var(--tt)}
 .warnline>svg{color:var(--tt)}
 .note{margin:1.4rem 0 0;font-size:.76rem;color:var(--if);line-height:1.6}
-a:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid var(--tt);outline-offset:3px}
+a:focus-visible,.btn:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--tt);outline-offset:3px}
 /* Between these two the lane still fits, but only if the notice and the flight
    both give ground. The lower bound is the width of the review gallery's desktop
    frame, so that frame shows the side-by-side layout rather than the stacked one. */
@@ -143,17 +142,17 @@ main{justify-items:center;align-items:start;padding-top:9.5rem}
 .fly{top:2rem;right:auto;left:50%;margin-left:-4.5rem;width:9rem;height:5.4rem}}
 @media(max-width:600px){main{padding:8.5rem 1.15rem 2rem}h1{font-size:1.7rem}
 .card{padding:1.6rem 1.3rem 1.4rem}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
 {{REDIRECT_CSS}}
 </style>
 </head>
 <body>
 <canvas id="sky" aria-hidden="true"></canvas>
-<div class="fly" aria-hidden="true"><svg class="ny" viewBox="0 0 40 24" shape-rendering="crispEdges"><path fill="#000" d="M7 3h20v17h-20zm-1 1h24v12h-24zm29 0h2v12h-2zm-5 1h1v12h-1zm4 0h4v2h-4zm-3 1h6v1h-6zm6 2h1v2h-1zm-6 1h6v6h-6zm6 3h1v3h-1zm-31 4h22v3h-22zm23 0h1v1h-1zm2 0h5v1h-5z"/><path fill="#fc9" d="M7 4h20v15h-20z"/><path fill="#f9c" d="M9 6h16v11h-16z"/><path fill="#f39" d="M11 7h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2z"/><path fill="#999" d="M28 5h2v2h-2zm7 0h2v2h-2zm-5 1h1v4h-1zm4 0h1v3h-1zm-5 1h1v9h-1zm2 0h3v2h-3zm4 0h1v9h-1zm-7 1h1v7h-1zm8 0h1v7h-1zm-4 1h2v1h-2zm0 1h1v3h-1zm-2 2h2v1h-2zm3 0h2v1h-2zm-2 1h1v1h-1zm2 0h1v1h-1zm-3 1h1v2h-1zm2 0h1v2h-1zm2 0h1v2h-1zm-3 1h1v1h-1zm2 0h1v1h-1z"/><path fill="#f99" d="M28 10h2v2h-2zm7 0h2v2h-2z"/><path fill="#fff" d="M30 9h1v1h-1zm3 0h1v1h-1z"/><g class="l0"><path fill="#000" d="M8 18h3v5h-3zm10 0h3v5h-3zm-11 1h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm-11 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M8 19h3v3h-3zm10 0h3v3h-3zm-5 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="l1"><path fill="#000" d="M13 18h3v5h-3zm10 0h3v5h-3zm-15 1h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm-15 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M13 19h3v3h-3zm10 0h3v3h-3zm-15 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="t0"><path fill="#000" d="M0 7h2v4h-2zm2 1h3v5h-3zm3 1h1v6h-1zm1 1h1v5h-1zm-5 1h7v1h-7zm6 1h1v2h-1zm-4 1h4v1h-4zm1 1h1v1h-1z"/><path fill="#999" d="M0 8h2v2h-2zm2 1h3v3h-3zm3 2h2v3h-2zm-1 1h1v2h-1z"/></g><g class="t1"><path fill="#000" d="M0 12h7v4h-7zm7 1h1v3h-1zm-5 3h5v1h-5z"/><path fill="#999" d="M0 13h7v2h-7zm2 2h5v1h-5z"/></g><g class="t2"><path fill="#000" d="M4 13h3v5h-3zm-1 1h5v3h-5zm-1 1h1v5h-1zm-2 1h7v1h-7zm5 2h1v1h-1zm-5 1h2v1h-2zm3 0h2v1h-2z"/><path fill="#999" d="M4 14h3v3h-3zm-2 2h2v3h-2zm-2 1h2v2h-2zm4 0h1v2h-1z"/></g></svg></div>
+<div class="fly" aria-hidden="true"><svg class="ny" fill="#000" viewBox="0 0 40 24" shape-rendering="crispEdges"><path d="M7 3h20v17h-20zm-1 1h24v12h-24zm29 0h2v12h-2zm-5 1h1v12h-1zm4 0h4v2h-4zm-3 1h6v1h-6zm6 2h1v2h-1zm-6 1h6v6h-6zm6 3h1v3h-1zm-31 4h22v3h-22zm23 0h1v1h-1zm2 0h5v1h-5z"/><path fill="#fc9" d="M7 4h20v15h-20z"/><path fill="#f9c" d="M9 6h16v11h-16z"/><path fill="#f39" d="M11 7h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm-10 3h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2zm4 0h2v2h-2z"/><path fill="#999" d="M28 5h2v2h-2zm7 0h2v2h-2zm-5 1h1v4h-1zm4 0h1v3h-1zm-5 1h1v9h-1zm2 0h3v2h-3zm4 0h1v9h-1zm-7 1h1v7h-1zm8 0h1v7h-1zm-4 1h2v1h-2zm0 1h1v3h-1zm-2 2h2v1h-2zm3 0h2v1h-2zm-2 1h1v1h-1zm2 0h1v1h-1zm-3 1h1v2h-1zm2 0h1v2h-1zm2 0h1v2h-1zm-3 1h1v1h-1zm2 0h1v1h-1z"/><path fill="#f99" d="M28 10h2v2h-2zm7 0h2v2h-2z"/><path fill="#fff" d="M30 9h1v1h-1zm3 0h1v1h-1z"/><g class="l0"><path d="M8 18h3v5h-3zm10 0h3v5h-3zm-11 1h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm-11 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M8 19h3v3h-3zm10 0h3v3h-3zm-5 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="l1"><path d="M13 18h3v5h-3zm10 0h3v5h-3zm-15 1h3v5h-3zm4 0h5v3h-5zm6 0h3v5h-3zm4 0h5v3h-5zm-15 1h5v3h-5zm10 0h5v3h-5z"/><path fill="#999" d="M13 19h3v3h-3zm10 0h3v3h-3zm-15 1h3v3h-3zm10 0h3v3h-3z"/></g><g class="t0"><path d="M0 7h2v4h-2zm2 1h3v5h-3zm3 1h1v6h-1zm1 1h1v5h-1zm-5 1h7v1h-7zm6 1h1v2h-1zm-4 1h4v1h-4zm1 1h1v1h-1z"/><path fill="#999" d="M0 8h2v2h-2zm2 1h3v3h-3zm3 2h2v3h-2zm-1 1h1v2h-1z"/></g><g class="t1"><path d="M0 12h7v4h-7zm7 1h1v3h-1zm-5 3h5v1h-5z"/><path fill="#999" d="M0 13h7v2h-7zm2 2h5v1h-5z"/></g><g class="t2"><path d="M4 13h3v5h-3zm-1 1h5v3h-5zm-1 1h1v5h-1zm-2 1h7v1h-7zm5 2h1v1h-1zm-5 1h2v1h-2zm3 0h2v1h-2z"/><path fill="#999" d="M4 14h3v3h-3zm-2 2h2v3h-2zm-2 1h2v2h-2zm4 0h1v2h-1z"/></g></svg></div>
 <main>
 <div class="card">
 <p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
-<p class="mark" aria-hidden="true">{{MARK}}</p>
+<p class="mark">{{MARK}}</p>
 <h1>{{HEADLINE}}</h1>
 {{REDIRECT}}
 <p class="gloss" id="gloss">{{GLOSS}}</p>

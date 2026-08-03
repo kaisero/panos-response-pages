@@ -22,14 +22,17 @@ from panos_response_pages.gallery import build_gallery
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.palettes import select as palettes_select
-from panos_response_pages.portal.page import build_portal_page
+from panos_response_pages.portal.page import FRAMES, build_portal_page
 from panos_response_pages.portal.splice import LOGIN_PREVIEWS, splice_home, splice_login
 from panos_response_pages.portal.validate import MAX_ENCODED, SOFT_MAX, encoded_size, validate_portal
 from panos_response_pages.templates import read
 from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS, validate
 
 # The two GlobalProtect portal imports, in the order the report lists them.
-PORTAL_PAGES = ("login", "home")
+# Derived from FRAMES rather than restated: FRAMES is the module that would break
+# first if a third import appeared, so it is the one that gets to say how many
+# there are.
+PORTAL_PAGES = tuple(FRAMES)
 
 # What a preview of the portal family consists of. The four login states are one
 # import rendered four ways -- PAN-OS decides which by what it writes into
@@ -94,17 +97,13 @@ class PortalResult:
 @dataclass
 class BuildResult:
     results: list[PageResult]
-    data_dir: pathlib.Path
-    data_reason: str
+    # The palette the gallery opens on. Not "what was built" -- every palette is
+    # built every time; this is only the one a reviewer sees first.
     palette: dict[str, Any]
-    out_dir: pathlib.Path
     # Deliberately not merged into `results`: that list is the block-page family
     # and its length is asserted against PAGE_TOKENS. A second family appearing
     # in it would break an invariant that has nothing to do with the portal.
     portal_results: list[PortalResult] = field(default_factory=list)
-    # Every palette this run built, in build order. `palette` above is now only
-    # the one the gallery opens on, so it can no longer answer "what was built".
-    palettes: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def failed(self) -> bool:
@@ -167,20 +166,12 @@ def build_all(
     theme: str | None = None,
     palette_name: str | None = None,
     preview: bool = True,
-    data_reason: str = "explicit",
     write: bool = True,
-    deploy_subdir: str = "deploy",
-    preview_subdir: str = "preview",
 ) -> BuildResult:
     """Build every page of every selected theme.
 
     `write=False` builds and validates without touching the filesystem, which is
     what most tests want.
-
-    The two subdirectory names are parameters only so the legacy `build.py`
-    entry point can keep emitting `dist/` and `preview/` at the repository root
-    while this code is proven against the existing suite. They collapse to their
-    defaults when that shim goes.
     """
     cfg = load_config(customer, data_dir / "config")
     chosen = customer_keys(customer, data_dir / "config")
@@ -195,6 +186,21 @@ def build_all(
     portal_dir = datadir.portal_data(data_dir)
     portal_templates = portal_dir / "templates"
     fixtures = portal_dir / "fixtures"
+
+    def emit(path: pathlib.Path, text: str) -> None:
+        """Write one built file, or nothing at all when write=False.
+
+        write_bytes, never write_text: write_text translates "\n" to os.linesep,
+        so on Windows every line would gain a byte AFTER validate() measured the
+        string, and an oversize page would ship with the report still saying ok.
+        Stated here once rather than at each of the five call sites.
+
+        The mkdir calls stay guarded at their own sites: folding them in here
+        would mean a mkdir per file rather than per directory, ~750 syscalls a
+        build for no gain.
+        """
+        if write:
+            path.write_bytes(text.encode("utf-8"))
 
     results: list[PageResult] = []
     portal_results: list[PortalResult] = []
@@ -236,8 +242,8 @@ def build_all(
     for th in themes:
         for pname in palette_names:
             th_palette = loaded[pname]
-            deploy_dir = out_dir / deploy_subdir / th["name"] / pname
-            prev_dir = out_dir / preview_subdir / th["name"] / pname
+            deploy_dir = out_dir / "deploy" / th["name"] / pname
+            prev_dir = out_dir / "preview" / th["name"] / pname
             if write:
                 deploy_dir.mkdir(parents=True, exist_ok=True)
                 if preview:
@@ -248,19 +254,13 @@ def build_all(
                 # measured are the bytes that ship. It must not run any earlier:
                 # parse_sections() needs the <!--@SLOT--> markers intact.
                 deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
-                size, errors, warnings = validate(page, th["name"], deployable)
-                if write:
-                    # write_bytes, never write_text: write_text translates "\n" to
-                    # os.linesep, so on Windows every line would gain a byte AFTER
-                    # validate() measured the string, and an oversize page would
-                    # ship with the report still saying ok.
-                    (deploy_dir / f"{page}.html").write_bytes(deployable.encode("utf-8"))
+                size, errors, warnings = validate(page, deployable)
+                emit(deploy_dir / f"{page}.html", deployable)
 
                 if preview:
                     pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
                     blobs[th["name"], pname, page] = pv
-                    if write:
-                        (prev_dir / f"{page}.html").write_bytes(pv.encode("utf-8"))
+                    emit(prev_dir / f"{page}.html", pv)
 
                     # The second url-block blob the gallery's Redirect toggle switches
                     # to. Built unconditionally so the toggle can demonstrate the
@@ -276,8 +276,7 @@ def build_all(
                             build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True)
                         )
                         blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
-                        if write:
-                            (prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html").write_bytes(demo.encode("utf-8"))
+                        emit(prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html", demo)
 
                 results.append(PageResult(th["name"], page, size, errors, warnings, pname))
 
@@ -285,7 +284,7 @@ def build_all(
             for page in PORTAL_PAGES:
                 # build_portal_page strips on the way out, so these are already the
                 # bytes the firewall receives; nothing may touch them afterwards.
-                imports[page] = build_portal_page(page, th, cfg, th_palette, False, portal_templates)
+                imports[page] = build_portal_page(page, th, cfg, th_palette, portal_templates)
                 size, errors, warnings = validate_portal(imports[page])
                 encoded = encoded_size(imports[page])
                 if write:
@@ -294,7 +293,7 @@ def build_all(
                     # keeping them apart on disk is what stops a `deploy/<theme>/*`
                     # glob from sweeping a portal import into a block-page upload.
                     (deploy_dir / "portal").mkdir(parents=True, exist_ok=True)
-                    (deploy_dir / "portal" / f"{page}.html").write_bytes(imports[page].encode("utf-8"))
+                    emit(deploy_dir / "portal" / f"{page}.html", imports[page])
                 portal_results.append(PortalResult(th["name"], page, size, encoded, errors, warnings, pname))
 
             if preview:
@@ -310,24 +309,22 @@ def build_all(
                 if write:
                     (prev_dir / "portal").mkdir(parents=True, exist_ok=True)
                     for name, text in _splice(imports, ASSETS_FROM_PAGE, fixtures).items():
-                        (prev_dir / "portal" / f"{name}.html").write_bytes(text.encode("utf-8"))
+                        emit(prev_dir / "portal" / f"{name}.html", text)
 
     if preview and write:
         # The captured portal asset tree, once, beside the gallery. jQuery is in
         # here, and without it the prefixes' ready handler never runs and every
         # login preview shows an empty logo box.
-        shutil.copytree(fixtures / "portal", out_dir / preview_subdir / PREVIEW_ASSETS, dirs_exist_ok=True)
+        shutil.copytree(fixtures / "portal", out_dir / "preview" / PREVIEW_ASSETS, dirs_exist_ok=True)
         result_palettes = [loaded[n] for n in palette_names]
         gallery, sidecars = build_gallery(
             themes, pages, blobs, cfg, palette, result_palettes, portal_blobs, PORTAL_PREVIEWS
         )
-        (out_dir / preview_subdir / "index.html").write_bytes(gallery.encode("utf-8"))
+        (out_dir / "preview" / "index.html").write_bytes(gallery.encode("utf-8"))
         for name, text in sidecars.items():
-            (out_dir / preview_subdir / name).write_bytes(text.encode("utf-8"))
+            (out_dir / "preview" / name).write_bytes(text.encode("utf-8"))
 
-    return BuildResult(
-        results, data_dir, data_reason, palette, out_dir, portal_results, [loaded[n] for n in palette_names]
-    )
+    return BuildResult(results, palette, portal_results)
 
 
 def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> dict[str, str]:
@@ -341,6 +338,52 @@ def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> 
     return out
 
 
+def _worst_rows(rows: list[Any]) -> dict[tuple[str, str], Any]:
+    """The largest row of each style x palette, which is the one the table names.
+
+    Shared by both tables: the block-page family and the portal family collapse
+    the same way, and having written the fold twice is how the two drifted into
+    saying `ok` under different rules.
+    """
+    worst: dict[tuple[str, str], Any] = {}
+    for r in rows:
+        key = (r.theme, r.palette)
+        if key not in worst or r.size > worst[key].size:
+            worst[key] = r
+    return worst
+
+
+def _status(rows: list[Any], theme: str, palette: str) -> str:
+    """FAIL beats warn beats ok, across every row of one combination.
+
+    Taken from the whole combination, not from the largest row: a page can warn
+    for a reason that has nothing to do with its size, and the row must not read
+    `ok` while a line underneath it says otherwise.
+    """
+    of_cell = [r for r in rows if r.theme == theme and r.palette == palette]
+    if any(r.errors for r in of_cell):
+        return "FAIL"
+    return "warn" if any(r.warnings for r in of_cell) else "ok"
+
+
+def _flagged(rows: list[Any], all_clear: str | None = None) -> list[str]:
+    """Everything that warned or failed, named in full under the table.
+
+    `all_clear` is the line to print when nothing is flagged. Only the block-page
+    table has one -- the portal table is already preceded by its own summary, and
+    a second all-clear under it read as if it were about the whole build.
+    """
+    flagged = [r for r in rows if r.errors or r.warnings]
+    if not flagged:
+        return ["", f"  {all_clear}"] if all_clear else []
+    lines = [""]
+    for r in flagged:
+        lines.append(f"  {r.theme}/{r.palette}/{r.page}  {r.size} B  {r.status}")
+        lines += [f"      ! {e}" for e in r.errors]
+        lines += [f"      ~ {w}" for w in r.warnings]
+    return lines
+
+
 def format_report(result: BuildResult) -> str:
     """The size table. This is the tool's product, not chatter, so it goes to
     stdout as plain text and stays parseable by eye.
@@ -350,51 +393,23 @@ def format_report(result: BuildResult) -> str:
     carries that page, and anything that warns or fails is then named in full
     underneath, where a short list is read and a long table is not.
     """
-    worst: dict[tuple[str, str], PageResult] = {}
-    for r in result.results:
-        key = (r.theme, r.palette)
-        if key not in worst or r.size > worst[key].size:
-            worst[key] = r
-
     lines = [
         f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  status",
         "  " + "-" * 78,
     ]
-    for (theme, palette), r in worst.items():
-        status = _worst_status(result, theme, palette)
+    for (theme, palette), r in _worst_rows(result.results).items():
+        status = _status(result.results, theme, palette)
         pct = f"{r.size / MAX_BYTES * 100:.0f}%"
         lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status}")
     lines.append("  " + "-" * 78)
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )
-
-    flagged = [r for r in result.results if r.errors or r.warnings]
-    if flagged:
-        lines.append("")
-        for r in flagged:
-            lines.append(f"  {r.theme}/{r.palette}/{r.page}  {r.size} B  {r.status}")
-            lines += [f"      ! {e}" for e in r.errors]
-            lines += [f"      ~ {w}" for w in r.warnings]
-    else:
-        lines += ["", "  no page warns or fails"]
+    lines += _flagged(result.results, all_clear="no page warns or fails")
 
     if result.portal_results:
         lines += _portal_report(result)
     return "\n".join(lines)
-
-
-def _worst_status(result: BuildResult, theme: str, palette: str) -> str:
-    """FAIL beats warn beats ok, across every page of one combination.
-
-    Taken from the whole combination, not from the largest page: a page can warn
-    for a reason that has nothing to do with its size, and the row must not read
-    `ok` while a line underneath it says otherwise.
-    """
-    rows = [r for r in result.results if r.theme == theme and r.palette == palette]
-    if any(r.errors for r in rows):
-        return "FAIL"
-    return "warn" if any(r.warnings for r in rows) else "ok"
 
 
 def _portal_report(result: BuildResult) -> list[str]:
@@ -416,19 +431,13 @@ def _portal_report(result: BuildResult) -> list[str]:
     The encoded column is there because that is the only number PAN-OS ever
     says out loud: "page can be at most 21845 characters, but current length: N".
     """
-    worst: dict[tuple[str, str], PortalResult] = {}
-    for r in result.portal_results:
-        key = (r.theme, r.palette)
-        if key not in worst or r.size > worst[key].size:
-            worst[key] = r
-
     lines = [
         "",
         f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  {'of ceiling':>10}  status",
         "  " + "-" * 88,
     ]
-    for (theme, palette), r in worst.items():
-        status = _worst_portal_status(result, theme, palette)
+    for (theme, palette), r in _worst_rows(result.portal_results).items():
+        status = _status(result.portal_results, theme, palette)
         pct = f"{r.size / SOFT_MAX * 100:.0f}%"
         lines.append(f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status}")
     lines.append("  " + "-" * 88)
@@ -437,24 +446,4 @@ def _portal_report(result: BuildResult) -> list[str]:
         f"largest import {result.portal_largest} B  |  headroom {SOFT_MAX - result.portal_largest} B"
     )
 
-    flagged = [r for r in result.portal_results if r.errors or r.warnings]
-    if flagged:
-        lines.append("")
-        for r in flagged:
-            lines.append(f"  {r.theme}/{r.palette}/{r.page}  {r.size} B  {r.status}")
-            lines += [f"      ! {e}" for e in r.errors]
-            lines += [f"      ~ {w}" for w in r.warnings]
-    return lines
-
-
-def _worst_portal_status(result: BuildResult, theme: str, palette: str) -> str:
-    """FAIL beats warn beats ok, across every import of one combination.
-
-    Mirrors _worst_status: an import can warn or fail for a reason that has
-    nothing to do with which one is largest, and the row must not read `ok`
-    while a line underneath it says otherwise.
-    """
-    rows = [r for r in result.portal_results if r.theme == theme and r.palette == palette]
-    if any(r.errors for r in rows):
-        return "FAIL"
-    return "warn" if any(r.warnings for r in rows) else "ok"
+    return lines + _flagged(result.portal_results)

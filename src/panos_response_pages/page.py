@@ -10,7 +10,7 @@ from typing import Any
 from panos_response_pages import contact, redirect
 from panos_response_pages.errors import BuildError
 from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
-from panos_response_pages.templates import parse_sections, read, substitute
+from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
 # Sample values used only in preview builds.
@@ -110,6 +110,10 @@ def build_page(
     # one from before it existed.
     redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, loop=demo)
 
+    # One read, two uses: the static tone and the label derived from it must not
+    # be able to disagree about what the template declared.
+    tone = parts.get("TONE", "calm")
+
     values = dict(base)
     values.update(
         {
@@ -119,8 +123,8 @@ def build_page(
             "FACTS": parts["FACTS"],
             "ACTIONS": parts["ACTIONS"],
             "EXTRA": parts.get("EXTRA", ""),
-            "TONE": parts.get("TONE", "calm"),
-            "SEVERITY": SEV_LABEL.get(parts.get("TONE", "calm"), ""),
+            "TONE": tone,
+            "SEVERITY": SEV_LABEL.get(tone, ""),
             "MARK": parts.get("MARK", cfg["marks"]["shield"]),
             "REDIRECT_CSS": redirect_css,
             "REDIRECT": redirect_html,
@@ -137,7 +141,9 @@ def build_page(
             + category_js(
                 eff["categories"],
                 eff["defaultGloss"],
-                lock_copy=parts.get("COPY_LOCK", "").strip() == "1" or 'id="cat"' not in parts["FACTS"],
+                eff["riskGloss"],
+                lock_copy=parts.get("COPY_LOCK", "").strip() == "1",
+                has_category='id="cat"' in parts["FACTS"],
                 email_mode=contact.mode(cfg) == contact.EMAIL,
             )
             + redirect_js,
@@ -157,9 +163,7 @@ def build_page(
     )
 
     out: str = substitute(shell, values)
-    if "{{" in out:
-        leftover = sorted(set(re.findall(r"\{\{([A-Z_0-9]+)\}\}", out)))
-        raise BuildError(f"unresolved placeholder(s) in {page}: {', '.join(leftover)}")
+    assert_resolved(out, page)
 
     # URL mode is otherwise enforced only by the templates cooperating: a stale
     # template directory would still substitute cleanly and ship a mailto href

@@ -10,10 +10,11 @@ import pathlib
 import shutil
 import tempfile
 import unittest
+from dataclasses import replace
 
 from _paths import DATA
 from panos_response_pages import palettes
-from panos_response_pages.builder import build_all, format_report, load_themes
+from panos_response_pages.builder import PageResult, build_all, format_report, load_themes
 from panos_response_pages.errors import BuildError
 from panos_response_pages.validate import PAGE_TOKENS
 
@@ -168,10 +169,30 @@ class TestReport(unittest.TestCase):
 
     def test_each_row_names_the_largest_page(self):
         """The only page that can breach the ceiling is the largest one, so it
-        is the one the row has to be about."""
-        row = next(ln for ln in self.text.splitlines() if "nyan" in ln and "cyber-orange" in ln)
-        self.assertIn("url-block-page", row)
-        self.assertIn("15558", row)
+        is the one the row has to be about.
+
+        Derived from the build rather than hardcoded. This assertion used to
+        name a page and quote a byte count as literals, which made every copy
+        edit anywhere in the project fail a test about report formatting, and
+        said nothing about whether the row named the LARGEST page -- only that
+        it named the one that happened to be largest when the test was written.
+        """
+        # The block-page table only; the portal table repeats theme/palette.
+        block = self.text.split("portal import")[0]
+        for theme, palette in ((t, p) for t in THEMES for p in PALETTES):
+            with self.subTest(theme=theme, palette=palette):
+                worst = max(
+                    (r for r in self.result.results if r.theme == theme and r.palette == palette),
+                    key=lambda r: r.size,
+                )
+                # By field position, not by substring: the nyan theme and the
+                # nyan palette share a name, so "nyan in line" matches the wrong
+                # row of a table whose first two columns are theme and palette.
+                row = next(
+                    ln for ln in block.splitlines() if ln.split()[:2] == [theme, palette] and len(ln.split()) > 3
+                )
+                self.assertIn(worst.page, row)
+                self.assertIn(str(worst.size), row)
 
     def test_palette_does_not_change_page_size(self):
         """The collapsed row is only honest if a palette cannot make a page
@@ -183,8 +204,26 @@ class TestReport(unittest.TestCase):
             with self.subTest(theme=theme, page=page):
                 self.assertEqual(len(sizes), 1, f"{theme}/{page} differs by palette: {sorted(sizes)}")
 
-    def test_a_clean_build_says_so(self):
-        self.assertIn("no page warns or fails", self.text)
+    def test_the_all_clear_line_appears_only_when_nothing_is_flagged(self):
+        """A report-formatting test, and deliberately not run against the real
+        build. Asserting "no page warns or fails" in the live report made this
+        fail whenever a page crossed WARN_BYTES -- reporting a byte-budget
+        problem as a report-formatting problem, in a file that has nothing to do
+        with the byte budget. tests/test_shells.py owns the budget.
+
+        Both branches, because the bug worth catching is the all-clear line
+        printing next to a list of flagged pages.
+        """
+        clean = replace(self.result, results=[PageResult("assist", "url-block-page", 9000, palette="nyan")])
+        self.assertIn("no page warns or fails", format_report(clean))
+
+        warned = replace(
+            self.result,
+            results=[PageResult("assist", "url-block-page", 17000, warnings=["close to the ceiling"], palette="nyan")],
+        )
+        text = format_report(warned)
+        self.assertNotIn("no page warns or fails", text)
+        self.assertIn("close to the ceiling", text)
 
 
 if __name__ == "__main__":

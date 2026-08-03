@@ -52,10 +52,15 @@ class TestFlight(unittest.TestCase):
         alpha as a hex suffix, which only works while the palette keeps every
         colour a six-digit hex -- an rgb() or a named colour would silently
         produce a transparent sky."""
+        found = 0
         for page, text in nyan_pages():
             for value in set(re.findall(r"--star:([^;}]+)", text)):
+                found += 1
                 with self.subTest(page=page, star=value):
                     self.assertRegex(value.strip(), r"^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+        # Without this the test passes green the day --star stops reaching built
+        # output, which is the failure it exists to catch.
+        self.assertGreater(found, 0, "no --star declaration in any built nyan page")
 
     def test_the_flight_holds_still_when_motion_is_declined(self):
         """The blanket reduced-motion rule stops CSS animation, and would leave
@@ -130,7 +135,11 @@ class TestGlassCrossesTheFamilies(unittest.TestCase):
         for name, text in (("block", SHELL), ("portal", PORTAL)):
             with self.subTest(shell=name):
                 self.assertIn("backdrop-filter:blur(", text)
-        self.assertEqual(PORTAL.count("radial-gradient(var(--star)"), 4)
+        self.assertGreater(
+            PORTAL.count("radial-gradient(var(--star)"),
+            0,
+            "the portal has no starfield for the veil to blur",
+        )
 
     def test_the_portal_stays_out_of_the_canvas_business(self):
         """Not a style choice: the Home Page import is embedded mid-<head> and

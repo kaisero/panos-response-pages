@@ -116,9 +116,25 @@ class TestPreviewIsPublished(unittest.TestCase):
     def test_the_gallery_itself_is_generated_not_committed(self):
         """The opposite rule to the screenshot, for the opposite reason: this one
         CAN be built by CI, so committing it only creates a copy that rots."""
-        noxfile = (ROOT / "noxfile.py").read_text(encoding="utf-8")
-        self.assertIn('PREVIEW_DEST = pathlib.Path("docs/preview")', noxfile)
-        self.assertIn("_build_preview(session)", noxfile, "the docs session does not build the gallery")
+        # Imported, not grepped: a string match against another file's source
+        # breaks on reformatting and passes on a value that is merely spelled
+        # the same.
+        import importlib.util
+        import pathlib
+
+        # Loaded by path: the repo root is not on sys.path under pytest, and
+        # this is still an import rather than a grep -- reformatting noxfile.py
+        # must not fail a test about where the gallery is written.
+        spec = importlib.util.spec_from_file_location("_noxfile", ROOT / "noxfile.py")
+        noxfile = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(noxfile)
+
+        self.assertEqual(noxfile.PREVIEW_DEST, pathlib.Path("docs/preview"))
+        self.assertIn(
+            "_build_preview(session)",
+            (ROOT / "noxfile.py").read_text(encoding="utf-8"),
+            "the docs session does not build the gallery",
+        )
         self.assertIn("docs/preview/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
     def test_the_generated_gallery_is_excluded_from_codespell(self):

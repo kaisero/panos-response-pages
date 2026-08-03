@@ -5,8 +5,11 @@ substantiate either: claims about whether data was transmitted, and claims that 
 policy applies to all users. PAN-OS exposes no variable for either fact.
 
 This lints the *templates*. build.py:audit_copy lints the *rendered output* using
-the same phrase list. The duplication is deliberate — it catches a violation
-introduced in config/_defaults.json, which never appears in a template.
+the same phrase list. Duplicating the *pass* is deliberate — it catches a
+violation introduced in config/_defaults.json, which never appears in a
+template. Duplicating the *phrase list* would not be: a phrase added to
+BANNED_COPY would then never be linted against the templates, silently. So the
+list is imported, and only the pass is written twice.
 """
 
 import json
@@ -14,18 +17,12 @@ import re
 import unittest
 
 from _paths import DATA
+from panos_response_pages.validate import BANNED_COPY
 
 PAGES = sorted((DATA / "templates/pages").glob("*.html"))
 CONFIG = DATA / "config/_defaults.json"
 
-BANNED = [
-    ("nothing you typed", "asserts data was not transmitted"),
-    ("was not sent", "asserts data was not transmitted"),
-    ("left your device", "asserts data was not transmitted"),
-    ("for everyone", "asserts the policy applies to all users"),
-    ("everybody", "asserts the policy applies to all users"),
-    ("not just you", "asserts the policy applies to all users"),
-]
+BANNED = BANNED_COPY
 
 # Every page carrying a report action. safe-search is excluded: its primary
 # action is "Open search settings", and IT contact is a link in the note.

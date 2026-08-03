@@ -25,86 +25,86 @@ from panos_response_pages import redirect
 from panos_response_pages.errors import BuildError
 
 GALLERY_CSS = """
-*{{box-sizing:border-box}}
-body{{margin:0;background:var(--bg);color:var(--fg);
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
--webkit-font-smoothing:antialiased}}
+-webkit-font-smoothing:antialiased}
 /* One row, and it stays one row: the controls are sized so a 1440 px viewport
    fits every group including the login states, and wrap rather than scroll
    below that. */
-.bar{{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
+.bar{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;
 padding:.5rem .75rem;border-bottom:1px solid var(--line);
 position:sticky;top:0;z-index:5;background:var(--bg);
 background:color-mix(in oklab,var(--bg) 88%,transparent);
-backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3)}}
-h1{{margin:0 .2rem 0 0;font-size:.88rem;font-weight:650;letter-spacing:-.01em;
-white-space:nowrap}}
+backdrop-filter:blur(12px) saturate(1.3);-webkit-backdrop-filter:blur(12px) saturate(1.3)}
+h1{margin:0 .2rem 0 0;font-size:.88rem;font-weight:650;letter-spacing:-.01em;
+white-space:nowrap}
 /* auto margin rather than a spacer element: on a line that has wrapped it
    simply stops applying, where a flex spacer would still claim a slot. */
-.push{{margin-left:auto}}
+.push{margin-left:auto}
 /* A box wrapping its own caption and control, so the caption is part of the
    hit area -- shared by Style, Page and Palette, the three listbox controls. */
-.ctl{{position:relative;display:inline-flex;align-items:center;gap:.4rem;height:2rem;
+.ctl{position:relative;display:inline-flex;align-items:center;gap:.4rem;height:2rem;
 padding:0 .5rem;border:1px solid var(--line);border-radius:.55rem;background:var(--srf);
-cursor:pointer}}
-.ctl:focus-within{{border-color:var(--acct)}}
-.ctl>span,.seg>span{{font-size:.62rem;font-weight:600;letter-spacing:.1em;
-text-transform:uppercase;color:var(--mut);white-space:nowrap}}
+cursor:pointer}
+.ctl:focus-within{border-color:var(--acct)}
+.ctl>span,.seg>span{font-size:.62rem;font-weight:600;letter-spacing:.1em;
+text-transform:uppercase;color:var(--mut);white-space:nowrap}
 /* A CSS caret rather than a background SVG: an <img>-style background is an
    isolated document, so it could not follow the scheme through currentColor. */
-.ctl::after{{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
-border:.26rem solid transparent;border-top-color:var(--mut);pointer-events:none}}
-.seg{{display:inline-flex;align-items:center;gap:.15rem;height:2rem;padding:.15rem;
-border:1px solid var(--line);border-radius:.55rem;background:var(--srf)}}
-.seg>span{{padding:0 .3rem 0 .35rem}}
-button{{font:inherit;font-size:.78rem;font-weight:550;height:100%;padding:0 .6rem;
+.ctl::after{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
+border:.26rem solid transparent;border-top-color:var(--mut);pointer-events:none}
+.seg{display:inline-flex;align-items:center;gap:.15rem;height:2rem;padding:.15rem;
+border:1px solid var(--line);border-radius:.55rem;background:var(--srf)}
+.seg>span{padding:0 .3rem 0 .35rem}
+button{font:inherit;font-size:.78rem;font-weight:550;height:100%;padding:0 .6rem;
 border:0;background:none;color:var(--fg);border-radius:.4rem;cursor:pointer;
-white-space:nowrap}}
-.seg button:hover{{background:var(--srf2)}}
-.seg button[aria-pressed=true]{{background:var(--acc);color:var(--acci);font-weight:650}}
-button:focus-visible{{outline:3px solid var(--acct);outline-offset:2px}}
-main{{padding:1.5rem 1.5rem 1rem;display:flex;justify-content:center}}
-.stage{{display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;justify-content:center}}
-figure{{margin:0;display:flex;flex-direction:column;gap:.6rem;align-items:center}}
-figcaption{{font-size:.78rem;color:var(--mut);letter-spacing:.03em}}
-.dev{{background:var(--srf);border:1px solid var(--line);border-radius:.75rem;overflow:hidden;
-box-shadow:0 1px 2px rgba(10,20,30,.05),0 10px 30px rgba(10,20,30,.08)}}
-.dev.desktop{{width:min(74vw,900px)}}
-.dev.mobile{{width:390px;max-width:92vw;border-radius:1.5rem;padding:.5rem}}
-.dev.mobile iframe{{border-radius:1.1rem}}
-iframe{{border:0;display:block;width:100%;background:var(--srf)}}
-.seg[hidden]{{display:none}}
-.foot{{margin:0 auto;padding:0 1.5rem 3rem;max-width:52rem;text-align:center;
-color:var(--mut);font-size:.78rem;line-height:1.6}}
-.foot code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}}
-@media(max-width:900px){{h1{{width:100%;margin:0 0 .2rem}}.gap{{display:none}}}}
+white-space:nowrap}
+.seg button:hover{background:var(--srf2)}
+.seg button[aria-pressed=true]{background:var(--acc);color:var(--acci);font-weight:650}
+button:focus-visible{outline:3px solid var(--acct);outline-offset:2px}
+main{padding:1.5rem 1.5rem 1rem;display:flex;justify-content:center}
+.stage{display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+figure{margin:0;display:flex;flex-direction:column;gap:.6rem;align-items:center}
+figcaption{font-size:.78rem;color:var(--mut);letter-spacing:.03em}
+.dev{background:var(--srf);border:1px solid var(--line);border-radius:.75rem;overflow:hidden;
+box-shadow:0 1px 2px rgba(10,20,30,.05),0 10px 30px rgba(10,20,30,.08)}
+.dev.desktop{width:min(74vw,900px)}
+.dev.mobile{width:390px;max-width:92vw;border-radius:1.5rem;padding:.5rem}
+.dev.mobile iframe{border-radius:1.1rem}
+iframe{border:0;display:block;width:100%;background:var(--srf)}
+.seg[hidden]{display:none}
+.foot{margin:0 auto;padding:0 1.5rem 3rem;max-width:52rem;text-align:center;
+color:var(--mut);font-size:.78rem;line-height:1.6}
+.foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}
+@media(max-width:900px){h1{width:100%;margin:0 0 .2rem}.gap{display:none}}
 /* Bare, exactly like the <select> this replaced. The wrapper already carries
    the box, the height and the caret -- giving this button its own border,
    background and ::after would draw a second bordered control inside the
    first, with two carets. One rule for Style, Page and Palette alike: all
    three are now the same button-plus-popup listbox. */
-.ctl>button{{display:inline-flex;align-items:center;gap:.45rem;height:100%;
+.ctl>button{display:inline-flex;align-items:center;gap:.45rem;height:100%;
 padding:0 1rem 0 0;border:0;background:none;color:var(--fg);
-font-size:.8rem;font-weight:550;cursor:pointer;max-width:14rem}}
-.sw{{flex:none;width:.85rem;height:.85rem;border-radius:50%;
-box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}}
+font-size:.8rem;font-weight:550;cursor:pointer;max-width:14rem}
+.sw{flex:none;width:.85rem;height:.85rem;border-radius:50%;
+box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
 /* Capped and scrollable: Page can carry a dozen rows across two groups, and an
    uncapped popup would run off the bottom of the viewport. */
-.ctl ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
+.ctl ul{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
 padding:.25rem;list-style:none;border:1px solid var(--line);border-radius:.55rem;
 background:var(--srf);box-shadow:0 .6rem 1.6rem rgba(10,20,30,.22);
-max-height:16rem;overflow-y:auto}}
-.ctl ul[hidden]{{display:none}}
-.ctl li{{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
-font-size:.8rem;white-space:nowrap;cursor:pointer}}
-.ctl li:hover,.ctl li[data-on]{{background:var(--srf2)}}
-.ctl li[aria-selected=true]::after{{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}}
-.ctl li:focus-visible{{outline:3px solid var(--acct);outline-offset:-3px}}
+max-height:16rem;overflow-y:auto}
+.ctl ul[hidden]{display:none}
+.ctl li{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
+font-size:.8rem;white-space:nowrap;cursor:pointer}
+.ctl li:hover,.ctl li[data-on]{background:var(--srf2)}
+.ctl li[aria-selected=true]::after{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}
+.ctl li:focus-visible{outline:3px solid var(--acct);outline-offset:-3px}
 /* A group heading inside the popup: not a row, so it takes no selection state
    and pointer-events:none keeps it out of hover and click alike. Arrow
    navigation already skips it -- the JS only ever walks [role=option]. */
-.ctl li.grp-hd{{cursor:default;pointer-events:none;font-size:.62rem;font-weight:600;
-letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:.5rem .5rem .2rem}}
+.ctl li.grp-hd{cursor:default;pointer-events:none;font-size:.62rem;font-weight:600;
+letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:.5rem .5rem .2rem}
 """
 
 # How each portal preview is labelled in the controls. The file names are keys
@@ -125,8 +125,10 @@ PORTAL_LABELS = {
 }
 
 
-# What is interpolated raw into GALLERY_CSS -- a `.format()` template -- and
-# into the two hand-built selectors below it. None of that is escaped, so one
+# What is interpolated raw into the two hand-built selectors below. GALLERY_CSS
+# itself is a plain string, concatenated rather than formatted -- it carries no
+# placeholders, and the `.format()` it used to go through only served to undo
+# the brace-doubling that same `.format()` required. None of this is escaped, so one
 # `{`, `}` or `;` in a palette value corrupts every rule after it, and a `"`
 # in a name breaks out of an attribute selector. Palette JSON is
 # maintainer-controlled at build time, so this is not currently exploitable --
@@ -382,7 +384,7 @@ def build_gallery(
     # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
     # than assumed so a caller that built no demo simply gets no toggle payload.
     rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], opening, RX_KEY) in blobs})
-    css = _chrome_tokens(palettes, opening) + "\n" + GALLERY_CSS.format()
+    css = _chrome_tokens(palettes, opening) + "\n" + GALLERY_CSS
 
     gallery_html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">

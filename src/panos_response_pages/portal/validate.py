@@ -18,7 +18,7 @@ from __future__ import annotations
 import base64
 import re
 
-from panos_response_pages.validate import _IS_ANCHOR, _IS_REP
+from panos_response_pages.validate import external_refs
 
 # Measured, not guessed. PAN-OS rejected a 24_000 B import with:
 #
@@ -83,9 +83,6 @@ _FORM_TOKEN = re.compile(r"<pan_form\s*/>")
 # reads as the start of a tag to a naive scanner, and the observed failure is
 # that the form token stops being substituted.
 _RAW_LT = re.compile(r"<(?![a-zA-Z/!])")
-# Only real attribute references. The logo's percent-encoded xmlns is followed
-# by %27, not a quote, so it does not match.
-_EXTERNAL = re.compile(r"(?:src|href)\s*=\s*['\"](https?://[^'\"]+)")
 
 
 def encoded_size(text: str) -> int:
@@ -167,16 +164,12 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
 
     # The portal's CSP blocks external CSS and JS. data: and same-origin are fine.
     # A navigational <a href> is not a subresource load and is not what the CSP
-    # refuses -- so the contact link may point off-origin. Keyed on id="rep", the
-    # same way validate.py keys the block-page rule: "any https anchor" would be a
-    # far larger exemption than this needs.
-    for m in _EXTERNAL.finditer(text):
-        tag_start = text.rfind("<", 0, m.start())
-        tag_end = text.find(">", m.start())
-        tag = text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
-        if _IS_ANCHOR.match(tag) and _IS_REP.search(tag) and m.group(1).startswith("https://"):
-            continue
-        errors.append(f"external reference blocked by the portal CSP: {m.group(1)[:60]}")
+    # refuses -- so the contact link may point off-origin. That exemption is one
+    # rule about one anchor and lives in validate.external_refs(), which the
+    # block-page guard uses too; the reason for the refusal differs between the
+    # two families, the exemption does not.
+    for _ref, url in external_refs(text):
+        errors.append(f"external reference blocked by the portal CSP: {url[:60]}")
 
     # PAN-OS's own ready handler dereferences every one; undeclared ones throw
     # and abort the handler, losing the whole customization.

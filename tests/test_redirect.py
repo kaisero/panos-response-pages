@@ -153,7 +153,7 @@ class TestEveryTheme(unittest.TestCase):
         """
         for theme in SUPPORTING:
             html = render(configured(), theme=theme)
-            size, errors, _warnings = validate(redirect.PAGE, theme["name"], html)
+            size, errors, _warnings = validate(redirect.PAGE, html)
             self.assertEqual(errors, [], f"{theme['name']} claims redirect support: {errors}")
             self.assertLess(
                 size,
@@ -169,7 +169,7 @@ class TestEveryTheme(unittest.TestCase):
         for theme in [t for t in THEMES if not redirect.supported(t)]:
             forced = dict(theme)
             forced["redirect"] = True
-            size, _errors, _warnings = validate(redirect.PAGE, theme["name"], render(configured(), theme=forced))
+            size, _errors, _warnings = validate(redirect.PAGE, render(configured(), theme=forced))
             self.assertGreaterEqual(
                 size,
                 WARN_BYTES,
@@ -178,10 +178,12 @@ class TestEveryTheme(unittest.TestCase):
 
 
 class TestTimer(unittest.TestCase):
-    def test_the_default_is_ten_seconds(self):
-        self.assertEqual(redirect.DEFAULT_SECONDS, 10)
-        self.assertEqual(shipped()["redirect"]["seconds"], 10)
-        self.assertIn("var S=10,", script_of(render(configured())))
+    def test_the_shipped_default_reaches_the_page(self):
+        """Stated against the constant, not a literal: `DEFAULT_SECONDS == 10`
+        cannot fail, and pinning the shipped config to a second copy of the
+        number just means editing the default takes two edits."""
+        self.assertEqual(shipped()["redirect"]["seconds"], redirect.DEFAULT_SECONDS)
+        self.assertIn(f"var S={redirect.DEFAULT_SECONDS},", script_of(render(configured())))
 
     def test_a_category_on_the_default_does_not_carry_its_own_copy(self):
         self.assertEqual(
@@ -455,6 +457,75 @@ class TestStayLabelEscaping(unittest.TestCase):
             path.unlink()
 
 
+class TestTheNoticeActuallyArms(unittest.TestCase):
+    """The two scripts run in sequence, against a DOM, and the notice un-hides.
+
+    Every other test in this file asserts that markup and script are PRESENT.
+    None of them ran the page. That gap shipped a redirect that never armed on
+    any theme: category_js rewrites #cat's textContent to a friendly label
+    before this script reads it, so the lookup missed and the notice -- which
+    ships `hidden` -- silently stayed hidden. Nothing was missing from the page;
+    the two halves simply disagreed about what #cat holds.
+
+    Asserting on the observable end state, not on how the key is passed, so a
+    future change to that mechanism is free as long as the notice still arms.
+    """
+
+    HARNESS = """
+    const cat={textContent:RAW,attrs:{},setAttribute(k,v){this.attrs[k]=v},
+               getAttribute(k){return k in this.attrs?this.attrs[k]:null}};
+    const rx={hidden:true,attrs:{},setAttribute(k,v){this.attrs[k]=v}};
+    const mk=()=>({textContent:'',hidden:false,style:{},href:'',
+                   setAttribute(){},getAttribute(){return null},addEventListener(){}});
+    const els={cat,rx,gloss:mk(),rxm:mk(),rxo:mk(),rxi:mk(),rxp:mk(),rxl:mk(),
+               rxg:mk(),rxs:mk(),ts:mk(),rep:null};
+    const root={attrs:{'data-tone':'calm'},setAttribute(k,v){this.attrs[k]=v},
+                getAttribute(k){return this.attrs[k]||null}};
+    global.document={getElementById:id=>(id in els?els[id]:null),querySelector:()=>null,
+                     querySelectorAll:()=>[],documentElement:root,
+                     createElement:()=>({href:'',host:'sanctioned.example'}),
+                     addEventListener(){}};
+    global.location={host:'blocked.example',replace(){}};
+    global.setInterval=()=>1;global.clearInterval=()=>{};
+    """
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_the_notice_un_hides_for_a_mapped_category(self):
+        for theme in SUPPORTING:
+            with self.subTest(theme=theme["name"]):
+                html = render(configured(), theme=theme)
+                self.assertEqual(self._run(html, "social-networking")["hidden"], False)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_it_stays_hidden_for_a_category_that_is_not_mapped(self):
+        """The other direction, or the test above would pass on a script that
+        un-hid the notice unconditionally."""
+        html = render(configured(), theme=SUPPORTING[0])
+        self.assertEqual(self._run(html, "malware")["hidden"], True)
+
+    def _run(self, html: str, category: str) -> dict:
+        blocks = re.findall(r"<script>\(function\(\)\{(.*?)\}\)\(\);</script>", html, re.S)
+        cat_js = next(b for b in blocks if "var M=" in b)
+        rx_js = next(b for b in blocks if "var R=" in b)
+        # Page order: the category script resolves the tone, then the redirect
+        # script reads it. Running them the other way round would pass on the
+        # very bug this exists to catch.
+        script = (
+            f"const RAW={json.dumps(category)};{self.HARNESS}"
+            f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
+            "console.log(JSON.stringify({hidden:els.rx.hidden}));"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(script)
+            path = pathlib.Path(f.name)
+        try:
+            r = subprocess.run(["node", str(path)], capture_output=True, text=True, check=False)  # noqa: S603,S607
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return json.loads(r.stdout.strip().splitlines()[-1])
+        finally:
+            path.unlink()
+
+
 class TestPreviewDemoIsNotShipped(unittest.TestCase):
     def test_the_builder_writes_it_only_under_preview(self):
         import pathlib
@@ -486,10 +557,6 @@ class TestPreviewDemoIsNotShipped(unittest.TestCase):
                 preview=True,
             )
             self.assertEqual(sorted(x.page for x in r.results), sorted(set(PAGE_TOKENS)))
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestStaleDataDirectory(unittest.TestCase):
@@ -559,3 +626,7 @@ class TestStaleDataDirectory(unittest.TestCase):
                     logger.debug("marker")
                     build_all(data_dir=data, out_dir=pathlib.Path(out), preview=False, palette_name="cyber-orange")
         self.assertNotIn("no `redirect` flag", "\n".join(caught.output))
+
+
+if __name__ == "__main__":
+    unittest.main()

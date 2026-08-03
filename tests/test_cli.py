@@ -13,8 +13,9 @@ import pytest
 from typer.testing import CliRunner
 
 from _paths import DATA
-from panos_response_pages import __version__
+from panos_response_pages import __version__, builder, cli
 from panos_response_pages.cli import app
+from panos_response_pages.portal.page import FRAMES
 from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS
 from panos_response_pages.validate import PAGE_TOKENS
 
@@ -143,6 +144,16 @@ class TestInit(unittest.TestCase):
         r = runner.invoke(app, ["build", "--config-dir", str(target), "--no-preview", "-o", str(out)])
         self.assertEqual(r.exit_code, 0, r.output)
         self.assertTrue((out / "deploy" / "assist" / "cyber-orange" / "url-block-page.html").is_file())
+
+
+class TestPortalTablesAgree(unittest.TestCase):
+    def test_the_cli_describes_every_import_the_builder_emits(self):
+        """cli.PORTAL_PAGES carries CLI-only metadata so it cannot simply BE
+        builder.PORTAL_PAGES, which is itself derived from portal.page.FRAMES.
+        A third frame added to FRAMES and not described here would build and
+        ship a page the CLI can neither name nor route to `validate`."""
+        self.assertEqual(set(cli.PORTAL_PAGES), set(builder.PORTAL_PAGES))
+        self.assertEqual(set(builder.PORTAL_PAGES), set(FRAMES))
 
 
 class TestValidateCommand(unittest.TestCase):

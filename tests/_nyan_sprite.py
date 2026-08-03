@@ -8,7 +8,7 @@ shell as one string, and `test_nyan_sprite.py` asserts the two have not drifted.
 Six layers, because the animation is a frame swap and not a transform: the body
 never moves, the legs alternate between two positions and the tail cycles
 through three, the way the original's frames do. The shell shows one leg layer
-and one tail layer at a time by animating `opacity` with `steps(1,end)`, which
+and one tail layer at a time by animating `opacity` with `steps(1)`, which
 is why each layer has to be its own group rather than one flattened picture.
 
 Rectangle merging is not a nicety. One <rect> per pixel is ~11 kB, which fits no
@@ -40,6 +40,10 @@ PALETTE = {
     "p": "#f99",  # cheeks
     "w": "#fff",  # eye glint
 }
+
+# Hoisted onto the root <svg> and inherited rather than repeated per path. The
+# outline is the most-used colour, so it is the one worth hoisting.
+ROOT_FILL = PALETTE["k"]
 
 # The canvas the layers are placed on, and the shell's viewBox.
 WIDTH = 40
@@ -224,14 +228,22 @@ def path_data(rects: list[tuple[int, int, int, int]], ox: int, oy: int) -> str:
 
 
 def paths(layer: tuple[int, int, list[str]]) -> str:
-    """One <path> per colour present, in paint order, origin folded in."""
+    """One <path> per colour present, in paint order, origin folded in.
+
+    The outline colour carries no `fill`: it is hoisted onto the root <svg> and
+    inherited. `fill` is an inherited presentation attribute and no rule sets
+    `fill` on `.ny` or any ancestor, so this is a pure byte saving -- the
+    outline appears on six of the seventeen paths, and one root attribute is
+    cheaper than six.
+    """
     ox, oy, rows = layer
     out = ""
     for char, hex_colour in PALETTE.items():
         rects = rectangles(rows, char)
         if not rects:
             continue
-        out += f'<path fill="{hex_colour}" d="{path_data(rects, ox, oy)}"/>'
+        d = path_data(rects, ox, oy)
+        out += f'<path d="{d}"/>' if hex_colour == ROOT_FILL else f'<path fill="{hex_colour}" d="{d}"/>'
     return out
 
 
@@ -244,7 +256,9 @@ def compile_svg() -> str:
     HTML parser supplies the SVG namespace, so no xmlns.
     """
     body = "".join(f'<g class="{cls}">{paths(m)}</g>' if cls else paths(m) for cls, m in LAYERS)
-    return f'<svg class="ny" viewBox="0 0 {WIDTH} {HEIGHT}" shape-rendering="crispEdges">{body}</svg>'
+    return (
+        f'<svg class="ny" fill="{ROOT_FILL}" viewBox="0 0 {WIDTH} {HEIGHT}" shape-rendering="crispEdges">{body}</svg>'
+    )
 
 
 if __name__ == "__main__":

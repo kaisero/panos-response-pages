@@ -37,6 +37,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from panos_response_pages.errors import BuildError
+from panos_response_pages.scripts import CATEGORY_KEY_ATTR
 
 # Only this page. The other eight either have no <category/> token to key on, or
 # already carry an action of their own that a countdown would race.
@@ -96,6 +97,7 @@ overflow:hidden;background:linear-gradient(var(--aw),var(--aw)) 0 100%/100% 3px 
 .rx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .rx[data-off] .rx-p span{background:var(--if)}
 .rx[data-off] .rx-i,.rx[data-off] .rx-c{display:none}
+@media(prefers-reduced-motion:reduce){.rx-p span{transition:none}}
 """
 
 # hidden until the script has decided the category qualifies: an unstyled notice
@@ -280,7 +282,11 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
         "var S=" + str(red.get("seconds", DEFAULT_SECONDS)) + ",D=" + json.dumps(red["message"]) + ";"
         "var e=document.getElementById('cat'),b=document.getElementById('rx');"
         "if(!e||!b)return;"
-        "var r=R[(e.textContent||'').trim().toLowerCase()];"
+        # The attribute, not the text. category_js rewrites #cat's textContent to
+        # a friendly label ("Online Storage and Backup") before this runs, so the
+        # text no longer matches anything in R -- it parks the raw PAN-OS name in
+        # CATEGORY_KEY_ATTR for exactly this lookup.
+        f"var r=R[e.getAttribute('{CATEGORY_KEY_ATTR}')];"
         # The tone the category map just resolved, not the one config claims: a
         # page repainted critical at runtime must not then forward anyone.
         "if(!r||document.documentElement.getAttribute('data-tone')!=='calm')return;"

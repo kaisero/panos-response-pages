@@ -18,8 +18,7 @@ import tempfile
 import unittest
 
 from _paths import DATA
-from panos_response_pages import palettes
-from panos_response_pages.builder import build_all, load_themes, opening_palette
+from panos_response_pages.builder import load_themes, opening_palette
 from panos_response_pages.config import customer_keys, load_config
 
 
@@ -34,6 +33,9 @@ class TestOpeningPalette(unittest.TestCase):
         return opening_palette(cfg, chosen, theme, palette_name)
 
     def test_a_pin_decides_when_nothing_else_speaks(self):
+        """Also the regression the module docstring describes: `_defaults.json`
+        always carries a palette, so a naive `cfg['palette']` would outrank the
+        pin here and it could never fire."""
         self.assertEqual(self.opening("nyan"), "nyan")
 
     def test_other_themes_are_untouched_by_one_theme_s_pin(self):
@@ -42,16 +44,9 @@ class TestOpeningPalette(unittest.TestCase):
     def test_an_explicit_palette_outranks_everything(self):
         self.assertEqual(self.opening("nyan", palette_name="prisma-blue"), "prisma-blue")
 
-    def test_the_shipped_default_does_not_outrank_the_pin(self):
-        """_defaults.json always carries a palette, so a naive cfg['palette']
-        would mean a pin could never fire."""
-        self.assertEqual(self.opening("nyan"), "nyan")
-
-    def test_a_pin_does_not_remove_anything_from_the_build(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            result = build_all(data_dir=DATA, out_dir=pathlib.Path(tmp), theme="nyan", preview=False)
-            built = {r.palette for r in result.results}
-            self.assertEqual(built, set(palettes.available(DATA / "palettes")))
+    # That a pin does not shrink the build is asserted off the shared matrix
+    # build, in tests/test_palette_matrix.py -- doing it here cost a build of
+    # its own to reach the same conclusion.
 
     def test_the_customer_s_own_config_outranks_the_pin(self):
         """nyan pins itself to "nyan". A customer file that sets its own

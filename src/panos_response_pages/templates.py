@@ -43,3 +43,20 @@ def substitute(text: str, values: Mapping[str, object]) -> str:
     if missing:
         raise BuildError(f"unknown placeholder(s): {', '.join(sorted(set(missing)))}")
     return out
+
+
+def assert_resolved(text: str, where: str) -> None:
+    """Refuse output that still carries a `{{`.
+
+    Distinct from substitute()'s own check, which only sees placeholders that
+    match `[A-Z_0-9]`. A lowercase or malformed `{{foo}}` substitutes cleanly,
+    survives to here, and would otherwise ship to a firewall as literal braces.
+
+    The `or '{{...}}'` matters: without it, a `{{` that matches no token at all
+    raises with an empty list and names nothing. Two of the three copies of this
+    check had it and one did not, which is the reason it now lives in one place.
+    """
+    if "{{" not in text:
+        return
+    leftover = sorted(set(re.findall(r"\{\{([A-Z_0-9]+)\}\}", text)))
+    raise BuildError(f"unresolved placeholder(s) in {where}: {', '.join(leftover) or '{{...}}'}")

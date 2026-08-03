@@ -44,9 +44,7 @@ def portal_pages() -> dict[tuple[str, str], str]:
     out: dict[tuple[str, str], str] = {}
     for theme in load_themes(DATA):
         for page in ("login", "home"):
-            out[(theme["name"], page)] = build_portal_page(
-                page, theme, cfg, palette, preview=False, template_dir=DATA / "templates"
-            )
+            out[(theme["name"], page)] = build_portal_page(page, theme, cfg, palette, template_dir=DATA / "templates")
     return out
 
 

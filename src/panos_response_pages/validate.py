@@ -9,6 +9,7 @@ that will ever exist.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 MAX_BYTES = 17999  # PAN-OS 8.1.3+ hard ceiling. Oversize fails SILENTLY.
 WARN_BYTES = 16000  # headroom for serve-time <url/> expansion
@@ -41,6 +42,47 @@ _IS_REP = re.compile(r'(?<![\w-])id\s*=\s*"rep"')
 # id="rep" and an href in a page this build produces" does not hold.
 _IS_ANCHOR = re.compile(r"^<a[\s>]")
 
+# Every src/href pointing at an off-page origin. `scheme` and `rest` are split so
+# each caller can report what it always reported: the block-page message quotes
+# the reference up to the scheme, the portal message quotes the URL.
+#
+# Only real attribute references: the literal `=` and quote are required, so the
+# portal logo's percent-encoded xmlns -- where the `=` is `%3D` and the quote is
+# `%27` -- does not match.
+_EXTERNAL_REF = re.compile(r"""(?:src|href)\s*=\s*["'](?P<scheme>https?://)(?P<rest>[^"']*)""")
+
+
+def external_refs(text: str) -> Iterator[tuple[str, str]]:
+    """Yield (reference, url) for every off-page src/href, minus the exemption.
+
+    One rule, one home. The block pages and the portal imports refuse external
+    references for different reasons -- the block page is injected into the
+    BLOCKED site's response so nothing relative resolves, the portal import is
+    behind a CSP -- but they grant the same single exemption to the same single
+    anchor, and had grown two copies of the tag-walk that implements it. The
+    portal copy reached across the package for two private names to do it.
+
+    The exemption: the anchor carrying id="rep" may leave the page over https,
+    nothing else may. Keyed on the tag rather than on the URL because `validate`
+    also runs over already-built files handed to the CLI, where no config is in
+    hand to say which origin was meant. That the URL is absolute and sane is
+    contact.check()'s job, at build time.
+
+    http:// is refused even for that anchor. A response page's entire value is
+    that the user trusts what it says; a cleartext link out of it is not that.
+
+    rfind("<") walks back to the opening of the tag the match sits in. Verified
+    against all 7 styles x 9 pages in both contact modes: no false positives,
+    including the multi-line anchor and safe-search's inline one.
+    """
+    for m in _EXTERNAL_REF.finditer(text):
+        tag_start = text.rfind("<", 0, m.start())
+        tag_end = text.find(">", m.start())
+        tag = text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
+        if _IS_ANCHOR.match(tag) and _IS_REP.search(tag) and m.group("scheme") == "https://":
+            continue
+        yield text[m.start() : m.end("scheme")], m.group("scheme") + m.group("rest")
+
 
 # into whether data actually left the browser, and no visibility into which policy
 # matched -- different users can match different rules. Neither class of statement
@@ -61,7 +103,7 @@ def audit_copy(html_text: str) -> list[str]:
     return [f'copy claim "{phrase}" -- {why}' for phrase, why in BANNED_COPY if phrase in low]
 
 
-def validate(page: str, theme_name: str, html_text: str) -> tuple[int, list[str], list[str]]:
+def validate(page: str, html_text: str) -> tuple[int, list[str], list[str]]:
     """Every check here maps to a documented PAN-OS failure mode."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -89,19 +131,11 @@ def validate(page: str, theme_name: str, html_text: str) -> tuple[int, list[str]
     # checkable from the HTML alone. That the URL is absolute https and sane is
     # contact.check()'s job, at build time.
     #
-    # http:// is refused even there. A response page's entire value is that the
-    # user trusts what it says; a cleartext link out of it is not that.
-    #
-    # rfind("<") walks back to the opening of the tag the match sits in. Verified
-    # against all 7 styles x 9 pages in both modes: no false positives, including
-    # the multi-line anchor and safe-search's inline one.
-    for m in re.finditer(r"""(?:src|href)\s*=\s*["']https?://""", html_text):
-        tag_start = html_text.rfind("<", 0, m.start())
-        tag_end = html_text.find(">", m.start())
-        tag = html_text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
-        if _IS_ANCHOR.match(tag) and _IS_REP.search(tag) and m.group(0).endswith("https://"):
-            continue
-        errors.append(f"external reference found ({m.group(0)}...) -- not self-contained")
+    # The tag-walk and the exemption live in external_refs(); see it for why.
+    # First hit only: one external reference already fails the build, and a page
+    # with a broken <head> would otherwise list every link on it.
+    for ref, _url in external_refs(html_text):
+        errors.append(f"external reference found ({ref}...) -- not self-contained")
         break
 
     # Token legality. An unsupported token is not an error to PAN-OS; it simply

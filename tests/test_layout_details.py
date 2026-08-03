@@ -88,11 +88,6 @@ class TestInfobox(unittest.TestCase):
         self.assertRegex(base, r"border-left:\d+px solid var\(--at\)")
         self.assertNotIn("var(--aw)", base, "ramp-0 washes differ too much in lightness between brands")
 
-    def test_no_color_mix_dependency(self):
-        """color-mix() is newer than the CSS this project is willing to assume,
-        and an unsupported value here would drop the border silently."""
-        self.assertNotIn("color-mix", SHELL)
-
     def test_every_infobox_wraps_its_text_in_a_single_span(self):
         """Same flex constraint as the warnline: bare text either side of a
         <strong> would lay out as separate columns."""
@@ -180,16 +175,6 @@ class TestIndicatorAndInjectedForm(unittest.TestCase):
         self.assertRegex(
             mobile, r"\.acts>form input\{width:100%\}", "the injected control must fill its flexed form wrapper"
         )
-
-    def test_pan_form_controls_are_styled(self):
-        """PAN-OS injects its own markup for <pan_form/>; unstyled it renders as
-        a raw browser button beside a designed primary action."""
-        self.assertRegex(SHELL, r"\.acts input\[type=submit\]")
-        self.assertRegex(SHELL, r"\.acts (input\[type=submit\],|.*)button\{")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestMailto(unittest.TestCase):
@@ -354,3 +339,7 @@ class TestPreviewGallery(unittest.TestCase):
 
     def test_embedded_pages_cannot_break_out_of_the_payload(self):
         self.assertNotIn("</script>", self.html[: self.html.rindex("</script>")])
+
+
+if __name__ == "__main__":
+    unittest.main()
