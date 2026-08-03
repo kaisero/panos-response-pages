@@ -303,6 +303,7 @@ var D={payload},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
 palette:"{palette["name"]}",view:"both",scheme:"light",
 state:"{states[0] if states else ""}",redirect:"off"}};
 LOADED[S.palette]=1;
+document.documentElement.setAttribute("data-pal",S.palette);
 // Each palette but the opening one arrives as a sibling classic script that
 // calls this. A module would be CORS-checked and fail on file://, and fetch()
 // is unavailable there for the same reason -- which is why this is a <script
@@ -457,6 +458,13 @@ addEventListener("resize",function(){{
     else if(e.key==="Home"){{e.preventDefault();mark(0)}}
     else if(e.key==="End"){{e.preventDefault();mark(rows.length-1)}}
     else if(e.key==="Enter"||e.key===" "){{e.preventDefault();choose(at)}}
+  }});
+  // Tab moves focus out of the widget entirely (rows carry tabindex="-1", so
+  // it lands on whatever toolbar control follows), and no keydown fires for
+  // that -- only focusout does. relatedTarget is null when focus leaves the
+  // document/page entirely, which we also treat as "left".
+  grp.addEventListener("focusout",function(e){{
+    if(!list.hidden&&(!e.relatedTarget||!grp.contains(e.relatedTarget))) close(false);
   }});
   // Pointer-down, not click: a click listener fires after the browser has
   // already moved focus, so the popup would close with focus somewhere else.
