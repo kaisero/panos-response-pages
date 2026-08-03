@@ -78,8 +78,8 @@ def build_page(
     # fine -- the check only runs where the value is actually needed.
     if "CONTACT_MAILTO" not in parts and contact.mode(cfg) == contact.EMAIL:
         raise BuildError(f"{page}.html is missing its <!--@CONTACT_MAILTO--> section, needed in email mode")
-    mailto = substitute(parts.get("CONTACT_MAILTO", ""), base)
-    alt = substitute(parts.get("CONTACT_ALT", ""), base)
+    mailto = substitute(parts.pop("CONTACT_MAILTO", ""), base)
+    alt = substitute(parts.pop("CONTACT_ALT", ""), base)
     base.update(
         {
             "CONTACT_HREF": contact.href(cfg, mailto),

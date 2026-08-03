@@ -26,7 +26,8 @@ def category_js(
     categories: Mapping[str, Mapping[str, str]],
     default_gloss: str,
     lock_copy: bool,
-    email_mode: bool = True,
+    *,
+    email_mode: bool,
 ) -> str:
     """Compact category -> [tone, gloss] map plus the client-side selector.
 
