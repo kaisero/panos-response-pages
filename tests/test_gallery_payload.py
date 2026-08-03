@@ -85,5 +85,47 @@ class TestSplit(unittest.TestCase):
         self.assertLess(len(self.index.encode()), 2_500_000)
 
 
+class TestChrome(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import pathlib
+        import tempfile
+
+        cls.tmp = tempfile.TemporaryDirectory()
+        out = pathlib.Path(cls.tmp.name)
+        build_all(data_dir=DATA, out_dir=out, preview=True)
+        cls.index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        cls.css = cls.index.split("<style>", 1)[1].split("</style>", 1)[0]
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_every_palette_has_a_light_chrome_block(self):
+        for name in PALETTES:
+            with self.subTest(palette=name):
+                self.assertIn(f':root[data-pal="{name}"]{{--bg:', self.css)
+
+    def test_every_palette_has_a_dark_chrome_block(self):
+        """Half the reviewers are in dark mode. A palette whose dark block was
+        dropped falls back to the opening palette's, so the toolbar and the
+        frame disagree about which palette is being previewed."""
+        for name in PALETTES:
+            with self.subTest(palette=name):
+                self.assertIn(f'@media(prefers-color-scheme:dark){{:root[data-pal="{name}"]{{--bg:', self.css)
+
+    def test_the_opening_palette_also_paints_without_the_attribute(self):
+        """data-pal is set by the dropdown's handler. Before anyone touches it
+        there is no attribute, and a toolbar with no colours is not a preview."""
+        self.assertIn(":root{--bg:", self.css)
+
+    def test_the_chrome_blocks_carry_real_colours(self):
+        """`.format()` on a sheet that still held placeholders used to be how
+        these were produced; a block reading `--bg:{ground}` would satisfy every
+        assertion above."""
+        self.assertNotIn("{ground}", self.css)
+        self.assertRegex(self.css, r':root\[data-pal="nyan"\]\{--bg:#[0-9a-fA-F]{3,8}')
+
+
 if __name__ == "__main__":
     unittest.main()

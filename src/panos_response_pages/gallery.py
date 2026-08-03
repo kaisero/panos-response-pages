@@ -23,11 +23,6 @@ from typing import Any
 from panos_response_pages import redirect
 
 GALLERY_CSS = """
-:root{{--bg:{ground};--srf:{surface};--srf2:{surface_alt};--fg:{ink};--mut:{ink_muted};
---line:{surface_alt};--acc:{accent};--acci:{accent_ink};--acct:{accent_text}}}
-@media(prefers-color-scheme:dark){{:root{{--bg:{d_ground};--srf:{d_surface};--srf2:{d_surface_alt};
---fg:{d_ink};--mut:{d_ink_muted};--line:{d_surface_alt};--acc:{d_accent};--acci:{d_accent_ink};
---acct:{d_accent_text}}}}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -120,6 +115,48 @@ PORTAL_LABELS = {
     "challenge": "Challenge",
     "changepw": "Change password",
 }
+
+
+CHROME_KEYS = (
+    ("--bg", "ground"),
+    ("--srf", "surface"),
+    ("--srf2", "surface_alt"),
+    ("--fg", "ink"),
+    ("--mut", "ink_muted"),
+    ("--line", "surface_alt"),
+    ("--acc", "accent"),
+    ("--acci", "accent_ink"),
+    ("--acct", "accent_text"),
+)
+
+
+def _tokens(colors: Mapping[str, Any], dark: bool) -> str:
+    prefix = "d_" if dark else ""
+    return ";".join(f"{var}:{colors[prefix + key]}" for var, key in CHROME_KEYS)
+
+
+def _chrome_tokens(palettes: Sequence[Mapping[str, Any]], opening: str) -> str:
+    """The toolbar's own colours, one block per palette.
+
+    The chrome follows the selection, so the whole window wears the palette
+    being previewed rather than showing it only as a dot in a dropdown.
+
+    The opening palette is emitted twice: once on bare `:root`, as a
+    no-JavaScript fallback -- if the script fails to run, the toolbar still
+    has colours instead of rendering unstyled -- and once under its own
+    attribute so returning to it works like any other.
+    """
+    out = []
+    for p in palettes:
+        colors = p["colors"]
+        light, dark = _tokens(colors, False), _tokens(colors, True)
+        if p["name"] == opening:
+            out.append(f":root{{{light}}}")
+            out.append(f"@media(prefers-color-scheme:dark){{:root{{{dark}}}}}")
+        sel = f':root[data-pal="{p["name"]}"]'
+        out.append(f"{sel}{{{light}}}")
+        out.append(f"@media(prefers-color-scheme:dark){{{sel}{{{dark}}}}}")
+    return "\n".join(out)
 
 
 def build_gallery(
@@ -274,7 +311,7 @@ def build_gallery(
     # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
     # than assumed so a caller that built no demo simply gets no toggle payload.
     rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], opening, RX_KEY) in blobs})
-    css = GALLERY_CSS.format(**palette["colors"])
+    css = _chrome_tokens(palettes, opening) + "\n" + GALLERY_CSS.format()
 
     gallery_html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
