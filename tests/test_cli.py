@@ -77,8 +77,24 @@ class TestPossibleValues(unittest.TestCase):
 class TestBuild(unittest.TestCase):
     def test_builds_one_style_into_the_requested_directory(self):
         out = Path(tempfile.mkdtemp())
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette -- a machine with a
+        # ~/.panos_response_pages would otherwise build against whatever that
+        # directory holds instead of what the repository ships.
         r = runner.invoke(
-            app, ["build", "--theme", "glass", "--palette", "cyber-orange", "--no-preview", "-o", str(out)]
+            app,
+            [
+                "build",
+                "--theme",
+                "glass",
+                "--palette",
+                "cyber-orange",
+                "--no-preview",
+                "-o",
+                str(out),
+                "--config-dir",
+                str(DATA),
+            ],
         )
         self.assertEqual(r.exit_code, 0, r.output)
         built = sorted(p.name for p in (out / "deploy" / "glass" / "cyber-orange").glob("*.html"))
@@ -91,7 +107,12 @@ class TestBuild(unittest.TestCase):
         self.assertIn("explicit", r.output, "the report should say which rule chose the data dir")
 
     def test_log_json_replaces_the_report_with_one_machine_readable_stream(self):
-        r = runner.invoke(app, ["--log-json", "-v", "build", "--no-preview", "-o", tempfile.mkdtemp()])
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette.
+        r = runner.invoke(
+            app,
+            ["--log-json", "-v", "build", "--no-preview", "-o", tempfile.mkdtemp(), "--config-dir", str(DATA)],
+        )
         self.assertEqual(r.exit_code, 0, r.output)
         self.assertNotIn("of limit", r.output, "the pretty table must not interleave with JSON")
         first = json.loads(r.output.splitlines()[0])
@@ -127,7 +148,9 @@ class TestInit(unittest.TestCase):
 class TestValidateCommand(unittest.TestCase):
     def test_passes_pages_this_tool_produced(self):
         out = Path(tempfile.mkdtemp())
-        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out)])
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette.
+        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out), "--config-dir", str(DATA)])
         r = runner.invoke(app, ["validate", str(out)])
         self.assertEqual(r.exit_code, 0, r.output)
         self.assertIn("0 would fail", r.output)

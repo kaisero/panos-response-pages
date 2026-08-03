@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import urlsplit
 
 from panos_response_pages.errors import BuildError
 
@@ -69,6 +70,9 @@ def mode(cfg: Mapping[str, Any]) -> str:
     raise BuildError("config sets neither supportEmail nor supportUrl; every page needs a way to reach IT")
 
 
+_BAD_URL_CHARS = frozenset("\"'<> ")
+
+
 def check(cfg: Mapping[str, Any]) -> None:
     """Validate the contact configuration. Raises BuildError, never returns a value."""
     if mode(cfg) == URL:
@@ -77,6 +81,29 @@ def check(cfg: Mapping[str, Any]) -> None:
             raise BuildError(
                 f"supportUrl is {url!r}; it must be an absolute https:// URL. A response page is "
                 "served as the blocked site, so a relative path resolves against that host."
+            )
+        # substitute() does no escaping and CONTACT_HREF lands straight inside
+        # href="{{CONTACT_HREF}}", so any of these breaks out of the attribute
+        # (a quote), starts markup the anchor never closes (< or >), or is
+        # whitespace/control noise that has no business inside a URL. This is
+        # admin-authored config, not remote input -- the point is a loud
+        # BuildError instead of a page that builds clean and ships broken.
+        bad = sorted({c for c in url if c in _BAD_URL_CHARS or ord(c) < 0x20 or ord(c) == 0x7F})
+        if bad:
+            raise BuildError(
+                f"supportUrl {url!r} contains {''.join(bad)!r}, which is not valid inside an href "
+                "attribute; the anchor would break or carry attributes the config never asked for."
+            )
+        if not urlsplit(url).netloc:
+            raise BuildError(
+                f"supportUrl is {url!r}; it has no host. Something like 'https://' or 'https:///new' "
+                "builds clean and ships a dead link -- give it a real ticket-system host."
+            )
+        label = _set(cfg, "supportLabel")
+        if "<" in label or ">" in label:
+            raise BuildError(
+                f"supportLabel is {label!r}; it must not contain '<' or '>'. It is printed as the "
+                "anchor's link text, and either character would open markup the page never closes."
             )
     elif "@" not in _set(cfg, "supportEmail"):
         raise BuildError(f"supportEmail is {_set(cfg, 'supportEmail')!r}; it must be an email address")
@@ -110,6 +137,20 @@ def to_attr(cfg: Mapping[str, Any]) -> str:
     run in URL mode -- so in URL mode this would be bytes with no reader.
     """
     return f' data-to="{_set(cfg, "supportEmail")}"' if mode(cfg) == EMAIL else ""
+
+
+def reachable(cfg: Mapping[str, Any]) -> str:
+    """The contact as plain prose, for somewhere that cannot carry a link.
+
+    `name()` is anchor text -- it assumes something around it supplies the
+    destination. The portal's logout messages have no such thing: PAN-OS fills
+    that div with .text(), so markup would render as characters. Email mode has
+    always printed the address itself and read fine; URL mode has to print the
+    URL, or it names a queue and leaves the user to find it.
+    """
+    if mode(cfg) == EMAIL:
+        return _set(cfg, "supportEmail")
+    return f"{name(cfg)} at {_set(cfg, 'supportUrl')}"
 
 
 def email(cfg: Mapping[str, Any]) -> str:

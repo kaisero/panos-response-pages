@@ -6,6 +6,8 @@ silently names nobody, or an href the firewall's own policy would refuse.
 """
 
 import pathlib
+import shutil
+import tempfile
 import unittest
 from typing import ClassVar
 
@@ -116,6 +118,38 @@ class TestCheck(unittest.TestCase):
             contact.check({"supportEmail": "servicedesk"})
         assert "supportEmail" in str(err.value)
 
+    def test_bare_https_with_no_host_is_refused(self):
+        """Builds clean today and ships href="https://" -- a dead link."""
+        with pytest.raises(BuildError) as err:
+            contact.check({"supportEmail": "", "supportUrl": "https://"})
+        assert "supportUrl" in str(err.value)
+
+    def test_a_quote_in_the_url_is_refused(self):
+        """Breaks out of href="{{CONTACT_HREF}}" and injects attributes."""
+        with pytest.raises(BuildError) as err:
+            contact.check({"supportEmail": "", "supportUrl": 'https://x.test/" onclick="alert(1)'})
+        assert "supportUrl" in str(err.value)
+
+    def test_a_space_in_the_url_is_refused(self):
+        with pytest.raises(BuildError) as err:
+            contact.check({"supportEmail": "", "supportUrl": "https://x.test/new ticket"})
+        assert "supportUrl" in str(err.value)
+
+    def test_a_label_containing_an_angle_bracket_is_refused(self):
+        with pytest.raises(BuildError) as err:
+            contact.check(
+                {
+                    "supportEmail": "",
+                    "supportUrl": "https://tickets.example.com/new",
+                    "supportLabel": "<b>Service Desk</b>",
+                }
+            )
+        assert "supportLabel" in str(err.value)
+
+    def test_a_url_with_a_query_string_is_accepted(self):
+        """Do not over-reject: '&' and '?' are ordinary and legitimate here."""
+        contact.check({"supportEmail": "", "supportUrl": "https://x.test/new?cat=1&sev=2"})
+
 
 @pytest.mark.unit
 class TestValues(unittest.TestCase):
@@ -155,6 +189,17 @@ class TestValues(unittest.TestCase):
 
     def test_email_is_empty_in_url_mode(self):
         assert contact.email(self.URL_CFG) == ""
+
+    def test_reachable_in_email_mode_is_the_bare_address(self):
+        assert contact.reachable(self.EMAIL_CFG) == "it@example.com"
+
+    def test_reachable_in_url_mode_names_both_the_label_and_the_url(self):
+        """PAN-OS fills the logout div with .text(), so the URL itself has to be
+        the words the user reads -- there is nowhere to hang a link."""
+        cfg = {**self.URL_CFG, "supportLabel": "the Service Desk"}
+        reachable = contact.reachable(cfg)
+        assert "the Service Desk" in reachable
+        assert "https://tickets.example.com/new" in reachable
 
 
 @pytest.mark.integration
@@ -267,6 +312,13 @@ class TestEveryPageInBothModes(unittest.TestCase):
     def test_safe_search_still_prints_the_address_in_email_mode(self):
         assert ">servicedesk@example.com</a>" in render(shipped(), page="safe-search-block-page")
 
+    def test_safe_search_uses_one_mode_neutral_verb(self):
+        """The link is right in both modes; only "Email" was wrong when there is
+        no mailbox on the other end. Checked against the whole sentence, not just
+        the anchor text -- that narrower check is what let the wrong verb ship."""
+        assert "Contact <a" in render(shipped(), page="safe-search-block-page")
+        assert "Contact <a" in render(shipped(**URL_CFG_KEYS), page="safe-search-block-page")
+
 
 @pytest.mark.integration
 class TestPortalContact(unittest.TestCase):
@@ -285,6 +337,14 @@ class TestPortalContact(unittest.TestCase):
         assert "servicedesk@example.com" not in html
         assert "IT support" in html
 
+    def test_url_mode_logout_messages_actually_contain_the_ticket_url(self):
+        """The defect FIX 1 corrects: the admin-error messages named a queue
+        with no way to reach it, because PAN-OS renders them with .text() and
+        a link cannot survive that. This is the assertion that would have
+        caught it -- checking for the label alone did not."""
+        html = portal(shipped(**URL_CFG_KEYS), page="home")
+        assert "https://tickets.example.com/new" in html
+
     def test_url_mode_portal_has_no_unresolved_token(self):
         for page in ("login", "home"):
             assert "{{" not in portal(shipped(**URL_CFG_KEYS), page=page), page
@@ -294,3 +354,80 @@ class TestPortalContact(unittest.TestCase):
         block-page guard does. Without the id the exemption would have to be
         'any https anchor', which is a much larger hole."""
         assert 'id="rep"' in portal(shipped())
+
+
+def _template_copy(tmp: pathlib.Path) -> pathlib.Path:
+    """A private copy of the shipped shells/ and pages/ templates, editable
+    without touching the packaged data build_page reads by default."""
+    dest = tmp / "templates"
+    shutil.copytree(TEMPLATES / "shells", dest / "shells")
+    shutil.copytree(TEMPLATES / "pages", dest / "pages")
+    return dest
+
+
+@pytest.mark.integration
+class TestContactMailtoSectionRequired(unittest.TestCase):
+    """A page template that omits <!--@CONTACT_MAILTO--> builds clean today and
+    ships an anchor whose href reloads the blocked site -- silently, in the one
+    mode where that section IS the href."""
+
+    def test_missing_contact_mailto_fails_the_build_in_email_mode(self):
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = _template_copy(pathlib.Path(tmp_str))
+            page_path = template_dir / "pages" / "url-block-page.html"
+            src = page_path.read_text(encoding="utf-8")
+            start = src.index("<!--@CONTACT_MAILTO-->")
+            end = src.index("<!--/@CONTACT_MAILTO-->") + len("<!--/@CONTACT_MAILTO-->")
+            page_path.write_text(src[:start] + src[end:], encoding="utf-8")
+
+            with pytest.raises(BuildError) as err:
+                build_page("url-block-page", THEMES[0], shipped(), PALETTE, False, template_dir)
+            message = str(err.value)
+            assert "url-block-page" in message
+            assert "CONTACT_MAILTO" in message
+
+    def test_missing_contact_mailto_is_fine_in_url_mode(self):
+        """The section is genuinely unused there, so absence must not fail."""
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = _template_copy(pathlib.Path(tmp_str))
+            page_path = template_dir / "pages" / "url-block-page.html"
+            src = page_path.read_text(encoding="utf-8")
+            start = src.index("<!--@CONTACT_MAILTO-->")
+            end = src.index("<!--/@CONTACT_MAILTO-->") + len("<!--/@CONTACT_MAILTO-->")
+            page_path.write_text(src[:start] + src[end:], encoding="utf-8")
+
+            build_page("url-block-page", THEMES[0], shipped(**URL_CFG_KEYS), PALETTE, False, template_dir)
+
+
+@pytest.mark.integration
+class TestStaleTemplateGuard(unittest.TestCase):
+    """URL mode is otherwise enforced only by the templates cooperating: a stale
+    template directory still substitutes cleanly and would ship a hardcoded
+    mailto with the rebuild script stripped -- a silently broken contact."""
+
+    def test_a_hardcoded_mailto_fails_the_build_in_url_mode(self):
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = _template_copy(pathlib.Path(tmp_str))
+            page_path = template_dir / "pages" / "url-block-page.html"
+            src = page_path.read_text(encoding="utf-8")
+            stale = src.replace('href="{{CONTACT_HREF}}"', 'href="mailto:stale@example.com"')
+            assert stale != src, "fixture did not find the href it meant to replace"
+            page_path.write_text(stale, encoding="utf-8")
+
+            with pytest.raises(BuildError) as err:
+                build_page("url-block-page", THEMES[0], shipped(**URL_CFG_KEYS), PALETTE, False, template_dir)
+            message = str(err.value)
+            assert "url-block-page" in message
+            assert "mailto" in message
+
+    def test_the_same_template_builds_fine_in_email_mode(self):
+        """The guard is mode-specific: a hardcoded mailto is exactly what
+        email mode is supposed to ship."""
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = _template_copy(pathlib.Path(tmp_str))
+            page_path = template_dir / "pages" / "url-block-page.html"
+            src = page_path.read_text(encoding="utf-8")
+            stale = src.replace('href="{{CONTACT_HREF}}"', 'href="mailto:stale@example.com"')
+            page_path.write_text(stale, encoding="utf-8")
+
+            build_page("url-block-page", THEMES[0], shipped(), PALETTE, False, template_dir)

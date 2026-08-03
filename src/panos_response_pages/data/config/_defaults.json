@@ -15,14 +15,14 @@
   "_portalLogoSvg": "The GlobalProtect portal MARK, as SVG source -- the symbol only, no company name. The name is rendered as text beside it, from `company`, so it follows a rename and takes its colour from the page. Do not draw it in here: an SVG cannot measure text, the viewBox is fixed, and a name longer than the artwork would simply be clipped. Separate from logoSvg because the portal needs this as a percent-encoded data: URI rather than inline markup -- the build does that encoding, so write plain SVG here, with single quotes for attributes. Colour it with the S_* tokens, never a literal hex and never currentColor: this artwork is an isolated document and inherits nothing from the page. The build renders it TWICE, binding S_* to the palette's light values for one copy and its d_ values for the other, and the shells switch between the two in CSS. Keep it square -- it is drawn into a square box.",
   "portalLogoSvg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='{{S_ACCENT}}'/><g transform='translate(16,16) scale(.85) translate(-12,-12.5)'><path d='M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z' fill='{{S_ACCENT_INK}}'/></g></svg>",
   "_portalLogoSvgDark": "Optional. Set it only when the dark-scheme mark is different ARTWORK -- a different symbol, a knockout treatment -- rather than the same drawing in different colours. Left out, the dark copy is portalLogoSvg with S_* bound to the palette's dark values, which is what a mark built from the tokens wants.",
-  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator' -- {{CONTACT_NAME}} resolves to the support address, or to the words 'IT support' when supportUrl is set.",
+  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator' -- {{CONTACT_REACHABLE}} resolves to the support address, or to the label followed by the ticket URL when supportUrl is set. PAN-OS fills this text in with .text(), so it cannot carry a link -- the URL itself has to be the words the user reads.",
   "logoutMessages": [
     "You have successfully logged out of GlobalProtect portal.",
     "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
     "User not authenticated to GlobalProtect portal.",
-    "System error. Contact {{CONTACT_NAME}}.",
-    "System error, failed to delete user session. Contact {{CONTACT_NAME}}.",
-    "Cannot create user session, maximum capacity reached. Contact {{CONTACT_NAME}}.",
+    "System error. Contact {{CONTACT_REACHABLE}}.",
+    "System error, failed to delete user session. Contact {{CONTACT_REACHABLE}}.",
+    "Cannot create user session, maximum capacity reached. Contact {{CONTACT_REACHABLE}}.",
     "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
   ],
   "_marks": "Page-level marks, also inline SVG. Referenced by name from a page template's <!--@MARK--> slot.",

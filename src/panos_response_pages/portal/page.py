@@ -226,6 +226,7 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
     contact_values = {
         "CONTACT_HREF": contact.href(cfg, f"mailto:{contact.email(cfg)}"),
         "CONTACT_NAME": contact.name(cfg),
+        "CONTACT_REACHABLE": contact.reachable(cfg),
     }
     values: dict[str, str] = dict(base)
     values.update(contact_values)

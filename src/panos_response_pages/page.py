@@ -72,6 +72,12 @@ def build_page(
     # `base` keeps this to one pass over the sections -- and one pass is not a
     # nicety. substitute() raises on any key it does not recognise, so a section
     # containing {{CONTACT_HREF}} cannot be run through a dict that lacks it.
+    # In email mode CONTACT_MAILTO section IS the href; a template that omits it
+    # would otherwise build clean and ship an anchor that reloads the blocked
+    # site. In URL mode the section is genuinely unused, so absence there is
+    # fine -- the check only runs where the value is actually needed.
+    if "CONTACT_MAILTO" not in parts and contact.mode(cfg) == contact.EMAIL:
+        raise BuildError(f"{page}.html is missing its <!--@CONTACT_MAILTO--> section, needed in email mode")
     mailto = substitute(parts.get("CONTACT_MAILTO", ""), base)
     alt = substitute(parts.get("CONTACT_ALT", ""), base)
     base.update(
@@ -151,6 +157,13 @@ def build_page(
     if "{{" in out:
         leftover = sorted(set(re.findall(r"\{\{([A-Z_0-9]+)\}\}", out)))
         raise BuildError(f"unresolved placeholder(s) in {page}: {', '.join(leftover)}")
+
+    # URL mode is otherwise enforced only by the templates cooperating: a stale
+    # template directory would still substitute cleanly and ship a mailto href
+    # with the rebuild script stripped out from under it -- a silently broken
+    # contact, no error. This is the loud failure that promise depends on.
+    if contact.mode(cfg) == contact.URL and "mailto:" in out:
+        raise BuildError(f"{page} contains a mailto: link in URL mode; its template is out of date with cfg")
 
     if preview:
         sample = SAMPLE
