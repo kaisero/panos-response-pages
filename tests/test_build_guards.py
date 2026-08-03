@@ -101,5 +101,38 @@ class TestRealBuild(unittest.TestCase):
         self.assertNotIn("B · ", label, "prototype selection prefix left in theme label")
 
 
+CONTACT_OK = (
+    '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">'
+    '</head><body><a id="rep" href="https://tickets.example.com/new">Report to IT</a></body></html>'
+)
+CONTACT_HTTP = CONTACT_OK.replace("https://", "http://")
+STRAY_LINK = CONTACT_OK.replace('id="rep" ', "")
+STRAY_IMG = CONTACT_OK.replace(
+    '<a id="rep" href="https://tickets.example.com/new">Report to IT</a>',
+    '<img src="https://cdn.example.com/logo.png">',
+)
+
+
+class TestContactAnchor(unittest.TestCase):
+    """The one link allowed to leave the page, and only that one."""
+
+    def test_https_on_the_contact_anchor_is_allowed(self):
+        _size, errors, _warnings = build.validate("url-block-page", "assist", CONTACT_OK)
+        self.assertEqual(errors, [])
+
+    def test_http_on_the_contact_anchor_is_refused(self):
+        """Cleartext on a page whose whole job is to be trusted."""
+        _size, errors, _warnings = build.validate("url-block-page", "assist", CONTACT_HTTP)
+        self.assertTrue(any("not self-contained" in e for e in errors))
+
+    def test_https_on_any_other_link_is_still_refused(self):
+        _size, errors, _warnings = build.validate("url-block-page", "assist", STRAY_LINK)
+        self.assertTrue(any("not self-contained" in e for e in errors))
+
+    def test_external_image_is_still_refused(self):
+        _size, errors, _warnings = build.validate("url-block-page", "assist", STRAY_IMG)
+        self.assertTrue(any("not self-contained" in e for e in errors))
+
+
 if __name__ == "__main__":
     unittest.main()

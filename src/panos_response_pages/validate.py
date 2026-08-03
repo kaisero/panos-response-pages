@@ -70,12 +70,29 @@ def validate(page: str, theme_name: str, html_text: str) -> tuple[int, list[str]
         errors.append("<base> tag present -- resolves against the blocked site")
     if "<link " in html_text:
         errors.append("<link> tag present -- external stylesheet is not self-contained")
-    for attr in ('src="http', "src='http", 'href="http', "href='http"):
-        for m in re.finditer(re.escape(attr), html_text):
-            tail = html_text[m.start() : m.start() + 200]
-            if not tail.startswith(('href="mailto', "href='mailto")):
-                errors.append(f"external reference found ({attr}...) -- not self-contained")
-                break
+    # One exception, and it is structural rather than configured: the contact
+    # anchor. `validate` is also run by the CLI over already-built files, where no
+    # config is in hand to say which origin was meant -- so the rule is "the
+    # anchor carrying id=rep may leave the page, nothing else may", which is
+    # checkable from the HTML alone. That the URL is absolute https and sane is
+    # contact.check()'s job, at build time.
+    #
+    # http:// is refused even there. A response page's entire value is that the
+    # user trusts what it says; a cleartext link out of it is not that.
+    #
+    # rfind("<") walks back to the opening of the tag the match sits in. Verified
+    # against all 7 styles x 9 pages in both modes: no false positives, including
+    # the multi-line anchor and safe-search's inline one. `<a` also prefixes
+    # `<area` and `<audio`, which is harmless -- neither can carry id="rep" and an
+    # href in a page this build produces.
+    for m in re.finditer(r"""(?:src|href)\s*=\s*["']https?://""", html_text):
+        tag_start = html_text.rfind("<", 0, m.start())
+        tag_end = html_text.find(">", m.start())
+        tag = html_text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
+        if tag.startswith("<a") and 'id="rep"' in tag and m.group(0).endswith("https://"):
+            continue
+        errors.append(f"external reference found ({m.group(0)}...) -- not self-contained")
+        break
 
     # Token legality. An unsupported token is not an error to PAN-OS; it simply
     # renders as nothing, leaving a blank field on a live page.
