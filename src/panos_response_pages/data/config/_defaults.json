@@ -1,5 +1,10 @@
 {
   "company": "Example Corp",
+  "_supportEmail": "Where every 'Report to IT' action goes. Mutually exclusive with supportUrl: set one, and blank the other. This mode pre-fills the mail with the page's own fact table -- the user, the address, the category -- so IT receives the incident already described.",
+  "_supportUrl": "An alternative to supportEmail, for a customer whose front door is a ticket system rather than a mailbox. Must be an absolute https:// URL: a response page is served AS the blocked site, so a relative path resolves against whatever host the user was refused. The link carries no pre-filled context -- an href cannot -- so the user describes the problem themselves. This file ships a supportEmail, and customer configs are MERGED over it, so a customer file setting supportUrl must also set \"supportEmail\": \"\" or the build stops.",
+  "supportUrl": "",
+  "_supportLabel": "What the contact link is CALLED when supportUrl is set. Ignored in supportEmail mode, where the link prints the address itself -- there, the address is both the label and the destination. Name the queue the way your users find it: 'the Service Desk', 'Helpdesk', 'IT Support'. Blank means the built-in default, 'IT support'.",
+  "supportLabel": "IT support",
   "supportEmail": "servicedesk@example.com",
   "_palette": "Colour scheme, from palettes/. One of the brand palettes: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette. Setting it here also overrides a style that pins its own palette, which nyan does -- leave it out of a customer file unless that is what you want.",
   "palette": "cyber-orange",
