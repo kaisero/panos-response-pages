@@ -29,6 +29,12 @@ PAGE_TOKENS = {
 
 TOKEN_RE = re.compile(r"<(user|url|category|ssurl|pan_form|fname|cookie|appname)\s*/>")
 
+# The contact anchor, and only it, may link off the page. Matched rather than
+# substring-tested: `'id="rep"' in tag` also accepts an attribute whose NAME
+# merely ends in `id` -- xid="rep", data-id="rep" -- which is a wider hole than
+# the one exemption this is meant to be.
+_IS_REP = re.compile(r'(?<![\w-])id\s*=\s*"rep"')
+
 
 # into whether data actually left the browser, and no visibility into which policy
 # matched -- different users can match different rules. Neither class of statement
@@ -89,7 +95,7 @@ def validate(page: str, theme_name: str, html_text: str) -> tuple[int, list[str]
         tag_start = html_text.rfind("<", 0, m.start())
         tag_end = html_text.find(">", m.start())
         tag = html_text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
-        if tag.startswith("<a") and 'id="rep"' in tag and m.group(0).endswith("https://"):
+        if tag.startswith("<a") and _IS_REP.search(tag) and m.group(0).endswith("https://"):
             continue
         errors.append(f"external reference found ({m.group(0)}...) -- not self-contained")
         break

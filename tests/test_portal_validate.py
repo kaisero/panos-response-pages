@@ -90,6 +90,13 @@ class TestSilentBreakers(unittest.TestCase):
         _s, errors, _w = validate_portal(login_doc(body='<pan_form/><img src="https://x.test/a.png">'))
         self.assertTrue(any("CSP" in e for e in errors), errors)
 
+    def test_an_attribute_merely_ending_in_id_is_not_the_contact_anchor(self):
+        """`'id="rep"' in tag` would wave this through; the exemption is for the
+        real id attribute, not for anything whose name happens to end in one."""
+        body = '<pan_form/><a xid="rep" href="https://tickets.example.com/new">Report to IT</a>'
+        _s, errors, _w = validate_portal(login_doc(body=body))
+        self.assertTrue(any("CSP" in e for e in errors), errors)
+
     def test_a_data_uri_logo_is_not_mistaken_for_an_external_reference(self):
         """The logo carries xmlns=%27http://www.w3.org/2000/svg%27 percent-
         encoded, which must not trip the CSP check."""

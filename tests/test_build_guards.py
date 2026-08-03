@@ -133,6 +133,13 @@ class TestContactAnchor(unittest.TestCase):
         _size, errors, _warnings = build.validate("url-block-page", "assist", STRAY_IMG)
         self.assertTrue(any("not self-contained" in e for e in errors))
 
+    def test_an_attribute_merely_ending_in_id_is_not_the_contact_anchor(self):
+        """`'id="rep"' in tag` would wave this through; the exemption is for the
+        real id attribute, not for anything whose name happens to end in one."""
+        html = CONTACT_OK.replace('id="rep"', 'xid="rep"')
+        _size, errors, _warnings = build.validate("url-block-page", "assist", html)
+        self.assertTrue(any("not self-contained" in e for e in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

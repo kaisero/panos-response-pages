@@ -18,6 +18,8 @@ from __future__ import annotations
 import base64
 import re
 
+from panos_response_pages.validate import _IS_REP
+
 # Measured, not guessed. PAN-OS rejected a 24_000 B import with:
 #
 #   page can be at most 21845 characters, but current length: 32422
@@ -172,7 +174,7 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
         tag_start = text.rfind("<", 0, m.start())
         tag_end = text.find(">", m.start())
         tag = text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
-        if tag.startswith("<a") and 'id="rep"' in tag and m.group(1).startswith("https://"):
+        if tag.startswith("<a") and _IS_REP.search(tag) and m.group(1).startswith("https://"):
             continue
         errors.append(f"external reference blocked by the portal CSP: {m.group(1)[:60]}")
 
