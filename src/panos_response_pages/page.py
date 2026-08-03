@@ -13,6 +13,17 @@ from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
+# The shell's `html[data-force-scheme=light|dark]` blocks, which exist so the
+# preview gallery can show a page in the scheme the reviewer is not currently in.
+#
+# PREVIEW ONLY, and worth 519-603 B on every page of every theme. The attribute
+# is written in exactly one place in this project -- the gallery's own script,
+# on the preview iframe's document -- so on a firewall these blocks are 4 KB of
+# stylesheet per theme that nothing can ever select. They stay in the shell
+# SOURCE, where the suite reads them and holds their token sets in step with
+# :root; they are dropped on the way into a deploy build.
+SCHEME_RE = re.compile(r"<!--@SCHEME-->\n?(.*?)<!--/@SCHEME-->\n?", re.S)
+
 # Sample values used only in preview builds.
 # A mailto that is actually a link, as opposed to the word appearing in prose.
 MAILTO_HREF = re.compile(r"""href\s*=\s*["']\s*mailto:""", re.I)
@@ -41,6 +52,10 @@ def build_page(
     redirect_demo: bool = False,
 ) -> str:
     shell = read(template_dir / "shells" / f"{theme['shell']}.html")
+    # Kept whole for the gallery, dropped for the firewall. Either way the
+    # markers themselves go: strip_output would remove them later as HTML
+    # comments, but only after validate() had already measured them.
+    shell = SCHEME_RE.sub((lambda m: m.group(1)) if preview else "", shell)
     parts = parse_sections(read(template_dir / "pages" / f"{page}.html"))
 
     for required in ("TITLE", "HEADLINE", "GLOSS", "FACTS", "ACTIONS"):

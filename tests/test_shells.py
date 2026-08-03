@@ -16,7 +16,7 @@ import json
 import re
 import unittest
 
-from _build import DEFAULT_PALETTE, deploy_dir
+from _build import DEFAULT_PALETTE, deploy_dir, preview_dir
 from _paths import DATA
 
 SHELLS = sorted((DATA / "templates/shells").glob("*.html"))
@@ -458,6 +458,34 @@ class BuiltOutput(unittest.TestCase):
                         f"the 17999 B ceiling -- <url/> expands at serve "
                         f"time",
                     )
+
+    def test_the_forced_scheme_blocks_are_preview_only(self):
+        """519-603 B per page of stylesheet that only the gallery can select.
+
+        `data-force-scheme` is written in exactly one place in this project --
+        the gallery's script, on the preview iframe's document. On a firewall
+        nothing sets it, so on a deploy page these blocks are unselectable
+        weight against a ceiling that silently drops the page.
+
+        Both directions, because either failure is invisible: shipped, it is
+        dead bytes nothing reports; missing from preview, the gallery's Light
+        and Dark captions both render the reviewer's own OS scheme and every
+        sign-off on the other one is worthless.
+
+        ShellContract still reads these blocks from the shell SOURCE, where it
+        holds their token sets in step with :root. This is only about which
+        build they reach.
+        """
+        found = 0
+        for t in self.themes:
+            for page in self.pages:
+                deployed = (deploy_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html").read_text(encoding="utf-8")
+                previewed = (preview_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html").read_text(encoding="utf-8")
+                with self.subTest(theme=t["name"], page=page):
+                    self.assertNotIn("data-force-scheme", deployed, "preview-only CSS reached a deploy page")
+                    self.assertIn("data-force-scheme", previewed, "the gallery cannot switch scheme on this page")
+                found += 1
+        self.assertGreater(found, 0, "no built pages were checked")
 
 
 if __name__ == "__main__":
