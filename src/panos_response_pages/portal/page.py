@@ -29,6 +29,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
+from panos_response_pages import contact
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
 from panos_response_pages.templates import parse_sections, read, substitute
@@ -214,9 +215,10 @@ def _logo(
 
 def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str]:
     """Everything a portal slot may reference."""
+    contact.check(cfg)
     base = {
         "COMPANY": str(cfg["company"]),
-        "SUPPORT_EMAIL": str(cfg["supportEmail"]),
+        "SUPPORT_EMAIL": contact.email(cfg),
     }
     values: dict[str, str] = dict(base)
     values["MARK"] = str(cfg["marks"]["shield"])

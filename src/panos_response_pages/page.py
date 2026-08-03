@@ -7,7 +7,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from panos_response_pages import redirect
+from panos_response_pages import contact, redirect
 from panos_response_pages.errors import BuildError
 from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
 from panos_response_pages.templates import parse_sections, read, substitute
@@ -48,9 +48,16 @@ def build_page(
     # must be resolved BEFORE being inserted into the shell -- re.sub does not
     # rescan replacement text, which would otherwise emit a literal
     # "mailto:{{SUPPORT_EMAIL}}" into every page.
+    # Refused here rather than at first use: a contradictory contact config
+    # otherwise surfaces as a KeyError from inside substitution, naming a
+    # template token instead of the config key the author got wrong.
+    contact.check(cfg)
     base = {
         "COMPANY": cfg["company"],
-        "SUPPORT_EMAIL": cfg["supportEmail"],
+        # Empty in URL mode. The token still has to resolve: it appears in
+        # sections URL mode discards, and substitute() raises on an unknown key
+        # whether or not the text survives.
+        "SUPPORT_EMAIL": contact.email(cfg),
         "LOGO_SVG": cfg["logoSvg"],
         # The Continue/Override grant duration is administrator-configurable per
         # firewall (PAN-OS only defaults to 15 minutes), so the page must not

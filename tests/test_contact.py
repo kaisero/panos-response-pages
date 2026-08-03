@@ -137,3 +137,23 @@ class TestValues(unittest.TestCase):
 
     def test_email_is_empty_in_url_mode(self):
         assert contact.email(self.URL_CFG) == ""
+
+
+@pytest.mark.integration
+class TestBuildRefusesBadConfig(unittest.TestCase):
+    def test_both_keys_fails_the_build(self):
+        cfg = shipped(supportUrl="https://tickets.example.com/new")
+        with pytest.raises(BuildError) as err:
+            build_page("url-block-page", THEMES[0], cfg, PALETTE, False, TEMPLATES)
+        assert "mutually exclusive" in str(err.value)
+
+    def test_http_url_fails_the_build(self):
+        cfg = shipped(supportEmail="", supportUrl="http://tickets.example.com/new")
+        with pytest.raises(BuildError) as err:
+            build_page("url-block-page", THEMES[0], cfg, PALETTE, False, TEMPLATES)
+        assert "https://" in str(err.value)
+
+    def test_missing_both_fails_with_a_sentence_not_a_keyerror(self):
+        cfg = shipped(supportEmail="")
+        with pytest.raises(BuildError):
+            build_page("url-block-page", THEMES[0], cfg, PALETTE, False, TEMPLATES)
