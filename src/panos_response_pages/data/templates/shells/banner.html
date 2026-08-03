@@ -41,7 +41,17 @@ padding:clamp(1.5rem,5vh,2.1rem) 1.5rem clamp(1.9rem,6vh,2.6rem)}
 .brand{display:flex;align-items:center;gap:.55rem;margin:0 0 2.2rem}
 .brand svg{width:1.25rem;height:1.25rem}
 .brand span{font-size:.83rem;font-weight:650;letter-spacing:.03em}
-.brand .sev{margin-left:auto;font-size:.6rem;font-weight:700;letter-spacing:.09em;
+/* Severity pill and mark in one right-aligned column, so the mark sits centred
+   under the label it belongs to.
+   The mark used to be anchored to the BOTTOM of the band, which made its top
+   edge a function of how many lines the headline wrapped to: on a page with a
+   short headline the 7rem mark rode up into the brand row and collided with the
+   pill. file-block-page showed it. Stacking the two removes the dependency
+   rather than tuning around it -- there is no headline length that can bring
+   them together now. */
+.sig{position:absolute;top:0;right:0;display:flex;flex-direction:column;
+align-items:center;gap:.9rem}
+.sev{font-size:.6rem;font-weight:700;letter-spacing:.09em;
 text-transform:uppercase;color:var(--tt);background:var(--tw);
 padding:.25rem .7rem;border-radius:999px}
 .sev:empty{display:none}
@@ -49,8 +59,8 @@ h1{position:relative;margin:0;font-size:clamp(2.1rem,7vw,3.4rem);line-height:.98
 letter-spacing:-.045em;font-weight:800;text-wrap:balance;max-width:11em}
 /* The per-page mark, kept subordinate to the heading: this design's focal point
    is the type, and a second full-strength indicator would compete with it. */
-.ghost{position:absolute;right:0;bottom:-1.2rem;opacity:.18;pointer-events:none}
-.ghost svg{width:7rem;height:7rem}
+.ghost{display:block;opacity:.18;pointer-events:none}
+.ghost svg{display:block;width:5.5rem;height:5.5rem}
 main{width:100%;max-width:44rem;margin:0 auto;padding:2.1rem 1.5rem 3.5rem;
 display:grid;grid-template-columns:1fr 13.5rem;gap:2.2rem}
 .col{min-width:0}
@@ -95,7 +105,7 @@ outline-offset:3px}
 @media(max-width:600px){
 .band{padding:1.4rem 1.15rem 1.8rem}
 .brand{margin-bottom:1.6rem}
-.ghost svg{width:5rem;height:5rem}
+.ghost svg{width:4rem;height:4rem}
 /* One column. The record drops below the action rather than above it: on a
    phone the thing to do outranks the detail that explains it. */
 main{grid-template-columns:1fr;gap:1.9rem;padding:1.7rem 1.15rem 2.5rem}
@@ -108,9 +118,9 @@ dl{border-left:0;border-top:2px solid var(--ac);padding:1rem 0 0}
 </head>
 <body>
 <header class="band"><div class="bandin">
-<p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
+<p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span></p>
+<div class="sig"><span class="sev">{{SEVERITY}}</span><span class="ghost" aria-hidden="true">{{MARK}}</span></div>
 <h1>{{HEADLINE}}</h1>
-<div class="ghost" aria-hidden="true">{{MARK}}</div>
 </div></header>
 <main>
 <div class="col">
