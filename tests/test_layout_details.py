@@ -178,21 +178,28 @@ class TestIndicatorAndInjectedForm(unittest.TestCase):
 
 
 class TestMailto(unittest.TestCase):
-    """A raw "&" in <url/> terminates the mailto body parameter, silently
-    dropping every field after it. PAN-OS substitutes raw bytes, so the page
-    cannot encode at serve time -- the script rebuilds the href from the rendered
-    fact table with encodeURIComponent, and the static href is ordered so that a
-    no-JS truncation loses only trailing text."""
+    """The incident detail is carried once, in the data-* attributes.
+
+    PAN-OS substitutes raw bytes, so the page cannot encode at serve time: a raw
+    "&" in <url/> terminates a mailto body parameter and silently drops every
+    field after it. The script therefore rebuilds the href from the rendered
+    fact table with encodeURIComponent, which is the only place the encoding can
+    happen correctly.
+
+    The static href used to carry the same fields a second time, pre-encoded and
+    ordered so a truncation lost only trailing text. It now carries the address
+    alone -- the duplication was ~180 B per page of copy that had to be kept in
+    step with the attributes by hand, and without the body there is nothing left
+    to truncate. No-JS still reaches the right mailbox, with an empty message."""
 
     def _report_links(self):
         for page in PAGES.glob("*.html"):
             body = page.read_text(encoding="utf-8")
             if 'id="rep"' in body:
                 start = body.index('id="rep"')
-                # Bound on '">', not '>': the email-mode href embeds raw PAN-OS
-                # tokens like <user/>, and cutting at the first bare '>' would
-                # close the slice on that token's own bracket instead of the
-                # attribute's closing quote, truncating the anchor mid-href.
+                # Bound on '">', not '>': the anchor's other attributes can still
+                # hold a bare '>' in their copy, and cutting at the first one
+                # would truncate the slice mid-tag.
                 yield page.stem, body[body.rindex("<a ", 0, start) : body.index('">', body.index('href="', start)) + 2]
 
     def _mailto_sections(self):
@@ -234,19 +241,29 @@ class TestMailto(unittest.TestCase):
         for name, mailto in self._mailto_sections():
             self.assertNotIn("\n", mailto.strip(), f"{name}: the mailto section must stay on one line")
 
-    def test_static_fallback_puts_the_url_token_last(self):
-        checked = 0
+    def test_the_static_href_carries_no_panos_tokens(self):
+        """It is the address and nothing else, which is what makes the truncation
+        hazard impossible rather than merely avoided.
+
+        This used to be a rule about ORDER: the pre-filled href carried the
+        user, the category and the address as body fields, a raw '&' in the
+        substituted <url/> terminated the body parameter, and every field after
+        it was silently dropped -- so <url/> had to come last. The fields now
+        live only in the data-* attributes, which the script folds into the body
+        with encodeURIComponent, so there is no body in the markup left to
+        truncate. Asserting the absence is stronger than asserting the order:
+        the ordering test could pass by a page simply having no <url/>.
+        """
+        found = 0
         for name, mailto in self._mailto_sections():
-            if "<url/>" not in mailto:
-                continue  # safe-search, application and file pages have no <url/> token
-            checked += 1
-            after = mailto[mailto.index("<url/>") + len("<url/>") :]
-            self.assertNotIn(
-                "%0A",
-                after,
-                f"{name}: no field may follow <url/> in the static href, or an '&' in the URL truncates it away",
+            found += 1
+            self.assertNotRegex(
+                mailto,
+                r"<(user|url|category|ssurl|fname|appname)\s*/>",
+                f"{name}: a PAN-OS token in the static href brings back the '&' truncation hazard",
             )
-        self.assertGreaterEqual(checked, 4, "no page's mailto carried a <url/> token -- this test asserted nothing")
+            self.assertNotIn("?", mailto, f"{name}: the static href should carry no query, only the address")
+        self.assertEqual(found, len(list(PAGES.glob("*.html"))), "not every page was checked")
 
     def test_subjects_are_distinct_per_page(self):
         subjects = {}

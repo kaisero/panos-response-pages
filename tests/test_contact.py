@@ -244,10 +244,14 @@ class TestRuntimeRewrite(unittest.TestCase):
 
 @pytest.mark.integration
 class TestContactSeam(unittest.TestCase):
-    def test_email_mode_href_is_unchanged(self):
+    def test_email_mode_href_is_the_configured_address(self):
+        """The address, and only the address. The subject and body are carried
+        once, in the data-* attributes the script folds into the mail -- quoting
+        them here as well meant every copy edit had to be made twice, in two
+        different encodings, with nothing checking they still agreed."""
         anchor = rep_anchor(render(shipped()))
-        assert 'href="mailto:servicedesk@example.com?subject=Blocked%20site%20report' in anchor
-        assert "%0AAddress%3A%20<url/>" in anchor
+        assert 'href="mailto:servicedesk@example.com"' in anchor
+        assert "?subject=" not in anchor, "the static href should carry no pre-filled body"
 
     def test_email_mode_keeps_data_to(self):
         assert 'data-to="servicedesk@example.com"' in rep_anchor(render(shipped()))
