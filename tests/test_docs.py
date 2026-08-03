@@ -147,9 +147,19 @@ class TestDocsSite(unittest.TestCase):
         actual = {p.name for p in DOCS.glob("*.md")}
         self.assertEqual(actual - listed, set(), "page(s) not in the nav")
 
-    def test_documents_the_copy_rules_and_their_source(self):
-        text = page("copy-rules.md")
-        self.assertIn("BANNED_COPY", text)
+    def test_documents_the_override_timeout_key(self):
+        """`continueGrantText` names a duration the page cannot check.
+
+        The wording has to match the URL Admin Override timeout configured on the
+        firewall, and nothing in the build knows what that is -- so the page can
+        promise sixty minutes against a fifteen-minute policy and look correct.
+        The docs are the only place that can say so.
+
+        This assertion used to sit alongside one that `copy-rules.md` cited
+        `BANNED_COPY`. That page has been removed; `styles.md` still mentions the
+        constant in passing, but pointing this test at that mention would assert
+        an aside while reading like it still guards the rules.
+        """
         self.assertIn("continueGrantText", page("customising.md"))
 
     def test_documents_the_shell_contract(self):
