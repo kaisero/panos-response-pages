@@ -106,6 +106,14 @@ outline-offset:3px}
 .band{padding:1.4rem 1.15rem 1.8rem}
 .brand{margin-bottom:1.6rem}
 .ghost svg{width:4rem;height:4rem}
+/* A phone band is not wide enough for both. The pill and the mark stack to
+   about 6rem at this width, which reaches well into the headline, and of the
+   two the mark is the one that can go: it repeats what the pill already says
+   in words, and it is aria-hidden decoration. Adjacent-sibling rather than
+   :has(), which is younger than the browsers this project assumes -- .sev is
+   always the mark's immediate predecessor in .sig. Calm pages have an empty
+   pill and keep their mark, which fits on its own. */
+.sev:not(:empty)+.ghost{display:none}
 /* One column. The record drops below the action rather than above it: on a
    phone the thing to do outranks the detail that explains it. */
 main{grid-template-columns:1fr;gap:1.9rem;padding:1.7rem 1.15rem 2.5rem}

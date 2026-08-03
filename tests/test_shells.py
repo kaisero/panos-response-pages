@@ -283,6 +283,33 @@ class ShellContract(unittest.TestCase):
                 f"{name}: :root is missing {sorted(base - token_names(root.group(1)))}",
             )
 
+    def test_sibling_selectors_on_the_severity_pill_still_have_their_sibling(self):
+        """A shell may hide decoration next to the pill with `.sev...+X`, which
+        is DOM order expressed as CSS and breaks silently if the markup moves.
+
+        banner does this: on a phone the pill and the mark together reach into
+        the headline, so `.sev:not(:empty)+.ghost` drops the mark on the pages
+        that have a label. Reorder the two spans and the rule stops matching --
+        no error, no failing build, just the overlap back on every phone.
+        """
+        for name, text, css in self.each():
+            body = text.split("<body>", 1)[-1]
+            for m in re.finditer(r"\.sev(?::[a-z-]+(?:\([^)]*\))?)*\s*\+\s*\.([a-z-]+)", css):
+                rule, sibling = m.group(0), m.group(1)
+                pill = body.find('class="sev"')
+                self.assertNotEqual(pill, -1, f"{name}: '{rule}' but no element carries class sev")
+                # The pill holds only {{SEVERITY}}, so its element ends at the
+                # first close tag; whatever opens next is its next sibling.
+                after = body[body.index("</", pill) :]
+                nxt = re.search(r"<\w+[^>]*>", after[after.index(">") + 1 :])
+                self.assertIsNotNone(nxt, f"{name}: '{rule}' but nothing follows the pill")
+                self.assertIn(
+                    f'class="{sibling}"',
+                    nxt.group(0),
+                    f"{name}: '{rule}' needs .{sibling} to be the pill's IMMEDIATE next sibling, "
+                    f"but {nxt.group(0)!r} comes first -- the rule silently stops matching",
+                )
+
     def test_declares_both_tone_overrides(self):
         for name, _text, css in self.each():
             for tone in ("warn", "crit"):
