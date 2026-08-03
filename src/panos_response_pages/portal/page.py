@@ -220,7 +220,15 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
         "COMPANY": str(cfg["company"]),
         "SUPPORT_EMAIL": contact.email(cfg),
     }
+    # The portal has no pre-filled body to carry -- there is no incident to
+    # describe on a login page -- so email mode is a bare mailto rather than the
+    # per-page mailto the response pages build.
+    contact_values = {
+        "CONTACT_HREF": contact.href(cfg, f"mailto:{contact.email(cfg)}"),
+        "CONTACT_NAME": contact.name(cfg),
+    }
     values: dict[str, str] = dict(base)
+    values.update(contact_values)
     values["MARK"] = str(cfg["marks"]["shield"])
     # The same name again, escaped for a CSS content: string. The mark is only a
     # symbol; the wordmark is live text, which is what makes a rename in config
@@ -244,10 +252,10 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
     # this family does not restyle, and which is light whatever the visitor's
     # scheme is. So it gets the light copy, and only that page uses it.
     values["PORTAL_LOGO_URI"] = SVG_URI_PREFIX + light
-    # {{SUPPORT_EMAIL}} is resolved before encoding -- substitute() does not
-    # rescan replacement text, so a token left inside the array would ship
-    # literally. No spaces after the commas: every byte is measured.
-    messages = [substitute(str(m), base) for m in cfg["logoutMessages"]]
+    # The messages name a contact, so they need the contact tokens as well as
+    # `base`. Resolved before encoding -- substitute() does not rescan
+    # replacement text, so a token left inside the array would ship literally.
+    messages = [substitute(str(m), {**base, **contact_values}) for m in cfg["logoutMessages"]]
     values["LOGOUT_MESSAGES"] = "[" + ",".join(_js_string(m) for m in messages) + "]"
     values.update({f"C_{k.upper()}": str(v) for k, v in palette["colors"].items()})
     grad = palette.get("gradient", {})

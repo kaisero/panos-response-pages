@@ -266,3 +266,31 @@ class TestEveryPageInBothModes(unittest.TestCase):
 
     def test_safe_search_still_prints_the_address_in_email_mode(self):
         assert ">servicedesk@example.com</a>" in render(shipped(), page="safe-search-block-page")
+
+
+@pytest.mark.integration
+class TestPortalContact(unittest.TestCase):
+    def test_email_mode_keeps_the_mailto_note(self):
+        for theme in THEMES:
+            assert "mailto:servicedesk@example.com" in portal(shipped(), theme=theme), theme["name"]
+
+    def test_url_mode_links_the_ticket_system(self):
+        for theme in THEMES:
+            html = portal(shipped(**URL_CFG_KEYS), theme=theme)
+            assert "https://tickets.example.com/new" in html, theme["name"]
+            assert "mailto:" not in html, theme["name"]
+
+    def test_url_mode_logout_messages_name_the_link_not_an_address(self):
+        html = portal(shipped(**URL_CFG_KEYS), page="home")
+        assert "servicedesk@example.com" not in html
+        assert "IT support" in html
+
+    def test_url_mode_portal_has_no_unresolved_token(self):
+        for page in ("login", "home"):
+            assert "{{" not in portal(shipped(**URL_CFG_KEYS), page=page), page
+
+    def test_the_portal_contact_anchor_is_identified(self):
+        """portal/validate.py exempts the contact link by id, exactly as the
+        block-page guard does. Without the id the exemption would have to be
+        'any https anchor', which is a much larger hole."""
+        assert 'id="rep"' in portal(shipped())
