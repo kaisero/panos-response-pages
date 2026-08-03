@@ -70,9 +70,17 @@ CANCELLED_ANNOUNCE = "Cancelled. You are staying on this page."
 
 # The notice itself. Structural only -- every colour comes from the shell's own
 # custom properties, so a theme styles this by existing rather than by opting in.
+#
+# The countdown bar is an overlay on the border box, not a row inside it. In flow
+# it sat one border in from the left and one up from the bottom, and the rounded
+# corner clipped its left end, so the accent bar and the accent left border met
+# in a notch. Sitting on the border box instead, under a clip with the same
+# radius, the two are one continuous stroke turning the corner. `.rx` therefore
+# cannot carry `overflow:hidden` -- that clips to the padding box, which is the
+# inset the overlay exists to escape.
 CSS = """
-.rx{margin:0 0 1.4rem;max-width:31rem;border:1px solid var(--aw);border-left:3px solid var(--ac);
-border-radius:.5rem;background:var(--sa);overflow:hidden}
+.rx{position:relative;margin:0 0 1.4rem;max-width:31rem;border:1px solid var(--aw);
+border-left:3px solid var(--ac);border-radius:.5rem;background:var(--sa)}
 .rx-b{display:flex;align-items:center;gap:.7rem;padding:.7rem .85rem;flex-wrap:wrap}
 .rx-i{flex:none;width:1.9rem;height:1.9rem;border-radius:50%;background:var(--ac);color:var(--ai);
 display:grid;place-items:center;font-style:normal;font-size:.8rem;font-weight:700;
@@ -82,8 +90,9 @@ font-variant-numeric:tabular-nums}
 .rx-c .btn{min-height:2.2rem;padding:.4rem 1rem;font-size:.78rem;box-shadow:none}
 .rx button{font:inherit;font-size:.76rem;min-height:2.2rem;padding:.4rem .9rem;border-radius:.45rem;
 border:1px solid var(--aw);background:transparent;color:var(--im);cursor:pointer}
-.rx-p{height:3px;background:var(--aw)}
-.rx-p span{display:block;height:100%;width:0;background:var(--ac);transition:width 1s linear}
+.rx-p{position:absolute;left:-3px;right:-1px;bottom:-1px;height:.5rem;border-radius:0 0 .5rem .5rem;
+overflow:hidden;background:linear-gradient(var(--aw),var(--aw)) 0 100%/100% 3px no-repeat}
+.rx-p span{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--ac);transition:width 1s linear}
 .rx-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .rx[data-off] .rx-p span{background:var(--if)}
 .rx[data-off] .rx-i,.rx[data-off] .rx-c{display:none}
@@ -117,7 +126,7 @@ def enabled(cfg: Mapping[str, Any]) -> bool:
 def supported(theme: Mapping[str, Any]) -> bool:
     """Whether this style has room for the notice. Declared, not measured.
 
-    The notice is a flat 3173 B and PAN-OS drops an oversize response page
+    The notice is a flat 3347 B and PAN-OS drops an oversize response page
     *silently* -- it serves its own default instead, so the failure looks like
     the page was never imported. nyan's URL block page is 15558 B before the
     notice, against a 17999 B ceiling, so it cannot have it.

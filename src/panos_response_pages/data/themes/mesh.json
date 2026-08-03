@@ -2,7 +2,7 @@
   "name": "mesh",
   "label": "Mesh Panel",
   "shell": "mesh",
-  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3173 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
+  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3347 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
   "redirect": true,
   "_note": "A masked hairline grid under a glass card, with the brand row outside the card. The quietest of the decorated shells: one disc, no motion beyond it."
 }

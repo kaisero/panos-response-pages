@@ -2,7 +2,7 @@
   "name": "banner",
   "label": "Accent Banner",
   "shell": "banner",
-  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3173 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
+  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. Opt-in per style because the notice is a flat 3347 B and PAN-OS drops an oversize page silently: nyan's URL block page is 15558 B before it, so declaring support there would push the served page past the 17999 B ceiling and the firewall would show its own default instead. Every other style has room.",
   "redirect": true,
   "_note": "Full-bleed accent band and an oversized heading, with the record in a sidebar. The band carries the brand, so the mark sits in it at low opacity rather than competing with the type."
 }

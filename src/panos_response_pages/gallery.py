@@ -444,7 +444,7 @@ function need(pal,done){{
   document.head.appendChild(s);
 }}
 // Which styles have room for the notice. nyan does not -- its URL block page is
-// 15558 B before a flat 3173 B notice, against a 17999 B ceiling -- so selecting
+// 15558 B before a flat 3347 B notice, against a 17999 B ceiling -- so selecting
 // it must take the control away rather than offer an On with nothing behind it.
 var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}",RXOK={rx_ok};
 // The login surface is one import in four server-driven states, and the url
