@@ -14,7 +14,7 @@ from collections.abc import Container, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from panos_response_pages import datadir, redirect
+from panos_response_pages import datadir, logs, redirect
 from panos_response_pages.config import customer_keys, load_config
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
@@ -215,6 +215,23 @@ def build_all(
     if opening_name not in loaded:
         raise BuildError(f"unknown palette '{opening_name}'. Available: {', '.join(sorted(loaded))}")
     palette = loaded[opening_name]
+
+    # A configured redirect that reaches no style at all is the signature of a
+    # data directory copied out before the flag existed. Warned about rather than
+    # refused, because the build is otherwise correct and the pages are still
+    # worth having -- but never passed over in silence, since the symptom is the
+    # notice simply not being there, which reads as the feature being broken.
+    if redirect.enabled(cfg):
+        stale = [th["name"] for th in themes if not redirect.declares(th)]
+        if stale:
+            logs.get().warning(
+                "redirect is configured but %s %s no `redirect` flag, so the notice is off there. "
+                "This is what an older %s looks like: refresh it with `panos-response-pages init "
+                '--force` (back up your config/ first), or add "redirect": true to each theme file.',
+                ", ".join(stale),
+                "declares" if len(stale) == 1 else "declare",
+                data_dir,
+            )
 
     for th in themes:
         for pname in palette_names:

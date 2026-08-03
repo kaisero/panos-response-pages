@@ -490,3 +490,72 @@ class TestPreviewDemoIsNotShipped(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStaleDataDirectory(unittest.TestCase):
+    """A data directory copied out by `init` before the per-style flag existed.
+
+    `datadir` prefers that copy over the packaged data, so every theme in it
+    lacks the flag and the redirect turns itself off everywhere. The symptom is
+    the notice simply not appearing, which reads as the feature being broken
+    rather than as the directory being old -- so the build has to say so.
+    """
+
+    def stale_data_dir(self, tmp):
+        """A copy of the packaged data with the flag stripped from every theme."""
+        import shutil
+
+        data = pathlib.Path(tmp) / "data"
+        shutil.copytree(DATA, data)
+        for path in (data / "themes").glob("*.json"):
+            theme = json.loads(path.read_text())
+            theme.pop("redirect", None)
+            path.write_text(json.dumps(theme))
+        cfg = json.loads((data / "config" / "_defaults.json").read_text())
+        cfg["redirect"]["enabled"] = True
+        cfg["redirect"]["categories"] = {
+            "social-networking": {"app": "Company Engage", "url": "https://engage.example.com/"}
+        }
+        (data / "config" / "_defaults.json").write_text(json.dumps(cfg))
+        return data
+
+    def build_and_capture(self, data_dir):
+        import logging
+        import tempfile
+
+        from panos_response_pages.builder import build_all
+
+        with self.assertLogs("panos_response_pages", level=logging.WARNING) as caught:
+            with tempfile.TemporaryDirectory() as out:
+                build_all(data_dir=data_dir, out_dir=pathlib.Path(out), preview=False, palette_name="cyber-orange")
+            return "\n".join(caught.output)
+
+    def test_a_theme_with_no_flag_is_named_in_a_warning(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            logged = self.build_and_capture(self.stale_data_dir(tmp))
+        for theme in THEMES:
+            self.assertIn(theme["name"], logged, f"{theme['name']} lost the redirect silently")
+        self.assertIn("init", logged, "the warning must say how to fix it")
+
+    def test_a_deliberate_opt_out_is_not_warned_about(self):
+        """nyan sets the flag to false on purpose. Warning about that would train
+        everyone to ignore the warning that matters."""
+        import logging
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            data = self.stale_data_dir(tmp)
+            for path in (data / "themes").glob("*.json"):
+                theme = json.loads(path.read_text())
+                theme["redirect"] = theme["name"] != "nyan"
+                path.write_text(json.dumps(theme))
+            with tempfile.TemporaryDirectory() as out:
+                from panos_response_pages.builder import build_all
+
+                logger = logging.getLogger("panos_response_pages")
+                with self.assertLogs(logger, level=logging.DEBUG) as caught:
+                    logger.debug("marker")
+                    build_all(data_dir=data, out_dir=pathlib.Path(out), preview=False, palette_name="cyber-orange")
+        self.assertNotIn("no `redirect` flag", "\n".join(caught.output))

@@ -131,6 +131,20 @@ def supported(theme: Mapping[str, Any]) -> bool:
     return bool(theme.get("redirect"))
 
 
+def declares(theme: Mapping[str, Any]) -> bool:
+    """Whether this theme file has an opinion about the redirect at all.
+
+    `supported()` cannot tell "this style opted out" from "this theme file was
+    written before the flag existed" -- both are falsey. The difference matters:
+    the first is a decision, the second is a data directory copied out by `init`
+    at some earlier version and never refreshed. `datadir` prefers that copy over
+    the packaged data, so an old one silently turns the redirect off for every
+    style, which looks like the feature is broken rather than like the directory
+    is stale. The build warns on this; it does not warn on a deliberate `false`.
+    """
+    return "redirect" in theme
+
+
 def demo_config(cfg: Mapping[str, Any]) -> dict[str, Any]:
     """`cfg` with the redirect forced on, for the gallery's Redirect toggle.
 
