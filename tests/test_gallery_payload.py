@@ -13,6 +13,8 @@ import unittest
 from _paths import DATA
 from panos_response_pages import palettes, redirect
 from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages.gallery import CHROME_KEYS
+from panos_response_pages.palettes import load_palette
 
 PALETTES = palettes.available(DATA / "palettes")
 
@@ -125,6 +127,41 @@ class TestChrome(unittest.TestCase):
         assertion above."""
         self.assertNotIn("{ground}", self.css)
         self.assertRegex(self.css, r':root\[data-pal="nyan"\]\{--bg:#[0-9a-fA-F]{3,8}')
+
+    @staticmethod
+    def _block_tokens(css: str, pattern: str) -> dict[str, str]:
+        """Parse one `--var:value;...` block into a dict.
+
+        Fails loudly (KeyError from the caller, or a missing-block assertion
+        upstream) rather than returning {} if the block is absent, so a typo in
+        the selector does not silently compare two empty dicts as equal.
+        """
+        match = re.search(pattern, css)
+        assert match, f"no CSS block matched {pattern!r}"
+        body = match.group(1)
+        return dict(item.split(":", 1) for item in body.split(";") if item)
+
+    def test_each_palette_s_chrome_carries_its_own_colours(self):
+        """The mutation this guards against: every block emitting the opening
+        palette's colours instead of its own. The four tests above only check
+        that a selector exists and that *something* hex-shaped follows it --
+        they cannot tell one palette's colours from another's, so that mutation
+        passes them all while making the toolbar lie about every non-opening
+        palette."""
+        for name in PALETTES:
+            with self.subTest(palette=name):
+                colors = load_palette(name, DATA / "palettes")["colors"]
+                light_expected = {var: str(colors[key]) for var, key in CHROME_KEYS}
+                dark_expected = {var: str(colors["d_" + key]) for var, key in CHROME_KEYS}
+
+                light_pattern = r':root\[data-pal="' + re.escape(name) + r'"\]\{([^}]*)\}'
+                dark_pattern = (
+                    r"@media\(prefers-color-scheme:dark\)\{"
+                    r':root\[data-pal="' + re.escape(name) + r'"\]\{([^}]*)\}\}'
+                )
+
+                self.assertEqual(self._block_tokens(self.css, light_pattern), light_expected)
+                self.assertEqual(self._block_tokens(self.css, dark_pattern), dark_expected)
 
 
 if __name__ == "__main__":
