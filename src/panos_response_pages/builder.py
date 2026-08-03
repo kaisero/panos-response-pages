@@ -388,22 +388,56 @@ def _portal_report(result: BuildResult) -> list[str]:
     plane will accept as a base64 field. Showing a portal import as a percentage
     of MAX_BYTES would read as 60% of a limit it is not subject to.
 
+    Collapsed the same way format_report collapses the block-page table: one row
+    per style x palette, carrying a palette column, rather than one row per
+    import. Portal import sizes are palette-invariant -- every palette's hex
+    values are the same length -- which is the same property that makes the
+    block-page collapse honest. Left uncollapsed, the shipped matrix put four
+    byte-identical `assist login ...` lines in a row with nothing on the row
+    saying why, which reads as four different imports that happen to match.
+
     The encoded column is there because that is the only number PAN-OS ever
     says out loud: "page can be at most 21845 characters, but current length: N".
     """
+    worst: dict[tuple[str, str], PortalResult] = {}
+    for r in result.portal_results:
+        key = (r.theme, r.palette)
+        if key not in worst or r.size > worst[key].size:
+            worst[key] = r
+
     lines = [
         "",
-        f"  {'theme':10} {'portal import':24} {'bytes':>7}  {'encoded':>7}  {'of ceiling':>10}  status",
-        "  " + "-" * 76,
+        f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  {'of ceiling':>10}  status",
+        "  " + "-" * 88,
     ]
-    for r in result.portal_results:
+    for (theme, palette), r in worst.items():
+        status = _worst_portal_status(result, theme, palette)
         pct = f"{r.size / SOFT_MAX * 100:.0f}%"
-        lines.append(f"  {r.theme:10} {r.page:24} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {r.status}")
-        lines += [f"      ! {e}" for e in r.errors]
-        lines += [f"      ~ {w}" for w in r.warnings]
-    lines.append("  " + "-" * 76)
+        lines.append(f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status}")
+    lines.append("  " + "-" * 88)
     lines.append(
         f"  import ceiling {SOFT_MAX} B ({MAX_ENCODED} encoded)  |  "
         f"largest import {result.portal_largest} B  |  headroom {SOFT_MAX - result.portal_largest} B"
     )
+
+    flagged = [r for r in result.portal_results if r.errors or r.warnings]
+    if flagged:
+        lines.append("")
+        for r in flagged:
+            lines.append(f"  {r.theme}/{r.palette}/{r.page}  {r.size} B  {r.status}")
+            lines += [f"      ! {e}" for e in r.errors]
+            lines += [f"      ~ {w}" for w in r.warnings]
     return lines
+
+
+def _worst_portal_status(result: BuildResult, theme: str, palette: str) -> str:
+    """FAIL beats warn beats ok, across every import of one combination.
+
+    Mirrors _worst_status: an import can warn or fail for a reason that has
+    nothing to do with which one is largest, and the row must not read `ok`
+    while a line underneath it says otherwise.
+    """
+    rows = [r for r in result.portal_results if r.theme == theme and r.palette == palette]
+    if any(r.errors for r in rows):
+        return "FAIL"
+    return "warn" if any(r.warnings for r in rows) else "ok"

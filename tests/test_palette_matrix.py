@@ -130,7 +130,6 @@ class TestReport(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.result = build_all(data_dir=DATA, out_dir=pathlib.Path(cls.tmp.name), preview=False)
-        cls.result.portal_results.clear()
         cls.text = format_report(cls.result)
 
     @classmethod
@@ -141,12 +140,30 @@ class TestReport(unittest.TestCase):
         """252 page rows is long enough that a single warn in the middle scrolls
         past unread, which defeats the only purpose the table has.
 
+        Sliced on "portal import" the way test_portal_build.py does, so this
+        measures only the block-page table -- the portal table is a second,
+        separately-fenced table with its own row count and its own test below.
+
         Counted between the rules rather than by matching `ok`, so the test still
-        measures the table when a row's status is `warn` or `FAIL`.
+        measures the table when a row's status is `warn` or `FAIL`. The real
+        report is used as built, with nothing cleared or mutated: a build state
+        that never occurs in production (no portal results at all) used to hide
+        the fact that the portal table was never collapsed.
         """
-        lines = self.text.splitlines()
+        block = self.text.split("portal import")[0]
+        lines = block.splitlines()
         rules = [i for i, ln in enumerate(lines) if set(ln.strip()) == {"-"}]
         self.assertEqual(len(rules), 2, "the table should be fenced by exactly two rules")
+        self.assertEqual(rules[1] - rules[0] - 1, len(THEMES) * len(PALETTES))
+
+    def test_the_portal_table_is_also_one_row_per_combination(self):
+        """The same collapse, applied to the second table. Left uncollapsed,
+        the shipped matrix produced four byte-identical `theme login ...`
+        lines in a row with nothing on the row explaining why."""
+        portal = self.text.split("portal import", 1)[1]
+        lines = portal.splitlines()
+        rules = [i for i, ln in enumerate(lines) if set(ln.strip()) == {"-"}]
+        self.assertEqual(len(rules), 2, "the portal table should be fenced by exactly two rules")
         self.assertEqual(rules[1] - rules[0] - 1, len(THEMES) * len(PALETTES))
 
     def test_each_row_names_the_largest_page(self):

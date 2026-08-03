@@ -80,11 +80,24 @@ class TestReport(unittest.TestCase):
         self.assertIn(f"import ceiling {SOFT_MAX} B ({MAX_ENCODED} encoded)", self.report)
 
     def test_the_portal_table_shows_the_encoded_length(self):
-        """The number PAN-OS says out loud when it refuses an import."""
+        """The number PAN-OS says out loud when it refuses an import.
+
+        The table is collapsed to one row per theme x palette -- the same shape
+        as the block-page table -- so only the largest of the two imports for
+        each combination gets a row; that is the one whose encoded length must
+        appear.
+        """
         self.assertIn("encoded", self.report)
+        worst: dict[tuple[str, str], int] = {}
+        sizes: dict[tuple[str, str], int] = {}
         for r in built()[1].portal_results:
-            with self.subTest(theme=r.theme, page=r.page):
-                self.assertIn(str(r.encoded), self.report)
+            key = (r.theme, r.palette)
+            if key not in sizes or r.size > sizes[key]:
+                sizes[key] = r.size
+                worst[key] = r.encoded
+        for (theme, palette), encoded in worst.items():
+            with self.subTest(theme=theme, palette=palette):
+                self.assertIn(str(encoded), self.report)
 
     def test_the_two_ceilings_are_never_conflated(self):
         """MAX_BYTES is a serving-time limit for block pages. Reporting a
