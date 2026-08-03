@@ -20,7 +20,7 @@ from panos_response_pages.errors import BuildError
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.portal.page import build_portal_page
-from panos_response_pages.validate import PAGE_TOKENS
+from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS
 
 THEMES = load_themes(DATA)
 PALETTE = load_palette("cyber-orange", DATA / "palettes")
@@ -52,11 +52,14 @@ def rep_anchor(html):
     """The contact anchor, as source.
 
     Walked by index rather than matched with `<a[^>]*>`: the email-mode href
-    contains <user/> and <url/>, so a negated-`>` class stops in the middle of
-    the attribute. This is the same walk tests/test_layout_details.py uses.
+    contains <user/>, <category/> and <url/>, each of which closes with its own
+    '>', so a search for the first bare '>' after href=" stops mid-attribute.
+    href is always the tag's last attribute, so the closing '">' -- the quote
+    that ends the href value, followed immediately by the tag's own '>' -- is
+    what actually bounds the tag.
     """
     i = html.index('id="rep"')
-    return html[html.rindex("<a ", 0, i) : html.index(">", html.index('href="', i)) + 1]
+    return html[html.rindex("<a ", 0, i) : html.index('">', html.index('href="', i)) + 2]
 
 
 @pytest.mark.unit
@@ -192,3 +195,74 @@ class TestRuntimeRewrite(unittest.TestCase):
 
     def test_url_mode_still_resolves_the_category(self):
         assert "getElementById('cat')" in render(shipped(**URL_CFG_KEYS))
+
+
+@pytest.mark.integration
+class TestContactSeam(unittest.TestCase):
+    def test_email_mode_href_is_unchanged(self):
+        anchor = rep_anchor(render(shipped()))
+        assert 'href="mailto:servicedesk@example.com?subject=Blocked%20site%20report' in anchor
+        assert "%0AAddress%3A%20<url/>" in anchor
+
+    def test_email_mode_keeps_data_to(self):
+        assert 'data-to="servicedesk@example.com"' in rep_anchor(render(shipped()))
+
+    def test_email_mode_keeps_the_fallback_paragraph(self):
+        html = render(shipped())
+        assert "Or email" in html
+
+    def test_url_mode_href_is_the_ticket_system(self):
+        cfg = shipped(**URL_CFG_KEYS)
+        assert 'href="https://tickets.example.com/new"' in rep_anchor(render(cfg))
+
+    def test_url_mode_drops_data_to(self):
+        assert "data-to" not in rep_anchor(render(shipped(**URL_CFG_KEYS)))
+
+    def test_url_mode_keeps_the_incident_metadata(self):
+        """The seam a ticket adapter will read. Dropping it would mean editing
+        all nine templates again when that adapter arrives."""
+        anchor = rep_anchor(render(shipped(**URL_CFG_KEYS)))
+        assert 'data-subject="Blocked site report"' in anchor
+        assert 'data-intro="Please review this block."' in anchor
+        assert 'data-prompt="Why I need access:"' in anchor
+
+    def test_url_mode_drops_the_fallback_paragraph(self):
+        assert "Or email" not in render(shipped(**URL_CFG_KEYS))
+
+
+@pytest.mark.integration
+class TestEveryPageInBothModes(unittest.TestCase):
+    def test_every_page_still_offers_a_contact_in_url_mode(self):
+        for page in PAGES:
+            html = render(shipped(**URL_CFG_KEYS), page=page)
+            assert 'id="rep"' in html, f"{page} lost its contact link"
+            assert 'href="https://tickets.example.com/new"' in html, page
+
+    def test_no_page_carries_a_mailto_in_url_mode(self):
+        for page in PAGES:
+            assert "mailto:" not in render(shipped(**URL_CFG_KEYS), page=page), page
+
+    def test_no_page_names_an_email_address_in_url_mode(self):
+        for page in PAGES:
+            assert "servicedesk@example.com" not in render(shipped(**URL_CFG_KEYS), page=page), page
+
+    def test_no_page_has_an_unresolved_token_in_url_mode(self):
+        for page in PAGES:
+            assert "{{" not in render(shipped(**URL_CFG_KEYS), page=page), page
+
+    def test_every_page_keeps_its_mailto_in_email_mode(self):
+        for page in PAGES:
+            assert 'href="mailto:servicedesk@example.com' in render(shipped(), page=page), page
+
+    def test_both_modes_stay_under_the_byte_ceiling(self):
+        for theme in THEMES:
+            for page in PAGES:
+                for cfg in (shipped(), shipped(**URL_CFG_KEYS)):
+                    size = len(render(cfg, page=page, theme=theme).encode("utf-8"))
+                    assert size <= MAX_BYTES, f"{theme['name']}/{page} is {size} B"
+
+    def test_safe_search_names_the_link_rather_than_an_address(self):
+        assert ">IT support</a>" in render(shipped(**URL_CFG_KEYS), page="safe-search-block-page")
+
+    def test_safe_search_still_prints_the_address_in_email_mode(self):
+        assert ">servicedesk@example.com</a>" in render(shipped(), page="safe-search-block-page")

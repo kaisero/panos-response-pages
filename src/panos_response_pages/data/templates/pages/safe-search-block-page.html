@@ -29,8 +29,10 @@
 
 <!--@EXTRA-->
 <p class="infobox">{{INFO_MARK}}<span>Set SafeSearch to its strictest option, then run your search again. If you are signed in to the search engine, lock the setting as well.</span></p>
-<p class="note">Still blocked after turning SafeSearch on? Email <a id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="SafeSearch still blocked"
+<p class="note">Still blocked after turning SafeSearch on? Email <a id="rep"{{CONTACT_TO}} data-subject="SafeSearch still blocked"
    data-intro="SafeSearch is enabled but my search is still blocked."
    data-prompt="What I searched for:"
-   href="mailto:{{SUPPORT_EMAIL}}?subject=SafeSearch%20still%20blocked&amp;body=SafeSearch%20is%20enabled%20but%20my%20search%20is%20still%20blocked.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20searched%20for%3A%0A">{{SUPPORT_EMAIL}}</a> and IT will take a look.</p>
+   href="{{CONTACT_HREF}}">{{CONTACT_NAME}}</a> and IT will take a look.</p>
 <!--/@EXTRA-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}?subject=SafeSearch%20still%20blocked&amp;body=SafeSearch%20is%20enabled%20but%20my%20search%20is%20still%20blocked.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20searched%20for%3A%0A<!--/@CONTACT_MAILTO-->

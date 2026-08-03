@@ -66,6 +66,22 @@ def build_page(
         "WARN_MARK": cfg["marks"]["warning"],
         "INFO_MARK": cfg["marks"]["info"],
     }
+    # The two contact sections are resolved first and on their own: they carry
+    # {{SUPPORT_EMAIL}} and nothing else, and their results ARE the values the
+    # {{CONTACT_*}} tokens in ACTIONS and EXTRA resolve to. Folding them into
+    # `base` keeps this to one pass over the sections -- and one pass is not a
+    # nicety. substitute() raises on any key it does not recognise, so a section
+    # containing {{CONTACT_HREF}} cannot be run through a dict that lacks it.
+    mailto = substitute(parts.get("CONTACT_MAILTO", ""), base)
+    alt = substitute(parts.get("CONTACT_ALT", ""), base)
+    base.update(
+        {
+            "CONTACT_HREF": contact.href(cfg, mailto),
+            "CONTACT_TO": contact.to_attr(cfg),
+            "CONTACT_ALT": alt if contact.mode(cfg) == contact.EMAIL else "",
+            "CONTACT_NAME": contact.name(cfg),
+        }
+    )
     parts = {k: substitute(v, base) for k, v in parts.items()}
 
     # The gallery's Redirect toggle, which shows the handoff on a config that has
