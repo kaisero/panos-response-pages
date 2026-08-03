@@ -12,8 +12,9 @@ import unittest
 
 import pytest
 
-from _build import built, deploy_dir, preview_dir
+from _build import DEFAULT_PALETTE, built, deploy_dir, preview_dir
 from _paths import DATA
+from panos_response_pages import palettes
 from panos_response_pages.builder import PORTAL_PAGES, PORTAL_PREVIEWS, build_all, format_report, load_themes
 from panos_response_pages.portal.validate import MAX_ENCODED, SOFT_MAX
 from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS
@@ -21,6 +22,7 @@ from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS
 pytestmark = pytest.mark.integration
 
 THEMES = [t["name"] for t in load_themes(DATA)]
+PALETTES = palettes.available(DATA / "palettes")
 
 
 class TestDeployLayout(unittest.TestCase):
@@ -28,7 +30,7 @@ class TestDeployLayout(unittest.TestCase):
         for theme in THEMES:
             for page in PORTAL_PAGES:
                 with self.subTest(theme=theme, page=page):
-                    self.assertTrue((deploy_dir() / theme / "portal" / f"{page}.html").is_file())
+                    self.assertTrue((deploy_dir() / theme / DEFAULT_PALETTE / "portal" / f"{page}.html").is_file())
 
     def test_the_block_page_glob_still_sees_only_block_pages(self):
         """Three existing tests glob `deploy/*/ *.html` or list the theme
@@ -36,7 +38,7 @@ class TestDeployLayout(unittest.TestCase):
         family inside both, and their failure would look like a block-page bug.
         """
         for theme in THEMES:
-            found = sorted(p.stem for p in (deploy_dir() / theme).glob("*.html"))
+            found = sorted(p.stem for p in (deploy_dir() / theme / DEFAULT_PALETTE).glob("*.html"))
             with self.subTest(theme=theme):
                 self.assertEqual(found, sorted(PAGE_TOKENS))
 
@@ -44,12 +46,12 @@ class TestDeployLayout(unittest.TestCase):
 class TestResultsStayInTheirOwnFamily(unittest.TestCase):
     def test_portal_pages_are_not_in_results(self):
         result = built()[1]
-        self.assertEqual(len(result.results), len(THEMES) * len(PAGE_TOKENS))
+        self.assertEqual(len(result.results), len(THEMES) * len(PALETTES) * len(PAGE_TOKENS))
         self.assertNotIn("login", {r.page for r in result.results})
 
     def test_portal_results_carry_both_lengths(self):
         result = built()[1]
-        self.assertEqual(len(result.portal_results), len(THEMES) * len(PORTAL_PAGES))
+        self.assertEqual(len(result.portal_results), len(THEMES) * len(PALETTES) * len(PORTAL_PAGES))
         for r in result.portal_results:
             with self.subTest(theme=r.theme, page=r.page):
                 # base64 is 4/3 plus line breaks, so the encoded form is always
@@ -78,11 +80,24 @@ class TestReport(unittest.TestCase):
         self.assertIn(f"import ceiling {SOFT_MAX} B ({MAX_ENCODED} encoded)", self.report)
 
     def test_the_portal_table_shows_the_encoded_length(self):
-        """The number PAN-OS says out loud when it refuses an import."""
+        """The number PAN-OS says out loud when it refuses an import.
+
+        The table is collapsed to one row per theme x palette -- the same shape
+        as the block-page table -- so only the largest of the two imports for
+        each combination gets a row; that is the one whose encoded length must
+        appear.
+        """
         self.assertIn("encoded", self.report)
+        worst: dict[tuple[str, str], int] = {}
+        sizes: dict[tuple[str, str], int] = {}
         for r in built()[1].portal_results:
-            with self.subTest(theme=r.theme, page=r.page):
-                self.assertIn(str(r.encoded), self.report)
+            key = (r.theme, r.palette)
+            if key not in sizes or r.size > sizes[key]:
+                sizes[key] = r.size
+                worst[key] = r.encoded
+        for (theme, palette), encoded in worst.items():
+            with self.subTest(theme=theme, palette=palette):
+                self.assertIn(str(encoded), self.report)
 
     def test_the_two_ceilings_are_never_conflated(self):
         """MAX_BYTES is a serving-time limit for block pages. Reporting a
@@ -101,7 +116,7 @@ class TestReport(unittest.TestCase):
 class TestPreview(unittest.TestCase):
     def test_every_theme_gets_all_six_spliced_surfaces(self):
         for theme in THEMES:
-            found = sorted(p.stem for p in (preview_dir() / theme / "portal").glob("*.html"))
+            found = sorted(p.stem for p in (preview_dir() / theme / DEFAULT_PALETTE / "portal").glob("*.html"))
             with self.subTest(theme=theme):
                 self.assertEqual(found, sorted(PORTAL_PREVIEWS))
 
@@ -113,9 +128,9 @@ class TestPreview(unittest.TestCase):
         self.assertTrue((preview_dir() / "portal" / "js" / "jquery.min.js").is_file())
 
     def test_the_previews_reach_the_tree_from_where_they_sit(self):
-        page = (preview_dir() / "glass" / "portal" / "login-default.html").read_text(encoding="utf-8")
-        self.assertIn('src="../../portal/js/jquery.min.js"', page)
-        target = preview_dir() / "glass" / "portal" / "../../portal/js/jquery.min.js"
+        page = (preview_dir() / "glass" / DEFAULT_PALETTE / "portal" / "login-default.html").read_text(encoding="utf-8")
+        self.assertIn('src="../../../portal/js/jquery.min.js"', page)
+        target = preview_dir() / "glass" / DEFAULT_PALETTE / "portal" / "../../../portal/js/jquery.min.js"
         self.assertTrue(target.resolve().is_file(), "the relative path does not resolve to the asset tree")
 
     def test_the_gallery_reaches_it_from_where_it_sits(self):
@@ -129,7 +144,7 @@ class TestPreview(unittest.TestCase):
         gallery = (preview_dir() / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="stategrp"', gallery)
         for surface in ("portal:login", "portal:getsoftware", "portal:logout"):
-            self.assertIn(f'<option value="{surface}"', gallery)
+            self.assertIn(f'data-value="{surface}"', gallery)
         for state in ("default", "error", "challenge", "changepw"):
             self.assertIn(f'data-state="{state}"', gallery)
 

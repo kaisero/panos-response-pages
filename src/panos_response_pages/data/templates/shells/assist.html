@@ -46,8 +46,15 @@ main{width:100%;max-width:36rem}
 text-transform:uppercase;color:var(--tt);background:var(--tw);
 padding:.25rem .7rem;border-radius:999px}
 .sev:empty{display:none}
+/* Two children, always: the mark and everything beside it. The text used to be
+   loose grid items with the mark spanning two rows, which meant the column each
+   one landed in depended on how many there were -- so an optional slot between
+   the headline and the gloss pushed the gloss into the mark's column and left
+   the headline in a 138 px gutter. min-width:0 because a grid item's default
+   min-width is its content, which a long unbroken URL would push the column past. */
 .hd{display:grid;grid-template-columns:auto 1fr;gap:0 1.15rem;align-items:start}
-.hd .ind{grid-row:span 2;width:3.4rem;height:3.4rem;border-radius:50%;background:var(--tw);
+.hdt{min-width:0}
+.hd .ind{width:3.4rem;height:3.4rem;border-radius:50%;background:var(--tw);
 color:var(--tt);display:grid;place-items:center;margin-top:.15rem}
 .hd .ind svg{width:1.9rem;height:1.9rem}
 h1{margin:0 0 .7rem;font-size:2rem;line-height:1.15;letter-spacing:-.028em;font-weight:650;
@@ -88,7 +95,7 @@ outline-offset:3px}
 @media(max-width:600px){
 body{padding:1.75rem 1.15rem 2.5rem}
 .hd{grid-template-columns:1fr;gap:0}
-.hd .ind{grid-row:auto;width:2.8rem;height:2.8rem;margin:0 0 .9rem}
+.hd .ind{width:2.8rem;height:2.8rem;margin:0 0 .9rem}
 .hd .ind svg{width:1.55rem;height:1.55rem}
 h1{font-size:1.7rem}
 .gloss{font-size:1rem;margin-bottom:26px}
@@ -96,6 +103,7 @@ h1{font-size:1.7rem}
 .acts>form input{width:100%}
 .acts{gap:.6rem}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+{{REDIRECT_CSS}}
 </style>
 </head>
 <body>
@@ -103,8 +111,11 @@ h1{font-size:1.7rem}
 <p class="brand">{{LOGO_SVG}}<span>{{COMPANY}}</span><span class="sev">{{SEVERITY}}</span></p>
 <div class="hd">
 <div class="ind">{{MARK}}</div>
+<div class="hdt">
 <h1>{{HEADLINE}}</h1>
+{{REDIRECT}}
 <p class="gloss" id="gloss">{{GLOSS}}</p>
+</div>
 </div>
 <dl>{{FACTS}}</dl>
 <div class="acts">{{ACTIONS}}</div>

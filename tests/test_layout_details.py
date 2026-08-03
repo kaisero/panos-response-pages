@@ -204,27 +204,64 @@ class TestMailto(unittest.TestCase):
             body = page.read_text(encoding="utf-8")
             if 'id="rep"' in body:
                 start = body.index('id="rep"')
-                yield page.stem, body[body.rindex("<a ", 0, start) : body.index(">", body.index('href="', start))]
+                # Bound on '">', not '>': the email-mode href embeds raw PAN-OS
+                # tokens like <user/>, and cutting at the first bare '>' would
+                # close the slice on that token's own bracket instead of the
+                # attribute's closing quote, truncating the anchor mid-href.
+                yield page.stem, body[body.rindex("<a ", 0, start) : body.index('">', body.index('href="', start)) + 2]
+
+    def _mailto_sections(self):
+        """The pre-filled mailto each page declares.
+
+        It lives in its own section rather than in the anchor, because the anchor's
+        href is now chosen at build time between this and a configured ticket URL.
+        The <url/> ordering rule follows the mailto, not the anchor.
+        """
+        for page in PAGES.glob("*.html"):
+            body = page.read_text(encoding="utf-8")
+            m = re.search(r"<!--@CONTACT_MAILTO-->(.*?)<!--/@CONTACT_MAILTO-->", body, re.S)
+            if m:
+                yield page.stem, m.group(1)
 
     def test_every_report_link_carries_the_rebuild_attributes(self):
+        # data-to is email-mode only -- it is an address, and a ticket URL has
+        # none -- so the template carries {{CONTACT_TO}} and the build decides.
+        # The other three ship in both modes: they are the page's incident
+        # metadata, and what a ticket adapter will read.
         found = 0
         for name, tag in self._report_links():
             found += 1
-            for attr in ("data-to", "data-subject", "data-intro", "data-prompt"):
+            for attr in ("{{CONTACT_TO}}", "data-subject", "data-intro", "data-prompt"):
                 self.assertIn(attr, tag, f"{name} missing {attr}")
         expected = len(list(PAGES.glob("*.html")))
         self.assertEqual(found, expected, "every page should offer a way to reach IT")
 
+    def test_every_page_declares_a_mailto_section(self):
+        """Email mode is the default, so a page without one has no href at all.
+        page.py falls back to an empty string rather than raising."""
+        declared = {name for name, _ in self._mailto_sections()}
+        expected = {p.stem for p in PAGES.glob("*.html")}
+        self.assertEqual(declared, expected, "every page needs a pre-filled mailto for email mode")
+
+    def test_mailto_sections_are_single_line(self):
+        """parse_sections strips the outer whitespace but not the interior, so a
+        newline introduced by reformatting would land inside the href."""
+        for name, mailto in self._mailto_sections():
+            self.assertNotIn("\n", mailto.strip(), f"{name}: the mailto section must stay on one line")
+
     def test_static_fallback_puts_the_url_token_last(self):
-        for name, tag in self._report_links():
-            if "<url/>" not in tag:
-                continue  # safe-search has no <url/> token
-            after = tag[tag.index("<url/>") + len("<url/>") :]
+        checked = 0
+        for name, mailto in self._mailto_sections():
+            if "<url/>" not in mailto:
+                continue  # safe-search, application and file pages have no <url/> token
+            checked += 1
+            after = mailto[mailto.index("<url/>") + len("<url/>") :]
             self.assertNotIn(
                 "%0A",
                 after,
                 f"{name}: no field may follow <url/> in the static href, or an '&' in the URL truncates it away",
             )
+        self.assertGreaterEqual(checked, 4, "no page's mailto carried a <url/> token -- this test asserted nothing")
 
     def test_subjects_are_distinct_per_page(self):
         subjects = {}
@@ -263,21 +300,22 @@ class TestPreviewGallery(unittest.TestCase):
 
         themes = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((DATA / "themes").glob("*.json"))]
         if len(themes) == 1:
-            self.assertNotIn("data-theme", self.html)
+            self.assertNotIn('id="themegrp"', self.html)
         else:
-            self.assertIn("<select data-theme>", self.html, "no style selector was emitted")
+            self.assertIn('id="themebtn"', self.html, "no style control was emitted")
             for theme in themes:
                 self.assertIn(
-                    f'<option value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
+                    f'data-value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
                 )
 
     def test_the_long_lists_do_not_grow_the_control_bar(self):
         """The chrome used to cost about 500 px of a 900 px viewport, most of it
-        the page list wrapping onto three rows. A select is one line whatever a
-        build produces; a button per page is not, so this is the rule that keeps
-        the bar from creeping back."""
-        self.assertIn("<select data-page>", self.html)
-        self.assertNotIn('data-page="', self.html, "the page list is buttons again")
+        the page list wrapping onto three rows. The closed control is one line
+        whatever a build produces -- its rows live in a popup that is hidden
+        until opened -- so this is the rule that keeps the bar from creeping
+        back: no page name may appear as a visible button in the bar itself."""
+        self.assertIn('id="pagebtn"', self.html)
+        self.assertNotRegex(self.html, r'<button role="radio" data-page="')
 
     def test_the_portal_frames_are_not_shrink_wrapped(self):
         """A portal page is a small card centred in min-height:100vh. Collapsing

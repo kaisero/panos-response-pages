@@ -38,9 +38,9 @@ panos-response-pages themes             # what styles exist
 panos-response-pages init               # copy the templates out to customise them
 ```
 
-`out/deploy/<style>/` is what you import. `out/preview/index.html` is a
-clickthrough gallery for review — style, page, viewport and colour scheme — built
-with sample data standing in for the PAN-OS tokens.
+`out/deploy/<style>/<palette>/` is what you import. `out/preview/index.html` is
+a clickthrough gallery for review — style, palette, page, viewport and colour
+scheme — built with sample data standing in for the PAN-OS tokens.
 
 Seven styles ship, all supporting both colour schemes. Six wear any of the three
 brand palettes: `assist`, `record`, `banner`, `glass`, `beacon`, `mesh`. `nyan`

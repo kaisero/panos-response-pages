@@ -1,6 +1,11 @@
 {
   "company": "Example Corp",
+  "_supportEmail": "Where every 'Report to IT' action goes. Mutually exclusive with supportUrl: set one, and blank the other. This mode pre-fills the mail with the page's own fact table -- the user, the address, the category -- so IT receives the incident already described.",
   "supportEmail": "servicedesk@example.com",
+  "_supportUrl": "An alternative to supportEmail, for a customer whose front door is a ticket system rather than a mailbox. Must be an absolute https:// URL: a response page is served AS the blocked site, so a relative path resolves against whatever host the user was refused. The link carries no pre-filled context -- an href cannot -- so the user describes the problem themselves. This file ships a supportEmail, and customer configs are MERGED over it, so a customer file setting supportUrl must also set \"supportEmail\": \"\" or the build stops.",
+  "supportUrl": "",
+  "_supportLabel": "What the contact link is CALLED when supportUrl is set. Ignored in supportEmail mode, where the link prints the address itself -- there, the address is both the label and the destination. Name the queue the way your users find it: 'the Service Desk', 'Helpdesk', 'IT Support'. Blank means the built-in default, 'IT support'.",
+  "supportLabel": "IT support",
   "_palette": "Colour scheme, from palettes/. One of the brand palettes: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette. Setting it here also overrides a style that pins its own palette, which nyan does -- leave it out of a customer file unless that is what you want.",
   "palette": "cyber-orange",
   "_logoSvg": "Placeholder mark. Replace with the customer's logo as INLINE SVG, optimised to <= 2 KB. A traced-path export can be 40 KB and will silently break the page. Keep viewBox 0 0 24 24 and use currentColor so it inherits the theme accent.",
@@ -10,14 +15,14 @@
   "_portalLogoSvg": "The GlobalProtect portal MARK, as SVG source -- the symbol only, no company name. The name is rendered as text beside it, from `company`, so it follows a rename and takes its colour from the page. Do not draw it in here: an SVG cannot measure text, the viewBox is fixed, and a name longer than the artwork would simply be clipped. Separate from logoSvg because the portal needs this as a percent-encoded data: URI rather than inline markup -- the build does that encoding, so write plain SVG here, with single quotes for attributes. Colour it with the S_* tokens, never a literal hex and never currentColor: this artwork is an isolated document and inherits nothing from the page. The build renders it TWICE, binding S_* to the palette's light values for one copy and its d_ values for the other, and the shells switch between the two in CSS. Keep it square -- it is drawn into a square box.",
   "portalLogoSvg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='{{S_ACCENT}}'/><g transform='translate(16,16) scale(.85) translate(-12,-12.5)'><path d='M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z' fill='{{S_ACCENT_INK}}'/></g></svg>",
   "_portalLogoSvgDark": "Optional. Set it only when the dark-scheme mark is different ARTWORK -- a different symbol, a knockout treatment -- rather than the same drawing in different colours. Left out, the dark copy is portalLogoSvg with S_* bound to the palette's dark values, which is what a mark built from the tokens wants.",
-  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator'.",
+  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator' -- {{CONTACT_REACHABLE}} resolves to the support address, or to the label followed by the ticket URL when supportUrl is set. PAN-OS fills this text in with .text(), so it cannot carry a link -- the URL itself has to be the words the user reads.",
   "logoutMessages": [
     "You have successfully logged out of GlobalProtect portal.",
     "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
     "User not authenticated to GlobalProtect portal.",
-    "System error. Contact {{SUPPORT_EMAIL}}.",
-    "System error, failed to delete user session. Contact {{SUPPORT_EMAIL}}.",
-    "Cannot create user session, maximum capacity reached. Contact {{SUPPORT_EMAIL}}.",
+    "System error. Contact {{CONTACT_REACHABLE}}.",
+    "System error, failed to delete user session. Contact {{CONTACT_REACHABLE}}.",
+    "Cannot create user session, maximum capacity reached. Contact {{CONTACT_REACHABLE}}.",
     "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
   ],
   "_marks": "Page-level marks, also inline SVG. Referenced by name from a page template's <!--@MARK--> slot.",
@@ -36,6 +41,17 @@
   "defaultGloss": "This category is restricted by company policy.",
   "_continueGrantText": "How long a Continue/Override grant lasts. PAN-OS defaults to 15 minutes but this is administrator-configurable per firewall, so it must match your actual URL Admin Override timeout rather than being hardcoded in the page.",
   "continueGrantText": "15 minutes",
+  "_redirect": "OPT-IN. When a blocked category has a company-sanctioned equivalent, the URL block page can name it and hand the user over after a countdown. Off unless `enabled` is true AND `categories` below maps at least one category -- with both unset, not one byte of this reaches a page. It applies to the URL block page ONLY: no other response page has a <category/> token to key on, and the two coach pages already carry a Continue action a countdown would race.",
+  "redirect": {
+    "_enabled": "The toggle. Leave false until the sanctioned apps below are ALLOWED by policy -- see the warning on `categories`.",
+    "enabled": false,
+    "_seconds": "Default countdown, 1-60. Override per category. Long enough to read one sentence and cancel; 10 is deliberately slower than it needs to be for someone who was expecting the site.",
+    "seconds": 10,
+    "_message": "Default notice text. `{app}` is replaced with that category's `app`. Override per category for a service that needs a different sentence.",
+    "message": "Taking you to {app} — the approved alternative for this.",
+    "_categories": "category -> the sanctioned app to forward to. WARNING: the target must be permitted by the security policy that produced the block, or the user is sent to a page that blocks them. The page will not loop on that -- served as the blocked site, it can see it is being blocked ON a sanctioned app and refuses to hop again, so a wrong entry here costs one wasted redirect rather than a trap -- but only policy can make the target reachable. Each category must also appear in `categories` above with tone `calm`; the build refuses a redirect on a warn or critical category, because a user must never be forwarded off a security block. `url` must be an absolute https:// URL: it is read from this file and never from <url/>, which is chosen by whoever the user was trying to reach. Optional per entry: `seconds` and `message`. Example: \"online-storage-and-backup\": { \"app\": \"Company Drive\", \"url\": \"https://drive.example.com/\", \"seconds\": 5, \"message\": \"Work files belong on {app}. Taking you there.\" }",
+    "categories": {}
+  },
   "_categories": "PAN-OS exposes no severity or reason variable and serves one page per type, so this map is applied client-side by reading the substituted <category/> value. Tone is one of calm | warn | critical. Covers the categories responsible for nearly all real blocks -- everything else falls back to defaultGloss.",
   "categories": {
     "command-and-control": {

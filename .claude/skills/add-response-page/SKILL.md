@@ -131,11 +131,15 @@ COPY_LOCK`.
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="<distinct subject>"
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="<distinct subject>"
    data-intro="..." data-prompt="..."
-   href="mailto:{{SUPPORT_EMAIL}}?subject=...&amp;body=...">Report to IT</a>
-<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> ...</p>
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
 <!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}?subject=...&amp;body=...<url/><!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> ...</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
 <p class="infobox">{{INFO_MARK}}<span>One supplementary sentence.</span></p>
@@ -150,8 +154,10 @@ COPY_LOCK`.
 | `id="ts"` on the Time row | The emitted script fills it; without the id it is permanently blank |
 | `id="cat"` on the Category row, if there is one | Drives the per-category tone and gloss rewrite |
 | `class="mono"` on URLs, filenames, app names | Machine values; proportional type makes them hard to read back to IT |
-| `id="rep"` and all four `data-*` attributes | The script rebuilds the mailto from the rendered rows. A raw `&` in a value truncates the static href, losing every field after it |
-| `<url/>` **last** in the static href | Same truncation: only trailing text should be lost |
+| `id="rep"`, `{{CONTACT_TO}}` and the three `data-*` attributes | The script rebuilds the mailto from the rendered rows. `data-to` is emitted by the build, not the template, because it is an address and a `supportUrl` config has none |
+| A `<!--@CONTACT_MAILTO-->` section, on one line | It is the href in email mode. `parse_sections` does not strip interior whitespace, so a newline lands inside the href |
+| The static href goes in that section, never in the anchor | The anchor's href is chosen at build time between the mailto and a configured ticket URL |
+| `<url/>` **last** in the static href | Same truncation, now inside the `<!--@CONTACT_MAILTO-->` section rather than the anchor's href: only trailing text should be lost |
 | A distinct `data-subject` | Duplicate subjects make tickets indistinguishable |
 | `Report to IT` is a `class="btn"` anchor | It read as prose when it was a bare link |
 | Every page reaches IT somehow | Asserted by count against the number of templates |

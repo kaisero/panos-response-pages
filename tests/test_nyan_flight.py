@@ -26,7 +26,7 @@ def nyan_pages():
     out, result = built()
     for r in result.results:
         if r.theme == "nyan":
-            yield r.page, (out / "deploy" / "nyan" / f"{r.page}.html").read_text(encoding="utf-8")
+            yield r.page, (out / "deploy" / "nyan" / r.palette / f"{r.page}.html").read_text(encoding="utf-8")
 
 
 class TestFlight(unittest.TestCase):

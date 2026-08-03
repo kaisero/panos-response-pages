@@ -20,7 +20,7 @@ coloured pill on the page.
 import re
 import unittest
 
-from _build import deploy_dir
+from _build import DEFAULT_PALETTE, deploy_dir
 from _paths import DATA
 
 SHELL = (DATA / "templates/shells/assist.html").read_text(encoding="utf-8")
@@ -100,7 +100,7 @@ class TestAssistShell(unittest.TestCase):
 
 class TestSeverityAtRuntime(unittest.TestCase):
     def _page(self, name):
-        return (deploy_dir() / "assist" / f"{name}.html").read_text(encoding="utf-8")
+        return (deploy_dir() / "assist" / DEFAULT_PALETTE / f"{name}.html").read_text(encoding="utf-8")
 
     def test_script_sets_the_label_alongside_data_tone(self):
         """url-block-page ships TONE=calm but is raised to crit at runtime; the

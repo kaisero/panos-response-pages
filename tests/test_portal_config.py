@@ -35,11 +35,13 @@ class TestPortalConfig(unittest.TestCase):
         self.assertIn("expired", msgs[6].lower())
 
     def test_admin_only_errors_name_a_contact(self):
-        """load_config performs no interpolation, so the raw token survives
-        here and is resolved during composition."""
+        """load_config performs no interpolation. The raw token survives here
+        and is resolved during composition, where it becomes either the
+        support address or the label and the ticket URL -- PAN-OS fills this
+        text in with .text(), so it cannot carry a link of its own."""
         for i in (3, 4, 5):
             with self.subTest(index=i):
-                self.assertIn("{{SUPPORT_EMAIL}}", self.cfg["logoutMessages"][i])
+                self.assertIn("{{CONTACT_REACHABLE}}", self.cfg["logoutMessages"][i])
 
     def test_no_message_tells_a_user_to_contact_an_administrator(self):
         """The stock wording names a role the user has no way to reach."""

@@ -22,11 +22,26 @@
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Blocked site report"
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Blocked site report"
    data-intro="Please review this block." data-prompt="Why I need access:"
-   href="mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20site%20report&amp;body=Please%20review%20this%20block.%0A%0AUser%3A%20<user/>%0ACategory%3A%20<category/>%0A%0AWhy%20I%20need%20access%3A%0A%0AAddress%3A%20<url/>">Report to IT</a>
-<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p>
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
 <!--/@ACTIONS-->
+
+<!--
+  The pre-filled mailto, used only when the config sets supportEmail. It lives in
+  its own section because its body is this page's copy, and only this file can say
+  what belongs in it.
+
+  Keep it on ONE line. parse_sections() strips the section's outer whitespace but
+  not its interior, so a newline introduced by reformatting lands inside the href.
+
+  <url/> stays LAST: PAN-OS expands it at serve time, and a raw "&" in the
+  expanded address terminates the body parameter, dropping every field after it.
+-->
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20site%20report&amp;body=Please%20review%20this%20block.%0A%0AUser%3A%20<user/>%0ACategory%3A%20<category/>%0A%0AWhy%20I%20need%20access%3A%0A%0AAddress%3A%20<url/><!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
 <p class="infobox">{{INFO_MARK}}<span>If you believe this site is needed for your work, send the report above and IT will review it.</span></p>

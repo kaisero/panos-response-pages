@@ -122,9 +122,11 @@ class TestThemeSelection(unittest.TestCase):
             load_themes(pathlib.Path(tempfile.mkdtemp()))
 
     def test_building_one_theme_builds_only_that_theme(self):
+        from panos_response_pages import palettes
+
         result = build_all(DATA, pathlib.Path(tempfile.mkdtemp()), theme="mesh", preview=False, write=False)
         self.assertEqual({r.theme for r in result.results}, {"mesh"})
-        self.assertEqual(len(result.results), len(PAGE_TOKENS))
+        self.assertEqual(len(result.results), len(PAGE_TOKENS) * len(palettes.available(DATA / "palettes")))
 
 
 class TestOversizePage(unittest.TestCase):

@@ -17,15 +17,14 @@ from __future__ import annotations
 
 import html
 import json
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from panos_response_pages import redirect
+from panos_response_pages.errors import BuildError
+
 GALLERY_CSS = """
-:root{{--bg:{ground};--srf:{surface};--srf2:{surface_alt};--fg:{ink};--mut:{ink_muted};
---line:{surface_alt};--acc:{accent};--acci:{accent_ink};--acct:{accent_text}}}
-@media(prefers-color-scheme:dark){{:root{{--bg:{d_ground};--srf:{d_surface};--srf2:{d_surface_alt};
---fg:{d_ink};--mut:{d_ink_muted};--line:{d_surface_alt};--acc:{d_accent};--acci:{d_accent_ink};
---acct:{d_accent_text}}}}}
 *{{box-sizing:border-box}}
 body{{margin:0;background:var(--bg);color:var(--fg);
 font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -43,22 +42,18 @@ white-space:nowrap}}
 /* auto margin rather than a spacer element: on a line that has wrapped it
    simply stops applying, where a flex spacer would still claim a slot. */
 .push{{margin-left:auto}}
-/* A label wrapping its own select, so the caption is part of the hit area. */
+/* A box wrapping its own caption and control, so the caption is part of the
+   hit area -- shared by Style, Page and Palette, the three listbox controls. */
 .ctl{{position:relative;display:inline-flex;align-items:center;gap:.4rem;height:2rem;
 padding:0 .5rem;border:1px solid var(--line);border-radius:.55rem;background:var(--srf);
 cursor:pointer}}
 .ctl:focus-within{{border-color:var(--acct)}}
 .ctl>span,.seg>span{{font-size:.62rem;font-weight:600;letter-spacing:.1em;
 text-transform:uppercase;color:var(--mut);white-space:nowrap}}
-select{{appearance:none;-webkit-appearance:none;font:inherit;font-size:.8rem;font-weight:550;
-color:var(--fg);background:none;border:0;padding:0 1rem 0 0;height:100%;cursor:pointer;
-max-width:14rem}}
-select:focus{{outline:0}}
 /* A CSS caret rather than a background SVG: an <img>-style background is an
    isolated document, so it could not follow the scheme through currentColor. */
 .ctl::after{{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
 border:.26rem solid transparent;border-top-color:var(--mut);pointer-events:none}}
-option{{background:var(--srf);color:var(--fg)}}
 .seg{{display:inline-flex;align-items:center;gap:.15rem;height:2rem;padding:.15rem;
 border:1px solid var(--line);border-radius:.55rem;background:var(--srf)}}
 .seg>span{{padding:0 .3rem 0 .35rem}}
@@ -67,7 +62,7 @@ border:0;background:none;color:var(--fg);border-radius:.4rem;cursor:pointer;
 white-space:nowrap}}
 .seg button:hover{{background:var(--srf2)}}
 .seg button[aria-pressed=true]{{background:var(--acc);color:var(--acci);font-weight:650}}
-button:focus-visible,select:focus-visible{{outline:3px solid var(--acct);outline-offset:2px}}
+button:focus-visible{{outline:3px solid var(--acct);outline-offset:2px}}
 main{{padding:1.5rem 1.5rem 1rem;display:flex;justify-content:center}}
 .stage{{display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;justify-content:center}}
 figure{{margin:0;display:flex;flex-direction:column;gap:.6rem;align-items:center}}
@@ -83,10 +78,42 @@ iframe{{border:0;display:block;width:100%;background:var(--srf)}}
 color:var(--mut);font-size:.78rem;line-height:1.6}}
 .foot code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}}
 @media(max-width:900px){{h1{{width:100%;margin:0 0 .2rem}}.gap{{display:none}}}}
+/* Bare, exactly like the <select> this replaced. The wrapper already carries
+   the box, the height and the caret -- giving this button its own border,
+   background and ::after would draw a second bordered control inside the
+   first, with two carets. One rule for Style, Page and Palette alike: all
+   three are now the same button-plus-popup listbox. */
+.ctl>button{{display:inline-flex;align-items:center;gap:.45rem;height:100%;
+padding:0 1rem 0 0;border:0;background:none;color:var(--fg);
+font-size:.8rem;font-weight:550;cursor:pointer;max-width:14rem}}
+.sw{{flex:none;width:.85rem;height:.85rem;border-radius:50%;
+box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}}
+/* Capped and scrollable: Page can carry a dozen rows across two groups, and an
+   uncapped popup would run off the bottom of the viewport. */
+.ctl ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
+padding:.25rem;list-style:none;border:1px solid var(--line);border-radius:.55rem;
+background:var(--srf);box-shadow:0 .6rem 1.6rem rgba(10,20,30,.22);
+max-height:16rem;overflow-y:auto}}
+.ctl ul[hidden]{{display:none}}
+.ctl li{{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
+font-size:.8rem;white-space:nowrap;cursor:pointer}}
+.ctl li:hover,.ctl li[data-on]{{background:var(--srf2)}}
+.ctl li[aria-selected=true]::after{{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}}
+.ctl li:focus-visible{{outline:3px solid var(--acct);outline-offset:-3px}}
+/* A group heading inside the popup: not a row, so it takes no selection state
+   and pointer-events:none keeps it out of hover and click alike. Arrow
+   navigation already skips it -- the JS only ever walks [role=option]. */
+.ctl li.grp-hd{{cursor:default;pointer-events:none;font-size:.62rem;font-weight:600;
+letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:.5rem .5rem .2rem}}
 """
 
 # How each portal preview is labelled in the controls. The file names are keys
 # and stay terse; these are what a reviewer reads.
+# The url-block page built with the sanctioned-app handoff forced on. Keyed off
+# the page list rather than in it: `pages` is PAGE_TOKENS, and this variant is not
+# a page PAN-OS serves.
+RX_KEY = f"{redirect.PAGE}{redirect.PREVIEW_SUFFIX}"
+
 PORTAL_LABELS = {
     "login": "Login",
     "getsoftware": "Get software",
@@ -98,15 +125,124 @@ PORTAL_LABELS = {
 }
 
 
+# What is interpolated raw into GALLERY_CSS -- a `.format()` template -- and
+# into the two hand-built selectors below it. None of that is escaped, so one
+# `{`, `}` or `;` in a palette value corrupts every rule after it, and a `"`
+# in a name breaks out of an attribute selector. Palette JSON is
+# maintainer-controlled at build time, so this is not currently exploitable --
+# it is fixed as robustness, in every place a palette value reaches the
+# stylesheet, since it is one habit rather than three. Rejected outright
+# rather than sanitised: a value that cannot be a plain CSS token has no
+# business being one.
+_UNSAFE_CSS = re.compile(r"""[{};"'<>\\\r\n]""")
+
+
+def _css_safe(value: Any, what: str) -> str:
+    text = str(value)
+    if not text or _UNSAFE_CSS.search(text):
+        raise BuildError(f"{what} {text!r} cannot be used as a plain CSS value")
+    return text
+
+
+CHROME_KEYS = (
+    ("--bg", "ground"),
+    ("--srf", "surface"),
+    ("--srf2", "surface_alt"),
+    ("--fg", "ink"),
+    ("--mut", "ink_muted"),
+    ("--line", "surface_alt"),
+    ("--acc", "accent"),
+    ("--acci", "accent_ink"),
+    ("--acct", "accent_text"),
+)
+
+
+def _tokens(colors: Mapping[str, Any], dark: bool) -> str:
+    prefix = "d_" if dark else ""
+    return ";".join(
+        f"{var}:{_css_safe(colors[prefix + key], f'palette colour {prefix + key!r}')}" for var, key in CHROME_KEYS
+    )
+
+
+def _chrome_tokens(palettes: Sequence[Mapping[str, Any]], opening: str) -> str:
+    """The toolbar's own colours, one block per palette.
+
+    The chrome follows the selection, so the whole window wears the palette
+    being previewed rather than showing it only as a dot in a dropdown.
+
+    The opening palette is emitted twice: once on bare `:root`, as a
+    no-JavaScript fallback -- if the script fails to run, the toolbar still
+    has colours instead of rendering unstyled -- and once under its own
+    attribute so returning to it works like any other.
+    """
+    out = []
+    for p in palettes:
+        colors = p["colors"]
+        light, dark = _tokens(colors, False), _tokens(colors, True)
+        name = _css_safe(p["name"], "palette name")
+        if p["name"] == opening:
+            out.append(f":root{{{light}}}")
+            out.append(f"@media(prefers-color-scheme:dark){{:root{{{dark}}}}}")
+        sel = f':root[data-pal="{name}"]'
+        out.append(f"{sel}{{{light}}}")
+        out.append(f"@media(prefers-color-scheme:dark){{{sel}{{{dark}}}}}")
+    return "\n".join(out)
+
+
+def _listbox(
+    id_prefix: str,
+    caption: str,
+    groups: Sequence[tuple[str | None, Sequence[tuple[str, str]]]],
+    cur: str,
+    swatch: Callable[[str], str] | None = None,
+) -> str:
+    """One custom listbox control: a button plus a themed popup.
+
+    Style, Page and Palette are all built through this one function -- the
+    accessibility markup exists once, not three times. Each is wired to the
+    inline script's one `mkListbox` factory by `id_prefix`, which gives all
+    three the same keyboard, grouping and typeahead behaviour.
+
+    `groups` lets a control present labelled sections (Page's block pages vs.
+    portal surfaces) as headings inside the popup rather than as more entries
+    in a flat list. A heading is `role="presentation"`: inert to the mouse,
+    and skipped by arrow navigation, which only ever walks `[role=option]`
+    rows -- so no keyboard-nav code has to know groups exist.
+    """
+    rows: list[str] = []
+    cur_label: str = cur
+    cur_swatch = ""
+    for heading, items in groups:
+        if heading:
+            rows.append(f'<li role="presentation" class="grp-hd">{html.escape(heading)}</li>')
+        for value, label in items:
+            sw = swatch(value) if swatch else ""
+            selected = value == cur
+            rows.append(
+                f'<li role="option" data-value="{html.escape(value)}" '
+                f'aria-selected="{str(selected).lower()}" tabindex="-1">{sw}{html.escape(label)}</li>'
+            )
+            if selected:
+                cur_label, cur_swatch = label, sw
+    return (
+        f'<div class="ctl" id="{id_prefix}grp"><span>{html.escape(caption)}</span>'
+        f'<button type="button" id="{id_prefix}btn" aria-haspopup="listbox" aria-expanded="false">'
+        f'{cur_swatch}<span id="{id_prefix}label">{html.escape(str(cur_label))}</span></button>'
+        f'<ul role="listbox" id="{id_prefix}list" aria-label="{html.escape(caption)}" hidden>'
+        f"{''.join(rows)}</ul></div>"
+    )
+
+
 def build_gallery(
     themes: Sequence[Mapping[str, Any]],
     pages: Sequence[str],
-    blobs: Mapping[tuple[str, str], str],
+    blobs: Mapping[tuple[str, str, str], str],
     cfg: Mapping[str, Any],
     palette: Mapping[str, Any],
-    portal_blobs: Mapping[tuple[str, str], str] | None = None,
+    palettes: Sequence[Mapping[str, Any]],
+    portal_blobs: Mapping[tuple[str, str, str], str] | None = None,
     portal_previews: Sequence[str] = (),
-) -> str:
+) -> tuple[str, dict[str, str]]:
     """Self-contained preview: every page inlined via iframe srcdoc.
 
     Frames are sized to their content after load, so nothing scrolls inside a
@@ -118,11 +254,6 @@ def build_gallery(
     anything from disk -- the prefixes pull jQuery from `portal/` beside this
     file, and srcdoc resolves that relative to this document.
     """
-
-    def options(items: Sequence[tuple[str, str]], cur: str) -> str:
-        return "".join(
-            f'<option value="{v}"{" selected" if v == cur else ""}>{html.escape(lbl)}</option>' for v, lbl in items
-        )
 
     def seg(
         name: str,
@@ -155,13 +286,34 @@ def build_gallery(
 
     # One list for both families. They were two button groups sharing one state
     # key, which meant neither could show a selection the other did not clear;
-    # as optgroups of a single select the grouping survives and the selected
-    # entry is always visible without opening anything.
-    page_opts = f'<optgroup label="Block pages">{options([(p, p) for p in pages], pages[0])}</optgroup>'
+    # as labelled groups of a single listbox the grouping survives and the
+    # selected entry is always visible without opening anything.
+    page_groups: list[tuple[str | None, Sequence[tuple[str, str]]]] = [
+        ("Block pages", [(p, p) for p in pages]),
+    ]
     if surfaces:
-        portal_items = [(f"portal:{s}", PORTAL_LABELS[s]) for s in surfaces]
-        page_opts += f'<optgroup label="GlobalProtect portal">{options(portal_items, "")}</optgroup>'
-    page_ctl = f'<label class="ctl"><span>Page</span><select data-page>{page_opts}</select></label>'
+        page_groups.append(("GlobalProtect portal", [(f"portal:{s}", PORTAL_LABELS[s]) for s in surfaces]))
+    page_ctl = _listbox("page", "Page", page_groups, pages[0])
+
+    palette_by_name = {p["name"]: p for p in palettes}
+
+    def swatch(name: str) -> str:
+        accent = _css_safe(palette_by_name[name]["colors"]["accent"], "palette colour 'accent'")
+        return f'<span class="sw" style="background:{html.escape(accent)}"></span>'
+
+    # Only when there is a choice: a one-entry dropdown is a label pretending to
+    # be a control, and `--palette` narrowing the build is a normal thing to do.
+    palette_ctl = (
+        _listbox(
+            "pal",
+            "Palette",
+            [(None, [(p["name"], str(p["label"])) for p in palettes])],
+            palette["name"],
+            swatch=swatch,
+        )
+        if len(palettes) > 1
+        else ""
+    )
 
     state_seg = (
         seg("state", "Login state", [(s, PORTAL_LABELS[s]) for s in states], states[0], ' id="stategrp" hidden')
@@ -169,25 +321,70 @@ def build_gallery(
         else ""
     )
 
+    # Same shape as the login states: one page rendered two ways, so it composes
+    # into the key rather than becoming an entry in the page list. Always built,
+    # so the toggle demonstrates the handoff to someone whose config has not
+    # enabled it -- which is every config until they opt in.
+    # Offered only if the demo blob was actually built: the control is useless
+    # without something to switch to, and an On that renders an empty frame reads
+    # as a broken preview rather than as a feature nobody asked for.
+    redirect_seg = (
+        seg("redirect", "Redirect", [("off", "Off"), ("on", "On")], "off", ' id="rxgrp" hidden')
+        if any((t["name"], palette["name"], RX_KEY) in blobs for t in themes)
+        else ""
+    )
+
     # The style is fixed at build time, so there is nothing to choose between --
-    # the selector only appears if this build actually produced more than one.
+    # the control only appears if this build actually produced more than one.
     theme_ctl = ""
     if len(themes) > 1:
-        theme_opts = options([(t["name"], t["label"]) for t in themes], themes[0]["name"])
-        theme_ctl = f'<label class="ctl"><span>Style</span><select data-theme>{theme_opts}</select></label>'
+        theme_ctl = _listbox(
+            "theme", "Style", [(None, [(t["name"], str(t["label"])) for t in themes])], themes[0]["name"]
+        )
 
     view_items = [("both", "Both"), ("desktop", "Desktop"), ("mobile", "Mobile")]
     view_seg = seg("view", "Viewport", view_items, "both", caption=False, push=True)
     scheme_seg = seg("scheme", "Colour scheme", [("light", "Light"), ("dark", "Dark")], "light", caption=False)
 
-    data = {f"{t['name']}|{p}": blobs[(t["name"], p)] for t in themes for p in pages}
-    data.update(
-        {f"{t['name']}|portal:{p}": (portal_blobs or {})[(t["name"], p)] for t in themes for p in portal_previews}
-    )
-    payload = json.dumps(data).replace("</", "<\\/")
-    css = GALLERY_CSS.format(**palette["colors"])
+    def blob_map(pname: str) -> dict[str, str]:
+        """Every frame for one palette, keyed <style>|<palette>|<page>."""
+        out = {f"{t['name']}|{pname}|{p}": blobs[(t["name"], pname, p)] for t in themes for p in pages}
+        out.update(
+            {
+                f"{t['name']}|{pname}|{RX_KEY}": blobs[(t["name"], pname, RX_KEY)]
+                for t in themes
+                if (t["name"], pname, RX_KEY) in blobs
+            }
+        )
+        out.update(
+            {
+                f"{t['name']}|{pname}|portal:{p}": (portal_blobs or {})[(t["name"], pname, p)]
+                for t in themes
+                for p in portal_previews
+            }
+        )
+        return out
 
-    return f"""<!DOCTYPE html>
+    def encode(obj: dict[str, str]) -> str:
+        # </ would close the <script> that carries this, wherever it appears
+        # inside a blob -- which it does, in every page that has a </style>.
+        return json.dumps(obj).replace("</", "<\\/")
+
+    opening = palette["name"]
+    payload = encode(blob_map(opening))
+    sidecars = {
+        f"blobs-{p['name']}.js": f"PP({json.dumps(p['name'])},{encode(blob_map(p['name']))})"
+        for p in palettes
+        if p["name"] != opening
+    }
+
+    # The redirect demo, keyed off the page list rather than in it -- `pages` is
+    # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
+    # than assumed so a caller that built no demo simply gets no toggle payload.
+    rx_ok = json.dumps({t["name"]: 1 for t in themes if (t["name"], opening, RX_KEY) in blobs})
+    css = _chrome_tokens(palettes, opening) + "\n" + GALLERY_CSS.format()
+
+    gallery_html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Response page preview — {html.escape(cfg["company"])}</title>
@@ -196,23 +393,68 @@ def build_gallery(
   <h1>Response page preview</h1>
   {theme_ctl}
   {page_ctl}
+  {palette_ctl}
   {state_seg}
+  {redirect_seg}
   {view_seg}
   {scheme_seg}
 </div>
 <main><div class="stage" id="stage"></div></main>
 <p class="foot">Sample data stands in for the PAN-OS tokens so the pages render; the files under
    <code>deploy/</code> keep the tokens intact. The portal frames are spliced onto captured PAN-OS
-   prefixes to show the whole served page — <strong>preview only, never importable</strong>.</p>
+   prefixes to show the whole served page — <strong>preview only, never importable</strong>.
+   <strong>Redirect: On</strong> shows the sanctioned-app handoff on a calm category, and its countdown
+   <strong>restarts</strong> so the motion stays visible — the served page hands over once and does not
+   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.</p>
 <script>
-var D={payload},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",view:"both",scheme:"light",
-state:"{states[0] if states else ""}"}};
-// The login surface is one import in four server-driven states, so the state
-// control composes into the key rather than selecting a page of its own.
+var D={payload},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
+palette:"{palette["name"]}",view:"both",scheme:"light",
+state:"{states[0] if states else ""}",redirect:"off"}};
+LOADED[S.palette]=1;
+document.documentElement.setAttribute("data-pal",S.palette);
+// Each palette but the opening one arrives as a sibling classic script that
+// calls this. A module would be CORS-checked and fail on file://, and fetch()
+// is unavailable there for the same reason -- which is why this is a <script
+// src> and not a request.
+function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[name]=1}}
+// One <script src> per palette, ever. Two renders of the same not-yet-loaded
+// palette -- flipping the viewport while a sidecar is still in flight -- must
+// not append a second element and re-fetch the file; the second caller queues
+// behind the first and both run when it resolves.
+var INFLIGHT={{}};
+// A missing or interrupted sidecar used to mark itself loaded and settle with
+// no further sign of anything wrong -- so the one frame that needed it just
+// rendered blank, which reads as a page bug rather than a missing file. FAILED
+// records which palette's sidecar did not load, so frame() can say so instead
+// of rendering nothing; LOADED still gets set, on purpose, so a palette that
+// failed once is not retried in a loop on every subsequent selection.
+var FAILED={{}};
+function need(pal,done){{
+  if(LOADED[pal]) return done();
+  if(INFLIGHT[pal]){{INFLIGHT[pal].push(done);return}}
+  INFLIGHT[pal]=[done];
+  var s=document.createElement("script");
+  s.src="blobs-"+pal+".js";
+  function settle(){{
+    var q=INFLIGHT[pal];delete INFLIGHT[pal];
+    for(var i=0;i<q.length;i++) q[i]();
+  }}
+  s.onload=settle;
+  s.onerror=function(){{LOADED[pal]=1;FAILED[pal]=1;settle()}};
+  document.head.appendChild(s);
+}}
+// Which styles have room for the notice. nyan does not -- its URL block page is
+// 15558 B before a flat 3347 B notice, against a 17999 B ceiling -- so selecting
+// it must take the control away rather than offer an On with nothing behind it.
+var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}",RXOK={rx_ok};
+// The login surface is one import in four server-driven states, and the url
+// block page is one page built with and without the sanctioned-app handoff. Both
+// controls compose into the key rather than selecting a page of their own.
 function key(){{
   var p=S.page;
   if(p==="portal:login") p=p+"-"+S.state;
-  return S.theme+"|"+p;
+  if(p===RXPAGE&&S.redirect==="on"&&RXOK[S.theme]) p=p+RXSUF;
+  return S.theme+"|"+S.palette+"|"+p;
 }}
 // A frame never shrinks below this. Block pages fill their frame and want to be
 // shrink-wrapped, so their floor is 0. The portal pages are a small card centred
@@ -240,7 +482,12 @@ function frame(kind){{
   var f=document.createElement("figure");
   var d=document.createElement("div"); d.className="dev "+kind;
   var i=document.createElement("iframe");
-  i.setAttribute("srcdoc",D[key()]||"");
+  var blob=D[key()];
+  if(!blob&&FAILED[S.palette]){{
+    blob="<p style='font:14px sans-serif;padding:2rem'>blobs-"+S.palette+".js failed to load "
+      +"&mdash; this palette's preview is missing.</p>";
+  }}
+  i.setAttribute("srcdoc",blob||"");
   i.setAttribute("title",S.page+" "+kind);
   // Carried on the element so the resize handler, which only has the iframe,
   // does not have to work out which page produced it.
@@ -256,19 +503,16 @@ function frame(kind){{
   c.textContent=kind;
   f.appendChild(c); return f;
 }}
-function render(){{
+function draw(){{
   var g=document.getElementById("stategrp");
   if(g) g.hidden = S.page!=="portal:login";
+  var r=document.getElementById("rxgrp");
+  if(r) r.hidden = S.page!==RXPAGE||!RXOK[S.theme];
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
 }}
-document.querySelectorAll(".bar select").forEach(function(sel){{
-  sel.addEventListener("change",function(){{
-    S[Object.keys(sel.dataset)[0]]=sel.value;
-    render();
-  }});
-}});
+function render(){{ need(S.palette,draw); }}
 // Cleared within the group: each segmented control is its own radiogroup, so
 // the pressed state never has to be reasoned about across the whole bar.
 document.querySelectorAll(".seg button").forEach(function(b){{
@@ -283,7 +527,96 @@ document.querySelectorAll(".seg button").forEach(function(b){{
 addEventListener("resize",function(){{
   document.querySelectorAll("iframe").forEach(fit);
 }});
+// One factory wires Style, Page and Palette alike: a button plus a popup
+// listbox, by id prefix. `prop` is the S key it writes on choose. Grouped
+// rows (Page's block pages vs. portal surfaces) need no special handling
+// here -- `rows` only ever collects [role=option] elements, so a
+// role="presentation" heading is already invisible to every index this
+// walks.
+function mkListbox(idPrefix,prop){{
+  var grp=document.getElementById(idPrefix+"grp");
+  if(!grp) return;
+  var btn=document.getElementById(idPrefix+"btn"),
+      list=document.getElementById(idPrefix+"list"),
+      label=document.getElementById(idPrefix+"label"),
+      rows=[].slice.call(list.querySelectorAll("[role=option]")),at=0,
+      buf="",bufT;
+  rows.forEach(function(r,i){{if(r.getAttribute("aria-selected")==="true")at=i}});
+  function mark(i){{
+    at=(i+rows.length)%rows.length;
+    rows.forEach(function(r,j){{
+      if(j===at) r.setAttribute("data-on",""); else r.removeAttribute("data-on");
+    }});
+    rows[at].focus();
+    rows[at].scrollIntoView({{block:"nearest"}});
+  }}
+  function open(){{
+    list.hidden=false;btn.setAttribute("aria-expanded","true");mark(at);
+  }}
+  function close(back){{
+    list.hidden=true;btn.setAttribute("aria-expanded","false");
+    if(back!==false) btn.focus();
+  }}
+  function choose(i){{
+    at=i;
+    var r=rows[i];
+    rows.forEach(function(o){{o.setAttribute("aria-selected",String(o===r))}});
+    S[prop]=r.getAttribute("data-value");
+    var sw=r.querySelector(".sw"),bsw=btn.querySelector(".sw");
+    if(sw&&bsw) bsw.style.background=sw.style.background;
+    label.textContent=r.textContent;
+    // Palette-specific: the toolbar's own colours key off data-pal, which
+    // nothing else on this page writes.
+    if(prop==="palette") document.documentElement.setAttribute("data-pal",S.palette);
+    close();render();
+  }}
+  btn.addEventListener("click",function(){{list.hidden?open():close()}});
+  list.addEventListener("click",function(e){{
+    var r=e.target.closest("[role=option]");
+    if(r) choose(rows.indexOf(r));
+  }});
+  grp.addEventListener("keydown",function(e){{
+    if(e.key==="Escape"){{if(!list.hidden){{e.preventDefault();close()}}return}}
+    if(list.hidden){{
+      if(e.key==="ArrowDown"||e.key==="Enter"||e.key===" "){{e.preventDefault();open()}}
+      return;
+    }}
+    if(e.key==="ArrowDown"){{e.preventDefault();mark(at+1)}}
+    else if(e.key==="ArrowUp"){{e.preventDefault();mark(at-1)}}
+    else if(e.key==="Home"){{e.preventDefault();mark(0)}}
+    else if(e.key==="End"){{e.preventDefault();mark(rows.length-1)}}
+    else if(e.key==="Enter"||e.key===" "){{e.preventDefault();choose(at)}}
+    else if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){{
+      // Type-to-jump: printable keys build a short buffer that forgets
+      // itself after a pause, so typing "vi" finds a different row than
+      // typing "v", pausing, then "i" again.
+      clearTimeout(bufT);
+      buf+=e.key.toLowerCase();
+      bufT=setTimeout(function(){{buf=""}},1000);
+      for(var i=0;i<rows.length;i++){{
+        if(rows[i].textContent.trim().toLowerCase().indexOf(buf)===0){{mark(i);break}}
+      }}
+    }}
+  }});
+  // Tab moves focus out of the widget entirely (rows carry tabindex="-1", so
+  // it lands on whatever toolbar control follows), and no keydown fires for
+  // that -- only focusout does. relatedTarget is null when focus leaves the
+  // document/page entirely, which we also treat as "left".
+  grp.addEventListener("focusout",function(e){{
+    if(!list.hidden&&(!e.relatedTarget||!grp.contains(e.relatedTarget))) close(false);
+  }});
+  // Pointer-down, not click: a click listener fires after the browser has
+  // already moved focus, so the popup would close with focus somewhere else.
+  document.addEventListener("pointerdown",function(e){{
+    if(!list.hidden&&!grp.contains(e.target)) close(false);
+  }});
+}}
+mkListbox("theme","theme");
+mkListbox("page","page");
+mkListbox("pal","palette");
 render();
 </script>
 </body></html>
 """
+
+    return gallery_html, sidecars

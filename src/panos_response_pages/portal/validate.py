@@ -18,6 +18,8 @@ from __future__ import annotations
 import base64
 import re
 
+from panos_response_pages.validate import _IS_ANCHOR, _IS_REP
+
 # Measured, not guessed. PAN-OS rejected a 24_000 B import with:
 #
 #   page can be at most 21845 characters, but current length: 32422
@@ -164,7 +166,16 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
         errors.append("a csrf-token value is baked in -- it is per-request; logins will fail")
 
     # The portal's CSP blocks external CSS and JS. data: and same-origin are fine.
+    # A navigational <a href> is not a subresource load and is not what the CSP
+    # refuses -- so the contact link may point off-origin. Keyed on id="rep", the
+    # same way validate.py keys the block-page rule: "any https anchor" would be a
+    # far larger exemption than this needs.
     for m in _EXTERNAL.finditer(text):
+        tag_start = text.rfind("<", 0, m.start())
+        tag_end = text.find(">", m.start())
+        tag = text[tag_start : tag_end + 1] if tag_start >= 0 and tag_end >= 0 else ""
+        if _IS_ANCHOR.match(tag) and _IS_REP.search(tag) and m.group(1).startswith("https://"):
+            continue
         errors.append(f"external reference blocked by the portal CSP: {m.group(1)[:60]}")
 
     # PAN-OS's own ready handler dereferences every one; undeclared ones throw
