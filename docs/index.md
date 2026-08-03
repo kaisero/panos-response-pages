@@ -55,12 +55,22 @@ Output lands in two places:
 
 | Path | Contents |
 |---|---|
-| `out/deploy/<style>/` | Deployable pages, PAN-OS tokens intact |
-| `out/preview/<style>/` | The same pages with sample data, for visual review |
-| `out/preview/index.html` | Clickthrough gallery — style, page, viewport, colour scheme |
+| `out/deploy/<style>/<palette>/` | Deployable pages, PAN-OS tokens intact |
+| `out/preview/<style>/<palette>/` | The same pages with sample data, for visual review |
+| `out/preview/index.html` | Clickthrough gallery — style, palette, page, viewport, colour scheme |
 
 Import from `out/deploy/`. The preview build substitutes sample values for the
 PAN-OS tokens so the pages render in a browser; it is **not** deployable.
+
+The preview gallery has a **Palette** dropdown listing every palette with its
+primary colour. Switching palette reloads the frames from a sibling
+`preview/blobs-<palette>.js`, which is why `preview/` contains one of those per
+palette — the gallery would otherwise be a 5.9 MB document, most of it never
+looked at.
+
+Style and palette are independent. A style that pins its own palette (nyan does)
+decides only which palette the gallery opens on; every style is still built in
+every palette, because the point of building all of them is to choose.
 
 ## Customising
 
@@ -87,5 +97,4 @@ not there — so it is all-or-nothing, and `init` makes copying everything cheap
 
 - [CLI reference](cli.md) — every command and flag
 - [Styles](styles.md) — the seven shells and the contract a new one must meet
-- [Copy rules](copy-rules.md) — what the page is not allowed to claim
 - [Customising](customising.md) — config keys

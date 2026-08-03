@@ -34,19 +34,22 @@ Palettes declare which sort they are:
 | `brand` | The customer axis. Any style may wear it, and it is what `--palette` chooses between |
 | `style` | Belongs to one shell, which pins it. Not a choice offered to a customer |
 
-The pin is the weakest of the four ways a palette gets chosen. In order:
+The pin is the weakest of four inputs, and all four now settle a smaller
+question than they used to: every style is built in every palette regardless,
+so none of this decides what gets built any more, only which palette the
+preview gallery opens on — the CLI report calls that one out as
+`gallery opens on:`. In order:
 
-1. `--palette` on the command line
+1. `--palette` on the command line — the one exception: passing it also
+   narrows the build itself to that single palette, rather than just picking
+   which one is shown first
 2. `palette` in `config/<customer>.json` — the customer's own document
 3. the theme's pin
 4. the shipped default
 
 Rung 2 reads the customer file directly rather than the merged config, because
 `_defaults.json` ships a `palette` and the merged view therefore always carries
-one. Counting that as a choice would mean a pin could never fire. A theme that
-renders in something other than the build's palette says so at the foot of the
-build report — a style quietly wearing a colour nobody selected reads as a bug in
-the palette rather than as a decision in the theme.
+one. Counting that as a choice would mean a pin could never fire.
 
 Only one guard differs by kind. `test_dark_grounds_are_tinted_not_saturated`
 caps a dark ground's saturation, so that a brand hue stays a whisper behind an

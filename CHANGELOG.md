@@ -8,6 +8,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Response pages and the portal can point their contact action at an `https://`
+  ticket system instead of a `mailto:`, via a new `supportUrl` config key.
+  `supportUrl` and `supportEmail` are mutually exclusive; a config setting both
+  fails the build. The ticket link carries no pre-filled context, but the page
+  still declares the incident metadata as `data-*` attributes for a future
+  ticket-system adapter to read.
+
+### Changed
+
+- Every style is now built in every palette. Pages move from
+  `out/deploy/<style>/` to `out/deploy/<style>/<palette>/`, and portal imports
+  from `out/deploy/<style>/portal/` to `out/deploy/<style>/<palette>/portal/`.
+  **This breaks any script that globs the old paths.**
+- `--palette` narrows a build to one palette instead of selecting the only one
+  built, matching how `--theme` narrows the style axis.
+- A theme's `palette` pin and the config's `palette` key now choose which
+  palette the preview gallery opens on. They no longer decide what is built.
+- The build report prints one row per style and palette, naming that
+  combination's largest page, with anything that warns or fails listed in full
+  underneath.
+
+### Added
+
+- A palette dropdown in the preview gallery, showing each palette's primary
+  colour. The gallery chrome follows the selection.
 - **A seventh style, `nyan`** — Nyan Runway. A pixel cat flying across a star
   field beside the notice, laying a spectrum trail; legs and tail animate as a
   frame swap, and a click on empty sky rolls it once and doubles the trail. The
@@ -21,8 +46,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Style palettes.** Palettes now declare a `kind`: `brand` palettes are the
   customer axis, a `style` palette belongs to one shell and is pinned by it with
   a `palette` key in the theme. Resolution order is `--palette`, then the
-  customer's own config file, then the pin, then the default; a theme rendering
-  in anything other than the build's palette is named in the build report.
+  customer's own config file, then the pin, then the default — see above for
+  what that order now decides.
 
 ## [0.1.0]
 

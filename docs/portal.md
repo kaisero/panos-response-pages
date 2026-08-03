@@ -49,9 +49,9 @@ panos-response-pages build
 
 | Path | What |
 |---|---|
-| `out/deploy/<theme>/portal/login.html` | The login import. Upload this. |
-| `out/deploy/<theme>/portal/home.html` | The home import. Upload this. |
-| `out/preview/<theme>/portal/…` | **Preview only. Never upload.** |
+| `out/deploy/<theme>/<palette>/portal/login.html` | The login import. Upload this. |
+| `out/deploy/<theme>/<palette>/portal/home.html` | The home import. Upload this. |
+| `out/preview/<theme>/<palette>/portal/…` | **Preview only. Never upload.** |
 
 Preview files are spliced with PAN-OS's own captured prefix and a sample form so
 they render in a browser — neither import is a document on its own. A spliced
@@ -81,7 +81,7 @@ in the default state is not finished:
 | `portalLogoSvg` | Portal mark — the symbol only, as SVG source |
 | `portalLogoSvgDark` | Optional. Different dark-scheme artwork |
 | `logoutMessages` | The seven logout messages, in order |
-| `company`, `supportEmail` | Shared with the block pages |
+| `company`, `supportEmail` / `supportUrl` | Shared with the block pages |
 
 ### `portalLogoSvg`
 
@@ -145,6 +145,10 @@ Entries 3, 4 and 5 are system errors an end user cannot act on. The stock text
 tells them to "contact system administrator", which names a role they have no way
 to reach, so the shipped defaults name `supportEmail` instead. That is a genuine
 improvement rather than cosmetics.
+
+A config with `supportUrl` set renders the same messages with "IT support" as
+the contact — the ticket link has no address to print, so it names the queue
+instead.
 
 ## Byte ceiling
 

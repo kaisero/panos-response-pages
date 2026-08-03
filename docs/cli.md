@@ -22,7 +22,7 @@ Build every page of every style.
 |---|---|---|
 | `--customer`, `-c` | `contoso` | Config merged over `_defaults.json`. |
 | `--theme`, `-t` | all | One style only. An unknown name is rejected with the list of real ones. |
-| `--palette`, `-p` | from config | Overrides the palette the config names. |
+| `--palette`, `-p` | all | Build one palette only. Omit to build every palette. |
 | `--out`, `-o` | `out` | Output root. `deploy/` and `preview/` are created inside it. |
 | `--config-dir` | resolved | Use this data directory instead. |
 | `--preview / --no-preview` | preview | Whether to build the review gallery. |
