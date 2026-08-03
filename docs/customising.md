@@ -61,6 +61,13 @@ The URL must be absolute `https://`. A response page is served *as* the blocked
 site, so a relative path resolves against whatever host the user was refused, and
 an `http://` link on a page whose whole job is to be trusted is not one.
 
+The build also rejects a `supportUrl` that would break the page rather than
+just look wrong: one with no host (`https://` alone), one containing a quote,
+an angle bracket, whitespace or a control character (it lands unescaped inside
+`href="{{CONTACT_HREF}}"`, so any of those breaks out of the attribute), and a
+`supportLabel` containing `<` or `>` (it is printed as the link text). A query
+string is fine — `https://x.example.com/new?cat=1&sev=2` passes as written.
+
 ### What you give up
 
 The ticket link carries no context. A `mailto:` can pre-fill a subject and a body;
@@ -86,8 +93,12 @@ there so that adding it does not mean editing all nine page templates again.
 ### Also affected
 
 `supportUrl` applies to the GlobalProtect portal as well: the "Need help?" note on
-every portal page, and the three logout messages that name a contact. Where those
-would print an email address, they print the words "IT support" instead.
+every portal page, and the three logout messages that name a contact. The "Need
+help?" note is a link, so it prints the label. The logout messages are not —
+PAN-OS fills them in with `.text()`, so markup would render as literal
+characters — and print the label *and* the URL as plain prose instead, e.g.
+"Contact the Service Desk at https://tickets.example.com/new", so the address is
+still something the user can actually find and use.
 
 ## Redirecting to a sanctioned app
 

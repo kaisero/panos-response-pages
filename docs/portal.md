@@ -146,9 +146,12 @@ tells them to "contact system administrator", which names a role they have no wa
 to reach, so the shipped defaults name `supportEmail` instead. That is a genuine
 improvement rather than cosmetics.
 
-A config with `supportUrl` set renders the same messages with "IT support" as
-the contact — the ticket link has no address to print, so it names the queue
-instead.
+A config with `supportUrl` set renders the same messages naming the label *and*
+the ticket URL as plain prose — e.g. "Contact the Service Desk at
+https://tickets.example.com/new" — rather than just the label. PAN-OS fills this
+text in with `.text()`, so it cannot carry a link the way the rest of the portal
+does; the URL itself has to be part of the words the user reads, or there is no
+way to actually reach the queue named.
 
 ## Byte ceiling
 
