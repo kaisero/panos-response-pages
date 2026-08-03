@@ -8,9 +8,14 @@ and this test holds all three to 4.5:1.
 
 import colorsys
 import json
+import pathlib
+import shutil
+import tempfile
 import unittest
 
 from _paths import DATA
+from panos_response_pages.errors import BuildError
+from panos_response_pages.palettes import load_palette
 
 PALETTES = sorted((DATA / "palettes").glob("*.json"))
 
@@ -152,6 +157,51 @@ class TestPalettes(unittest.TestCase):
                     if ratio < AA_NORMAL:
                         failures.append(f"{path.stem} [{scheme}] {label}: {fg} on {bg} = {ratio:.2f}:1")
         self.assertEqual(failures, [], "contrast failures:\n  " + "\n  ".join(failures))
+
+
+class TestFilenameIsAuthoritative(unittest.TestCase):
+    """build_all keys everything -- `loaded`, `blobs[(theme, stem, page)]`,
+    deploy/<style>/<stem>/ -- by the palette file's stem. build_gallery keys
+    everything else -- blob_map, blobs-<name>.js, data-pal, data-palette -- by
+    the JSON's own `name` field. A palette whose `name` disagrees with its
+    filename used to produce either a raw KeyError deep in build_gallery, or a
+    build that reported `ok` while silently writing a gallery with two rows for
+    the same palette and no sidecar for the new one. Both are worse than
+    refusing at load time, where there is still one file to point at.
+
+    Built in a tempfile.TemporaryDirectory() copy of the packaged data dir
+    rather than in place, so a bad fixture never touches the packaged data.
+    """
+
+    def _copy(self) -> pathlib.Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        data_dir = pathlib.Path(tmp.name) / "data"
+        shutil.copytree(DATA, data_dir)
+        return data_dir
+
+    def test_a_mismatched_name_is_a_build_error(self):
+        data_dir = self._copy()
+        palette_dir = data_dir / "palettes"
+        acme = json.loads((palette_dir / "cyber-orange.json").read_text(encoding="utf-8"))
+        acme["name"] = "acme-brand"
+        (palette_dir / "acme.json").write_text(json.dumps(acme), encoding="utf-8")
+
+        with self.assertRaises(BuildError) as caught:
+            load_palette("acme", palette_dir)
+        message = str(caught.exception)
+        self.assertIn("acme-brand", message)
+        self.assertIn("acme", message)
+
+    def test_a_matching_name_still_loads(self):
+        data_dir = self._copy()
+        palette_dir = data_dir / "palettes"
+        acme = json.loads((palette_dir / "cyber-orange.json").read_text(encoding="utf-8"))
+        acme["name"] = "acme"
+        (palette_dir / "acme.json").write_text(json.dumps(acme), encoding="utf-8")
+
+        loaded = load_palette("acme", palette_dir)
+        self.assertEqual(loaded["name"], "acme")
 
 
 if __name__ == "__main__":

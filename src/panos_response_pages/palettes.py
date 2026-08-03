@@ -20,6 +20,21 @@ def load_palette(name: str, palette_dir: pathlib.Path) -> dict[str, Any]:
         available = ", ".join(sorted(p.stem for p in palette_dir.glob("*.json")))
         raise BuildError(f"unknown palette '{name}'. Available: {available}")
     palette: dict[str, Any] = json.loads(read(path))
+    # The filename is authoritative. build_all keys everything -- `loaded`,
+    # `blobs[(theme, stem, page)]`, deploy/<style>/<stem>/ -- by this stem, while
+    # build_gallery keys everything -- blob_map, the blobs-<name>.js sidecar,
+    # data-pal, data-palette -- by the JSON's own `name` field. Nothing checks
+    # the two agree, and when they do not the failure is either a raw KeyError
+    # deep in build_gallery or a build that reports `ok` while silently writing
+    # a gallery with two rows for the same palette and no sidecar for the new
+    # one. Both are worse than refusing here, where there is still one name to
+    # point at.
+    if palette.get("name") != path.stem:
+        raise BuildError(
+            f"palette file {path.name} declares name '{palette.get('name')}', which does not match its "
+            f"filename stem '{path.stem}'. Rename the file to '{palette.get('name')}.json', or change "
+            f"'name' in it to '{path.stem}'."
+        )
     return palette
 
 
