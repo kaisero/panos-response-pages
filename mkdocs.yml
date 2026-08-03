@@ -27,7 +27,6 @@ nav:
   - Home: index.md
   - CLI: cli.md
   - Styles: styles.md
-  - Copy rules: copy-rules.md
   - Customising: customising.md
   - GlobalProtect portal: portal.md
   - Architecture: architecture/general.md
