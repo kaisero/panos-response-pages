@@ -82,12 +82,12 @@ iframe{{border:0;display:block;width:100%;background:var(--srf)}}
 color:var(--mut);font-size:.78rem;line-height:1.6}}
 .foot code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}}
 @media(max-width:900px){{h1{{width:100%;margin:0 0 .2rem}}.gap{{display:none}}}}
-.pal{{position:relative}}
-.pal>button{{display:inline-flex;align-items:center;gap:.45rem;height:2rem;padding:0 1.6rem 0 .5rem;
-border:1px solid var(--line);border-radius:.55rem;background:var(--srf);color:var(--fg);
+/* Bare, exactly like the <select> inside a .ctl. The wrapper already carries the
+   box, the height and the caret -- giving this button its own border, background
+   and ::after drew a second bordered control inside the first, with two carets. */
+.pal>button{{display:inline-flex;align-items:center;gap:.45rem;height:100%;
+padding:0 1rem 0 0;border:0;background:none;color:var(--fg);
 font-size:.8rem;font-weight:550;cursor:pointer}}
-.pal>button::after{{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
-border:.26rem solid transparent;border-top-color:var(--mut)}}
 .sw{{flex:none;width:.85rem;height:.85rem;border-radius:50%;
 box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}}
 .pal ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
