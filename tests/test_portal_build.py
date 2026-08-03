@@ -144,7 +144,7 @@ class TestPreview(unittest.TestCase):
         gallery = (preview_dir() / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="stategrp"', gallery)
         for surface in ("portal:login", "portal:getsoftware", "portal:logout"):
-            self.assertIn(f'<option value="{surface}"', gallery)
+            self.assertIn(f'data-value="{surface}"', gallery)
         for state in ("default", "error", "challenge", "changepw"):
             self.assertIn(f'data-state="{state}"', gallery)
 

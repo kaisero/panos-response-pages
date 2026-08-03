@@ -263,21 +263,22 @@ class TestPreviewGallery(unittest.TestCase):
 
         themes = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((DATA / "themes").glob("*.json"))]
         if len(themes) == 1:
-            self.assertNotIn("data-theme", self.html)
+            self.assertNotIn('id="themegrp"', self.html)
         else:
-            self.assertIn("<select data-theme>", self.html, "no style selector was emitted")
+            self.assertIn('id="themebtn"', self.html, "no style control was emitted")
             for theme in themes:
                 self.assertIn(
-                    f'<option value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
+                    f'data-value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
                 )
 
     def test_the_long_lists_do_not_grow_the_control_bar(self):
         """The chrome used to cost about 500 px of a 900 px viewport, most of it
-        the page list wrapping onto three rows. A select is one line whatever a
-        build produces; a button per page is not, so this is the rule that keeps
-        the bar from creeping back."""
-        self.assertIn("<select data-page>", self.html)
-        self.assertNotIn('data-page="', self.html, "the page list is buttons again")
+        the page list wrapping onto three rows. The closed control is one line
+        whatever a build produces -- its rows live in a popup that is hidden
+        until opened -- so this is the rule that keeps the bar from creeping
+        back: no page name may appear as a visible button in the bar itself."""
+        self.assertIn('id="pagebtn"', self.html)
+        self.assertNotRegex(self.html, r'<button role="radio" data-page="')
 
     def test_the_portal_frames_are_not_shrink_wrapped(self):
         """A portal page is a small card centred in min-height:100vh. Collapsing

@@ -18,7 +18,7 @@ from __future__ import annotations
 import html
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from panos_response_pages import redirect
@@ -42,22 +42,18 @@ white-space:nowrap}}
 /* auto margin rather than a spacer element: on a line that has wrapped it
    simply stops applying, where a flex spacer would still claim a slot. */
 .push{{margin-left:auto}}
-/* A label wrapping its own select, so the caption is part of the hit area. */
+/* A box wrapping its own caption and control, so the caption is part of the
+   hit area -- shared by Style, Page and Palette, the three listbox controls. */
 .ctl{{position:relative;display:inline-flex;align-items:center;gap:.4rem;height:2rem;
 padding:0 .5rem;border:1px solid var(--line);border-radius:.55rem;background:var(--srf);
 cursor:pointer}}
 .ctl:focus-within{{border-color:var(--acct)}}
 .ctl>span,.seg>span{{font-size:.62rem;font-weight:600;letter-spacing:.1em;
 text-transform:uppercase;color:var(--mut);white-space:nowrap}}
-select{{appearance:none;-webkit-appearance:none;font:inherit;font-size:.8rem;font-weight:550;
-color:var(--fg);background:none;border:0;padding:0 1rem 0 0;height:100%;cursor:pointer;
-max-width:14rem}}
-select:focus{{outline:0}}
 /* A CSS caret rather than a background SVG: an <img>-style background is an
    isolated document, so it could not follow the scheme through currentColor. */
 .ctl::after{{content:"";position:absolute;right:.5rem;top:50%;margin-top:-.12rem;
 border:.26rem solid transparent;border-top-color:var(--mut);pointer-events:none}}
-option{{background:var(--srf);color:var(--fg)}}
 .seg{{display:inline-flex;align-items:center;gap:.15rem;height:2rem;padding:.15rem;
 border:1px solid var(--line);border-radius:.55rem;background:var(--srf)}}
 .seg>span{{padding:0 .3rem 0 .35rem}}
@@ -66,7 +62,7 @@ border:0;background:none;color:var(--fg);border-radius:.4rem;cursor:pointer;
 white-space:nowrap}}
 .seg button:hover{{background:var(--srf2)}}
 .seg button[aria-pressed=true]{{background:var(--acc);color:var(--acci);font-weight:650}}
-button:focus-visible,select:focus-visible{{outline:3px solid var(--acct);outline-offset:2px}}
+button:focus-visible{{outline:3px solid var(--acct);outline-offset:2px}}
 main{{padding:1.5rem 1.5rem 1rem;display:flex;justify-content:center}}
 .stage{{display:flex;gap:2rem;align-items:flex-start;flex-wrap:wrap;justify-content:center}}
 figure{{margin:0;display:flex;flex-direction:column;gap:.6rem;align-items:center}}
@@ -82,23 +78,33 @@ iframe{{border:0;display:block;width:100%;background:var(--srf)}}
 color:var(--mut);font-size:.78rem;line-height:1.6}}
 .foot code{{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}}
 @media(max-width:900px){{h1{{width:100%;margin:0 0 .2rem}}.gap{{display:none}}}}
-/* Bare, exactly like the <select> inside a .ctl. The wrapper already carries the
-   box, the height and the caret -- giving this button its own border, background
-   and ::after drew a second bordered control inside the first, with two carets. */
-.pal>button{{display:inline-flex;align-items:center;gap:.45rem;height:100%;
+/* Bare, exactly like the <select> this replaced. The wrapper already carries
+   the box, the height and the caret -- giving this button its own border,
+   background and ::after would draw a second bordered control inside the
+   first, with two carets. One rule for Style, Page and Palette alike: all
+   three are now the same button-plus-popup listbox. */
+.ctl>button{{display:inline-flex;align-items:center;gap:.45rem;height:100%;
 padding:0 1rem 0 0;border:0;background:none;color:var(--fg);
-font-size:.8rem;font-weight:550;cursor:pointer}}
+font-size:.8rem;font-weight:550;cursor:pointer;max-width:14rem}}
 .sw{{flex:none;width:.85rem;height:.85rem;border-radius:50%;
 box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}}
-.pal ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
+/* Capped and scrollable: Page can carry a dozen rows across two groups, and an
+   uncapped popup would run off the bottom of the viewport. */
+.ctl ul{{position:absolute;z-index:10;top:calc(100% + .3rem);left:0;min-width:100%;margin:0;
 padding:.25rem;list-style:none;border:1px solid var(--line);border-radius:.55rem;
-background:var(--srf);box-shadow:0 .6rem 1.6rem rgba(10,20,30,.22)}}
-.pal ul[hidden]{{display:none}}
-.pal li{{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
+background:var(--srf);box-shadow:0 .6rem 1.6rem rgba(10,20,30,.22);
+max-height:16rem;overflow-y:auto}}
+.ctl ul[hidden]{{display:none}}
+.ctl li{{display:flex;align-items:center;gap:.45rem;padding:.35rem .5rem;border-radius:.35rem;
 font-size:.8rem;white-space:nowrap;cursor:pointer}}
-.pal li:hover,.pal li[data-on]{{background:var(--srf2)}}
-.pal li[aria-selected=true]::after{{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}}
-.pal li:focus-visible{{outline:3px solid var(--acct);outline-offset:-3px}}
+.ctl li:hover,.ctl li[data-on]{{background:var(--srf2)}}
+.ctl li[aria-selected=true]::after{{content:"\\2713";margin-left:auto;padding-left:.6rem;color:var(--acct)}}
+.ctl li:focus-visible{{outline:3px solid var(--acct);outline-offset:-3px}}
+/* A group heading inside the popup: not a row, so it takes no selection state
+   and pointer-events:none keeps it out of hover and click alike. Arrow
+   navigation already skips it -- the JS only ever walks [role=option]. */
+.ctl li.grp-hd{{cursor:default;pointer-events:none;font-size:.62rem;font-weight:600;
+letter-spacing:.1em;text-transform:uppercase;color:var(--mut);padding:.5rem .5rem .2rem}}
 """
 
 # How each portal preview is labelled in the controls. The file names are keys
@@ -183,6 +189,50 @@ def _chrome_tokens(palettes: Sequence[Mapping[str, Any]], opening: str) -> str:
     return "\n".join(out)
 
 
+def _listbox(
+    id_prefix: str,
+    caption: str,
+    groups: Sequence[tuple[str | None, Sequence[tuple[str, str]]]],
+    cur: str,
+    swatch: Callable[[str], str] | None = None,
+) -> str:
+    """One custom listbox control: a button plus a themed popup.
+
+    Style, Page and Palette are all built through this one function -- the
+    accessibility markup exists once, not three times. Each is wired to the
+    inline script's one `mkListbox` factory by `id_prefix`, which gives all
+    three the same keyboard, grouping and typeahead behaviour.
+
+    `groups` lets a control present labelled sections (Page's block pages vs.
+    portal surfaces) as headings inside the popup rather than as more entries
+    in a flat list. A heading is `role="presentation"`: inert to the mouse,
+    and skipped by arrow navigation, which only ever walks `[role=option]`
+    rows -- so no keyboard-nav code has to know groups exist.
+    """
+    rows: list[str] = []
+    cur_label: str = cur
+    cur_swatch = ""
+    for heading, items in groups:
+        if heading:
+            rows.append(f'<li role="presentation" class="grp-hd">{html.escape(heading)}</li>')
+        for value, label in items:
+            sw = swatch(value) if swatch else ""
+            selected = value == cur
+            rows.append(
+                f'<li role="option" data-value="{html.escape(value)}" '
+                f'aria-selected="{str(selected).lower()}" tabindex="-1">{sw}{html.escape(label)}</li>'
+            )
+            if selected:
+                cur_label, cur_swatch = label, sw
+    return (
+        f'<div class="ctl" id="{id_prefix}grp"><span>{html.escape(caption)}</span>'
+        f'<button type="button" id="{id_prefix}btn" aria-haspopup="listbox" aria-expanded="false">'
+        f'{cur_swatch}<span id="{id_prefix}label">{html.escape(str(cur_label))}</span></button>'
+        f'<ul role="listbox" id="{id_prefix}list" aria-label="{html.escape(caption)}" hidden>'
+        f"{''.join(rows)}</ul></div>"
+    )
+
+
 def build_gallery(
     themes: Sequence[Mapping[str, Any]],
     pages: Sequence[str],
@@ -204,11 +254,6 @@ def build_gallery(
     anything from disk -- the prefixes pull jQuery from `portal/` beside this
     file, and srcdoc resolves that relative to this document.
     """
-
-    def options(items: Sequence[tuple[str, str]], cur: str) -> str:
-        return "".join(
-            f'<option value="{v}"{" selected" if v == cur else ""}>{html.escape(lbl)}</option>' for v, lbl in items
-        )
 
     def seg(
         name: str,
@@ -241,31 +286,31 @@ def build_gallery(
 
     # One list for both families. They were two button groups sharing one state
     # key, which meant neither could show a selection the other did not clear;
-    # as optgroups of a single select the grouping survives and the selected
-    # entry is always visible without opening anything.
-    page_opts = f'<optgroup label="Block pages">{options([(p, p) for p in pages], pages[0])}</optgroup>'
+    # as labelled groups of a single listbox the grouping survives and the
+    # selected entry is always visible without opening anything.
+    page_groups: list[tuple[str | None, Sequence[tuple[str, str]]]] = [
+        ("Block pages", [(p, p) for p in pages]),
+    ]
     if surfaces:
-        portal_items = [(f"portal:{s}", PORTAL_LABELS[s]) for s in surfaces]
-        page_opts += f'<optgroup label="GlobalProtect portal">{options(portal_items, "")}</optgroup>'
-    page_ctl = f'<label class="ctl"><span>Page</span><select data-page>{page_opts}</select></label>'
+        page_groups.append(("GlobalProtect portal", [(f"portal:{s}", PORTAL_LABELS[s]) for s in surfaces]))
+    page_ctl = _listbox("page", "Page", page_groups, pages[0])
 
-    def swatch(p: Mapping[str, Any]) -> str:
-        accent = _css_safe(p["colors"]["accent"], "palette colour 'accent'")
+    palette_by_name = {p["name"]: p for p in palettes}
+
+    def swatch(name: str) -> str:
+        accent = _css_safe(palette_by_name[name]["colors"]["accent"], "palette colour 'accent'")
         return f'<span class="sw" style="background:{html.escape(accent)}"></span>'
 
-    pal_rows = "".join(
-        f'<li role="option" data-palette="{html.escape(p["name"])}" '
-        f'aria-selected="{str(p["name"] == palette["name"]).lower()}" tabindex="-1">'
-        f"{swatch(p)}{html.escape(str(p['label']))}</li>"
-        for p in palettes
-    )
     # Only when there is a choice: a one-entry dropdown is a label pretending to
     # be a control, and `--palette` narrowing the build is a normal thing to do.
     palette_ctl = (
-        f'<div class="ctl pal" id="palgrp"><span>Palette</span>'
-        f'<button type="button" id="palbtn" aria-haspopup="listbox" aria-expanded="false">'
-        f'{swatch(palette)}<span id="pallabel">{html.escape(str(palette["label"]))}</span></button>'
-        f'<ul role="listbox" id="pallist" aria-label="Palette" hidden>{pal_rows}</ul></div>'
+        _listbox(
+            "pal",
+            "Palette",
+            [(None, [(p["name"], str(p["label"])) for p in palettes])],
+            palette["name"],
+            swatch=swatch,
+        )
         if len(palettes) > 1
         else ""
     )
@@ -290,11 +335,12 @@ def build_gallery(
     )
 
     # The style is fixed at build time, so there is nothing to choose between --
-    # the selector only appears if this build actually produced more than one.
+    # the control only appears if this build actually produced more than one.
     theme_ctl = ""
     if len(themes) > 1:
-        theme_opts = options([(t["name"], t["label"]) for t in themes], themes[0]["name"])
-        theme_ctl = f'<label class="ctl"><span>Style</span><select data-theme>{theme_opts}</select></label>'
+        theme_ctl = _listbox(
+            "theme", "Style", [(None, [(t["name"], str(t["label"])) for t in themes])], themes[0]["name"]
+        )
 
     view_items = [("both", "Both"), ("desktop", "Desktop"), ("mobile", "Mobile")]
     view_seg = seg("view", "Viewport", view_items, "both", caption=False, push=True)
@@ -467,12 +513,6 @@ function draw(){{
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
 }}
 function render(){{ need(S.palette,draw); }}
-document.querySelectorAll(".bar select").forEach(function(sel){{
-  sel.addEventListener("change",function(){{
-    S[Object.keys(sel.dataset)[0]]=sel.value;
-    render();
-  }});
-}});
 // Cleared within the group: each segmented control is its own radiogroup, so
 // the pressed state never has to be reasoned about across the whole bar.
 document.querySelectorAll(".seg button").forEach(function(b){{
@@ -487,11 +527,20 @@ document.querySelectorAll(".seg button").forEach(function(b){{
 addEventListener("resize",function(){{
   document.querySelectorAll("iframe").forEach(fit);
 }});
-(function(){{
-  var grp=document.getElementById("palgrp");
+// One factory wires Style, Page and Palette alike: a button plus a popup
+// listbox, by id prefix. `prop` is the S key it writes on choose. Grouped
+// rows (Page's block pages vs. portal surfaces) need no special handling
+// here -- `rows` only ever collects [role=option] elements, so a
+// role="presentation" heading is already invisible to every index this
+// walks.
+function mkListbox(idPrefix,prop){{
+  var grp=document.getElementById(idPrefix+"grp");
   if(!grp) return;
-  var btn=document.getElementById("palbtn"),list=document.getElementById("pallist"),
-      rows=[].slice.call(list.querySelectorAll("[role=option]")),at=0;
+  var btn=document.getElementById(idPrefix+"btn"),
+      list=document.getElementById(idPrefix+"list"),
+      label=document.getElementById(idPrefix+"label"),
+      rows=[].slice.call(list.querySelectorAll("[role=option]")),at=0,
+      buf="",bufT;
   rows.forEach(function(r,i){{if(r.getAttribute("aria-selected")==="true")at=i}});
   function mark(i){{
     at=(i+rows.length)%rows.length;
@@ -499,6 +548,7 @@ addEventListener("resize",function(){{
       if(j===at) r.setAttribute("data-on",""); else r.removeAttribute("data-on");
     }});
     rows[at].focus();
+    rows[at].scrollIntoView({{block:"nearest"}});
   }}
   function open(){{
     list.hidden=false;btn.setAttribute("aria-expanded","true");mark(at);
@@ -511,10 +561,13 @@ addEventListener("resize",function(){{
     at=i;
     var r=rows[i];
     rows.forEach(function(o){{o.setAttribute("aria-selected",String(o===r))}});
-    S.palette=r.getAttribute("data-palette");
-    btn.querySelector(".sw").style.background=r.querySelector(".sw").style.background;
-    document.getElementById("pallabel").textContent=r.textContent;
-    document.documentElement.setAttribute("data-pal",S.palette);
+    S[prop]=r.getAttribute("data-value");
+    var sw=r.querySelector(".sw"),bsw=btn.querySelector(".sw");
+    if(sw&&bsw) bsw.style.background=sw.style.background;
+    label.textContent=r.textContent;
+    // Palette-specific: the toolbar's own colours key off data-pal, which
+    // nothing else on this page writes.
+    if(prop==="palette") document.documentElement.setAttribute("data-pal",S.palette);
     close();render();
   }}
   btn.addEventListener("click",function(){{list.hidden?open():close()}});
@@ -533,6 +586,17 @@ addEventListener("resize",function(){{
     else if(e.key==="Home"){{e.preventDefault();mark(0)}}
     else if(e.key==="End"){{e.preventDefault();mark(rows.length-1)}}
     else if(e.key==="Enter"||e.key===" "){{e.preventDefault();choose(at)}}
+    else if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){{
+      // Type-to-jump: printable keys build a short buffer that forgets
+      // itself after a pause, so typing "vi" finds a different row than
+      // typing "v", pausing, then "i" again.
+      clearTimeout(bufT);
+      buf+=e.key.toLowerCase();
+      bufT=setTimeout(function(){{buf=""}},1000);
+      for(var i=0;i<rows.length;i++){{
+        if(rows[i].textContent.trim().toLowerCase().indexOf(buf)===0){{mark(i);break}}
+      }}
+    }}
   }});
   // Tab moves focus out of the widget entirely (rows carry tabindex="-1", so
   // it lands on whatever toolbar control follows), and no keydown fires for
@@ -546,7 +610,10 @@ addEventListener("resize",function(){{
   document.addEventListener("pointerdown",function(e){{
     if(!list.hidden&&!grp.contains(e.target)) close(false);
   }});
-}})();
+}}
+mkListbox("theme","theme");
+mkListbox("page","page");
+mkListbox("pal","palette");
 render();
 </script>
 </body></html>
