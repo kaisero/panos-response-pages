@@ -204,7 +204,11 @@ class TestMailto(unittest.TestCase):
             body = page.read_text(encoding="utf-8")
             if 'id="rep"' in body:
                 start = body.index('id="rep"')
-                yield page.stem, body[body.rindex("<a ", 0, start) : body.index(">", body.index('href="', start))]
+                # Bound on '">', not '>': the email-mode href embeds raw PAN-OS
+                # tokens like <user/>, and cutting at the first bare '>' would
+                # close the slice on that token's own bracket instead of the
+                # attribute's closing quote, truncating the anchor mid-href.
+                yield page.stem, body[body.rindex("<a ", 0, start) : body.index('">', body.index('href="', start)) + 2]
 
     def _mailto_sections(self):
         """The pre-filled mailto each page declares.
@@ -246,15 +250,18 @@ class TestMailto(unittest.TestCase):
             self.assertNotIn("\n", mailto.strip(), f"{name}: the mailto section must stay on one line")
 
     def test_static_fallback_puts_the_url_token_last(self):
+        checked = 0
         for name, mailto in self._mailto_sections():
             if "<url/>" not in mailto:
                 continue  # safe-search, application and file pages have no <url/> token
+            checked += 1
             after = mailto[mailto.index("<url/>") + len("<url/>") :]
             self.assertNotIn(
                 "%0A",
                 after,
                 f"{name}: no field may follow <url/> in the static href, or an '&' in the URL truncates it away",
             )
+        self.assertGreaterEqual(checked, 4, "no page's mailto carried a <url/> token -- this test asserted nothing")
 
     def test_subjects_are_distinct_per_page(self):
         subjects = {}
