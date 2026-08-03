@@ -14,6 +14,9 @@ from panos_response_pages.templates import parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
 # Sample values used only in preview builds.
+# A mailto that is actually a link, as opposed to the word appearing in prose.
+MAILTO_HREF = re.compile(r"""href\s*=\s*["']\s*mailto:""", re.I)
+
 SAMPLE = {
     "user": "ACME\\jdoe",
     "url": "https://example.com/promo/spring-sale?ref=email&id=88213",
@@ -162,7 +165,14 @@ def build_page(
     # template directory would still substitute cleanly and ship a mailto href
     # with the rebuild script stripped out from under it -- a silently broken
     # contact, no error. This is the loud failure that promise depends on.
-    if contact.mode(cfg) == contact.URL and "mailto:" in out:
+    #
+    # Matched as an href rather than as a bare substring. Half this page is
+    # customer-authored free text -- gloss, category descriptions,
+    # continueGrantText -- and a config whose prose happens to mention "mailto:"
+    # would otherwise fail a build whose contact link was perfectly correct.
+    # Refusing right output over unrelated copy is a worse failure than the
+    # silent one this exists to catch.
+    if contact.mode(cfg) == contact.URL and MAILTO_HREF.search(out):
         raise BuildError(f"{page} contains a mailto: link in URL mode; its template is out of date with cfg")
 
     if preview:

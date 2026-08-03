@@ -431,3 +431,16 @@ class TestStaleTemplateGuard(unittest.TestCase):
             page_path.write_text(stale, encoding="utf-8")
 
             build_page("url-block-page", THEMES[0], shipped(), PALETTE, False, template_dir)
+
+    def test_the_word_mailto_in_ordinary_copy_does_not_fail_the_build(self):
+        """The guard looks for a mailto HREF, not for the word.
+
+        Half this page is customer-authored free text, and refusing a build whose
+        contact link is perfectly correct -- because someone's prose mentioned
+        the word -- is a worse failure than the silent one the guard exists for.
+        """
+        cfg = shipped(**URL_CFG_KEYS)
+        cfg["continueGrantText"] = "Ask IT to forward the mailto: link from your last ticket."
+        html = render(cfg, page="url-coach-text")
+        assert "mailto:" in html, "the fixture must actually put the word on the page"
+        assert 'href="https://tickets.example.com/new"' in rep_anchor(html)
