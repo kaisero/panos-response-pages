@@ -8,7 +8,11 @@ page took from the blocked site rather than from config, or a feature that is
 
 import copy
 import json
+import pathlib
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 from _paths import DATA
@@ -208,7 +212,7 @@ class TestMessages(unittest.TestCase):
         self.assertEqual(row[2], 0, "a per-category message must not also pin the default seconds")
 
     def test_the_app_placeholder_is_substituted_in_the_browser(self):
-        self.assertIn(".replace('{app}',n)", script_of(render(configured())))
+        self.assertIn(".split('{app}').join(n)", script_of(render(configured())))
 
 
 class TestSafety(unittest.TestCase):
@@ -417,6 +421,38 @@ class TestPreviewDemo(unittest.TestCase):
         for th in [t for t in THEMES if not redirect.supported(t)]:
             with self.subTest(theme=th["name"]):
                 self.assertNotIn('<div class="rx"', self.demo(theme=th))
+
+
+class TestStayLabelEscaping(unittest.TestCase):
+    """STAY_LABEL used to be concatenated straight into a single-quoted JS
+    literal. It is "Stay" today, so nothing breaks -- but pure copy editing
+    that gave it an apostrophe would emit syntactically broken JavaScript that
+    Python cannot catch and nothing asserted against. It is now wrapped with
+    json.dumps, as CANCELLED_ANNOUNCE already is a few lines above."""
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_an_apostrophe_in_stay_label_still_produces_parseable_js(self):
+        original = redirect.STAY_LABEL
+        redirect.STAY_LABEL = "Don't go"
+        try:
+            script = script_of(render(configured()))
+        finally:
+            redirect.STAY_LABEL = original
+
+        self.assertIn("Don't go", script)
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(script)
+            path = pathlib.Path(f.name)
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["node", "--check", str(path)],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+        finally:
+            path.unlink()
 
 
 class TestPreviewDemoIsNotShipped(unittest.TestCase):

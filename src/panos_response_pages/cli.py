@@ -174,7 +174,7 @@ def build(
         typer.echo(format_report(result))
         if preview:
             typer.echo(f"\n  gallery: {out / 'preview' / 'index.html'}")
-        typer.echo(f"  gallery opens on: {result.palette['name']}  ({result.palette['label']})")
+            typer.echo(f"  gallery opens on: {result.palette['name']}  ({result.palette['label']})")
         typer.echo(f"  data:    {data_dir} ({reason})")
         typer.echo(f"  deploy:  {out / 'deploy'}/<style>/<palette>/<page>.html")
         typer.echo(f"  portal:  {out / 'deploy'}/<style>/<palette>/portal/<login|home>.html\n")

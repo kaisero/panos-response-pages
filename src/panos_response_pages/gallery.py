@@ -17,10 +17,12 @@ from __future__ import annotations
 
 import html
 import json
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from panos_response_pages import redirect
+from panos_response_pages.errors import BuildError
 
 GALLERY_CSS = """
 *{{box-sizing:border-box}}
@@ -117,6 +119,25 @@ PORTAL_LABELS = {
 }
 
 
+# What is interpolated raw into GALLERY_CSS -- a `.format()` template -- and
+# into the two hand-built selectors below it. None of that is escaped, so one
+# `{`, `}` or `;` in a palette value corrupts every rule after it, and a `"`
+# in a name breaks out of an attribute selector. Palette JSON is
+# maintainer-controlled at build time, so this is not currently exploitable --
+# it is fixed as robustness, in every place a palette value reaches the
+# stylesheet, since it is one habit rather than three. Rejected outright
+# rather than sanitised: a value that cannot be a plain CSS token has no
+# business being one.
+_UNSAFE_CSS = re.compile(r"""[{};"'<>\\\r\n]""")
+
+
+def _css_safe(value: Any, what: str) -> str:
+    text = str(value)
+    if not text or _UNSAFE_CSS.search(text):
+        raise BuildError(f"{what} {text!r} cannot be used as a plain CSS value")
+    return text
+
+
 CHROME_KEYS = (
     ("--bg", "ground"),
     ("--srf", "surface"),
@@ -132,7 +153,9 @@ CHROME_KEYS = (
 
 def _tokens(colors: Mapping[str, Any], dark: bool) -> str:
     prefix = "d_" if dark else ""
-    return ";".join(f"{var}:{colors[prefix + key]}" for var, key in CHROME_KEYS)
+    return ";".join(
+        f"{var}:{_css_safe(colors[prefix + key], f'palette colour {prefix + key!r}')}" for var, key in CHROME_KEYS
+    )
 
 
 def _chrome_tokens(palettes: Sequence[Mapping[str, Any]], opening: str) -> str:
@@ -150,10 +173,11 @@ def _chrome_tokens(palettes: Sequence[Mapping[str, Any]], opening: str) -> str:
     for p in palettes:
         colors = p["colors"]
         light, dark = _tokens(colors, False), _tokens(colors, True)
+        name = _css_safe(p["name"], "palette name")
         if p["name"] == opening:
             out.append(f":root{{{light}}}")
             out.append(f"@media(prefers-color-scheme:dark){{:root{{{dark}}}}}")
-        sel = f':root[data-pal="{p["name"]}"]'
+        sel = f':root[data-pal="{name}"]'
         out.append(f"{sel}{{{light}}}")
         out.append(f"@media(prefers-color-scheme:dark){{{sel}{{{dark}}}}}")
     return "\n".join(out)
@@ -226,7 +250,8 @@ def build_gallery(
     page_ctl = f'<label class="ctl"><span>Page</span><select data-page>{page_opts}</select></label>'
 
     def swatch(p: Mapping[str, Any]) -> str:
-        return f'<span class="sw" style="background:{html.escape(str(p["colors"]["accent"]))}"></span>'
+        accent = _css_safe(p["colors"]["accent"], "palette colour 'accent'")
+        return f'<span class="sw" style="background:{html.escape(accent)}"></span>'
 
     pal_rows = "".join(
         f'<li role="option" data-palette="{html.escape(p["name"])}" '
@@ -351,6 +376,13 @@ function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[name]=1}}
 // not append a second element and re-fetch the file; the second caller queues
 // behind the first and both run when it resolves.
 var INFLIGHT={{}};
+// A missing or interrupted sidecar used to mark itself loaded and settle with
+// no further sign of anything wrong -- so the one frame that needed it just
+// rendered blank, which reads as a page bug rather than a missing file. FAILED
+// records which palette's sidecar did not load, so frame() can say so instead
+// of rendering nothing; LOADED still gets set, on purpose, so a palette that
+// failed once is not retried in a loop on every subsequent selection.
+var FAILED={{}};
 function need(pal,done){{
   if(LOADED[pal]) return done();
   if(INFLIGHT[pal]){{INFLIGHT[pal].push(done);return}}
@@ -362,7 +394,7 @@ function need(pal,done){{
     for(var i=0;i<q.length;i++) q[i]();
   }}
   s.onload=settle;
-  s.onerror=function(){{LOADED[pal]=1;settle()}};
+  s.onerror=function(){{LOADED[pal]=1;FAILED[pal]=1;settle()}};
   document.head.appendChild(s);
 }}
 // Which styles have room for the notice. nyan does not -- its URL block page is
@@ -404,7 +436,12 @@ function frame(kind){{
   var f=document.createElement("figure");
   var d=document.createElement("div"); d.className="dev "+kind;
   var i=document.createElement("iframe");
-  i.setAttribute("srcdoc",D[key()]||"");
+  var blob=D[key()];
+  if(!blob&&FAILED[S.palette]){{
+    blob="<p style='font:14px sans-serif;padding:2rem'>blobs-"+S.palette+".js failed to load "
+      +"&mdash; this palette's preview is missing.</p>";
+  }}
+  i.setAttribute("srcdoc",blob||"");
   i.setAttribute("title",S.page+" "+kind);
   // Carried on the element so the resize handler, which only has the iframe,
   // does not have to work out which page produced it.
@@ -471,6 +508,7 @@ addEventListener("resize",function(){{
     if(back!==false) btn.focus();
   }}
   function choose(i){{
+    at=i;
     var r=rows[i];
     rows.forEach(function(o){{o.setAttribute("aria-selected",String(o===r))}});
     S.palette=r.getAttribute("data-palette");

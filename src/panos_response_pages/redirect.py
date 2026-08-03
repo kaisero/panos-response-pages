@@ -273,7 +273,12 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
         "var m=document.getElementById('rxm'),o=document.getElementById('rxo');"
         "var i=document.getElementById('rxi'),p=document.getElementById('rxp');"
         "var v=document.getElementById('rxl'),g=document.getElementById('rxg');"
-        "m.textContent=(r[3]||D).replace('{app}',n);g.href=u;b.hidden=false;"
+        # split/join, not .replace(): .replace() only substitutes the first
+        # occurrence, and when the second argument is a plain string it still
+        # interprets $&, $', $` and $n as replacement patterns -- an app name
+        # containing one of those would corrupt the message. split/join
+        # replaces every occurrence and treats the app name as a literal.
+        "m.textContent=(r[3]||D).split('{app}').join(n);g.href=u;b.hidden=false;"
         "function w(){i.textContent=l;p.style.width=((t-l)/t*100)+'%'}"
         "function q(){if(z){clearInterval(z);z=null}}"
         "function go(){" + go + "}"
@@ -281,10 +286,13 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
         "m.hidden=true;o.hidden=false;v.textContent=" + json.dumps(CANCELLED_ANNOUNCE) + "}"
         "w();"
         # Announced once, as a sentence. The per-second number is aria-hidden --
-        # a screen reader must not be read a countdown.
-        "v.textContent='You will be sent to '+n+' in '+t+' seconds. Choose "
-        + STAY_LABEL
-        + ", or press Escape, to remain on this page.';"
+        # a screen reader must not be read a countdown. STAY_LABEL is a Python
+        # constant spliced into a JS string; json.dumps quotes and escapes it,
+        # the same as CANCELLED_ANNOUNCE above, so a future edit that gives it
+        # an apostrophe cannot emit broken JavaScript.
+        "v.textContent='You will be sent to '+n+' in '+t+' seconds. Choose '+"
+        + json.dumps(STAY_LABEL)
+        + "+', or press Escape, to remain on this page.';"
         # A hidden tab pauses rather than counting: a background tab that
         # navigates itself is indistinguishable from a hijack.
         "z=setInterval(function(){if(document.hidden)return;l--;w();if(l<=0)go()},1000);"

@@ -6,6 +6,7 @@ looked at -- so each palette but the opening one is a sibling file, fetched the
 first time it is asked for.
 """
 
+import copy
 import json
 import re
 import unittest
@@ -13,7 +14,8 @@ import unittest
 from _paths import DATA
 from panos_response_pages import palettes, redirect
 from panos_response_pages.builder import build_all, load_themes
-from panos_response_pages.gallery import CHROME_KEYS
+from panos_response_pages.errors import BuildError
+from panos_response_pages.gallery import CHROME_KEYS, build_gallery
 from panos_response_pages.palettes import load_palette
 
 PALETTES = palettes.available(DATA / "palettes")
@@ -162,6 +164,77 @@ class TestChrome(unittest.TestCase):
 
                 self.assertEqual(self._block_tokens(self.css, light_pattern), light_expected)
                 self.assertEqual(self._block_tokens(self.css, dark_pattern), dark_expected)
+
+
+class TestPaletteInterpolationIsSafe(unittest.TestCase):
+    """_tokens(), _chrome_tokens() and swatch() interpolate palette values into
+    a stylesheet with no escaping. Palette JSON is maintainer-controlled at
+    build time, so this is not currently exploitable, but a value containing
+    `{`, `}`, `;` or `"` would otherwise corrupt every CSS rule after it, or
+    break out of an attribute selector, with nothing to say why. Rejected
+    outright rather than sanitised."""
+
+    def setUp(self):
+        self.theme = load_themes(DATA)[0]
+        self.cfg = {"company": "Acme"}
+        self.palette = copy.deepcopy(load_palette("cyber-orange", DATA / "palettes"))
+        self.blobs = {(self.theme["name"], self.palette["name"], "url-block-page"): "<html></html>"}
+
+    def test_a_sane_palette_still_builds(self):
+        gallery, _sidecars = build_gallery(
+            [self.theme], ["url-block-page"], self.blobs, self.cfg, self.palette, [self.palette]
+        )
+        self.assertIn("url-block-page", gallery)
+
+    def test_an_unsafe_colour_value_is_refused(self):
+        bad = copy.deepcopy(self.palette)
+        bad["colors"]["accent"] = "red;}body{display:none"
+        with self.assertRaises(BuildError) as caught:
+            build_gallery([self.theme], ["url-block-page"], self.blobs, self.cfg, bad, [bad])
+        self.assertIn("accent", str(caught.exception))
+
+    def test_an_unsafe_palette_name_is_refused(self):
+        bad = copy.deepcopy(self.palette)
+        bad["name"] = 'evil"]{--bg:red};['
+        blobs = {(self.theme["name"], bad["name"], "url-block-page"): "<html></html>"}
+        with self.assertRaises(BuildError):
+            build_gallery([self.theme], ["url-block-page"], blobs, self.cfg, bad, [bad])
+
+
+class TestPaletteListboxFollowsClick(unittest.TestCase):
+    """choose(i) updates aria-selected, S.palette, the swatch and the label,
+    but used to never assign `at`, which is otherwise only set at init and by
+    mark(). A keyboard user who clicked a row and then pressed ArrowDown got a
+    popup that opened relative to whichever row was selected at load, not the
+    one they had just picked."""
+
+    def test_choose_updates_the_keyboard_cursor(self):
+        import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            build_all(data_dir=DATA, out_dir=out, preview=True)
+            index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        squeezed = re.sub(r"\s+", "", index)
+        self.assertIn("functionchoose(i){at=i;", squeezed)
+
+
+class TestMissingSidecarIsVisible(unittest.TestCase):
+    """A missing or interrupted blobs-<palette>.js sidecar used to settle
+    silently, leaving a blank white frame with no console error and no retry.
+    The load failure must now be visible in the frame itself."""
+
+    def test_the_gallery_carries_a_note_for_a_failed_sidecar_load(self):
+        import pathlib
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp)
+            build_all(data_dir=DATA, out_dir=out, preview=True)
+            index = (out / "preview" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("FAILED[pal]=1", index)
+        self.assertIn("failed to load", index)
 
 
 if __name__ == "__main__":
