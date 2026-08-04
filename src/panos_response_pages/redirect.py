@@ -15,7 +15,9 @@ of them fails in a way the author would not see:
 * **Only a `calm` category may carry a redirect.** Checked at build time, and
   again in the browser against the tone the category map resolved. Automatically
   forwarding a user off a malware or phishing block is indefensible, and a typo
-  in a tone must not be able to cause it.
+  in a tone must not be able to cause it. A category the map does not list is
+  calm -- that map carries the ones that differ, not all 90 -- so it needs no
+  entry to redirect.
 * **The target is an absolute https URL from config.** Never `<url/>` -- that
   value is chosen by whoever the user was trying to reach, and a redirect built
   from it would make every firewall serving this page an open redirector.
@@ -55,9 +57,10 @@ PREVIEW_SUFFIX = "-redirect"
 # config after seeing this in the preview finds the same names written down.
 #
 # `online-storage-and-backup` is not one of the shipped `categories`, so
-# demo_config() has to contribute a tone and a gloss for it as well -- the
-# redirect refuses a category the map does not resolve to `calm`, and that check
-# is not relaxed for the preview.
+# demo_config() contributes a tone and a gloss for it as well. Not for the tone,
+# which would default to calm anyway, but for the GLOSS: the preview is what a
+# reader judges the feature by, and the generic fallback sentence under a named
+# sanctioned app reads like the config was half-finished.
 DEMO_CATEGORY = "online-storage-and-backup"
 DEMO_APP = {"app": "Company Drive", "url": "https://drive.example.com/"}
 DEMO_GLOSS = "Personal file-storage services are not available on the company network."
@@ -223,13 +226,14 @@ def check(cfg: Mapping[str, Any]) -> None:
                 f"{where}.url must be an absolute https:// URL -- a relative or http target "
                 "resolves against the blocked site, which is not ours"
             )
-        if name not in tones:
+        # Absent means calm. `categories` carries the ones whose tone or copy
+        # differs -- spelling all 90 out would blow the byte ceiling -- and the
+        # browser already renders an unmapped category calm with defaultGloss.
+        # Refusing one here would contradict the page this check guards.
+        tone = tones.get(name, "calm")
+        if tone != "calm":
             raise BuildError(
-                f"{where} is not in `categories`, so the page has no gloss and no tone for it. Add it there first."
-            )
-        if tones[name] != "calm":
-            raise BuildError(
-                f"{where} has tone '{tones[name]}'; only a calm category may redirect. "
+                f"{where} has tone '{tone}'; only a calm category may redirect. "
                 "A user must not be forwarded off a warning or a security block."
             )
         if "seconds" in entry:

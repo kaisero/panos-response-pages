@@ -267,11 +267,20 @@ class TestConfigIsChecked(unittest.TestCase):
                 lambda cfg, url=url: cfg["redirect"]["categories"]["streaming-media"].update(url=url),
             )
 
-    def test_the_category_must_exist_in_the_category_map(self):
-        def mutate(cfg):
-            cfg["redirect"]["categories"]["nonesuch"] = {"app": "X", "url": "https://x.example.com/"}
+    def test_a_category_absent_from_the_map_is_calm_and_may_redirect(self):
+        """`categories` lists the ones whose tone or copy differs, not all 90.
 
-        self.bad("is not in `categories`", mutate)
+        An absent category already renders calm with defaultGloss in the browser,
+        so refusing to build one here contradicted the page it was guarding: a
+        customer redirecting a category that needs no tailored copy had to invent
+        an entry for it just to satisfy the check.
+        """
+        cfg = configured()
+        cfg["redirect"]["categories"]["nonesuch"] = {"app": "X", "url": "https://x.example.com/"}
+        self.assertNotIn("nonesuch", cfg["categories"])
+
+        table = json.loads(re.search(r"var R=(\{.*?\});", script_of(render(cfg))).group(1))
+        self.assertIn("nonesuch", table)
 
     def test_app_and_url_are_required(self):
         for key in ("app", "url"):
