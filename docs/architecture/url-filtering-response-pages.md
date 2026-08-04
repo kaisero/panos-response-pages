@@ -3,9 +3,9 @@
 **Location:** Device → Response Pages
 **Serves:** dataplane injection into user traffic
 
-The nine page types this project generates. They share one file shape and one set of
+The ten page types this project generates. They share one file shape and one set of
 constraints, differing only in which substitution tokens PAN-OS provides — so they are
-documented together rather than in nine near-identical files.
+documented together rather than in ten near-identical files.
 
 These are a **different page class** from the
 [GlobalProtect portal pages](general.md#pages). Do not carry constraints between them:
@@ -34,10 +34,19 @@ page's set renders as inert markup — it shows nothing, silently.
 | `virus-block-page` | `<user/>` `<fname/>` |
 | `file-block-page` | `<user/>` `<fname/>` |
 | `file-block-continue-page` | `<user/>` `<fname/>` `<cookie/>` |
+| `data-filter-block-page` | `<user/>` `<fname/>` `<appname/>` `<direction/>` |
 
 Token meanings: `user` the identified user; `url` the blocked address; `category` the
 URL category; `ssurl` the safe-search URL; `appname` the application; `fname` the
-filename; `cookie` the continue-grant control; `pan_form` the continue form.
+filename; `cookie` the continue-grant control; `pan_form` the continue form;
+`direction` the transfer direction.
+
+`<direction/>` is **[unverified]**: it appears in the shipped `data-filter-block-page`
+default and nowhere in the published variable lists, so its rendered value and casing
+are inferred rather than documented. The default uses it sentence-initially —
+`<direction/> of the file <fname/> has been blocked` — which implies a capitalised
+`Upload`/`Download`. The template therefore uses it only as a fact-row value, where
+either casing reads correctly, and carries a live-verification note.
 
 The two `*-coach-text` pages and `file-block-continue-page` inject **form controls you
 do not author** — style `input[type=submit]` and `button` so those controls match the

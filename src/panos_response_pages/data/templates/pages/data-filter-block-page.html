@@ -1,0 +1,60 @@
+<!--
+  Data Filtering Block Page
+  API category: data-filter-block-page
+  Tokens available: <user/> <fname/> <appname/> <direction/>   -- NO url, NO category
+
+  <direction/> is unique to this page: no other block page provides it. It is
+  registered in TOKEN_RE as well as in PAGE_TOKENS for that reason -- a token
+  missing from the regex is never scanned, so the legality check would pass on a
+  page that renders a blank field.
+
+  VERIFY ON A LIVE FIREWALL: the rendered value and casing of <direction/> are
+  not documented. The shipped PAN-OS default uses it sentence-initially
+  ("<direction/> of the file <fname/> has been blocked"), which implies
+  "Upload"/"Download" capitalised. It is used here only as a fact-row value,
+  where either casing reads correctly.
+
+  Tone is warn, not crit: this is a policy restriction on a transfer, not a
+  threat verdict. COPY_LOCK because there is no category token to derive
+  severity or a gloss from.
+
+  The copy describes the transfer that was stopped, never where the data did or
+  did not get to. This page is exactly where "nothing you sent left your device"
+  is tempting, and it is a claim nothing here can substantiate -- the browser may
+  well have transmitted before the policy matched.
+-->
+
+<!--@TITLE-->Data transfer blocked<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h6"/><path d="M3.5 12h4"/><path d="M3.5 15.5h6"/><path d="M12 12h5"/><path d="m14.5 9.2 2.8 2.8-2.8 2.8"/><path d="M20.5 6v12"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->Data transfer blocked<!--/@HEADLINE-->
+
+<!--@GLOSS-->Company policy restricts transferring this content, so the transfer was stopped.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>Direction</dt><dd><direction/></dd></div>
+<div class="f"><dt>File</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>Application</dt><dd class="mono"><appname/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Blocked data transfer"
+   data-intro="A data transfer was blocked by policy." data-prompt="Why I need to send this:"
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
+<!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>If you need to send this for your work, send the report above and IT will review it.</span></p>
+<!--/@EXTRA-->

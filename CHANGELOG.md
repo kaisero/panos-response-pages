@@ -4,6 +4,22 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **A tenth page type, `data-filter-block-page`** — the Data Filtering block,
+  served when a transfer matches a Data Filtering profile. It surfaces every
+  token PAN-OS provides on that page: the transfer direction, the file, the
+  application and the user.
+- `<direction/>` joins the token registry. It is provided on the data filtering
+  page alone, and it is the first token whose rendered value is not documented
+  anywhere — it appears in the shipped PAN-OS default but in none of the
+  published variable lists. The default uses it sentence-initially, implying a
+  capitalised `Upload`/`Download`, so the page uses it only as a fact-row value,
+  where either casing reads correctly. Confirm it on live hardware before
+  relying on it in prose.
+
 ## [0.1.1]
 
 ### Added

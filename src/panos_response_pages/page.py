@@ -39,6 +39,10 @@ SAMPLE = {
     # <cookie/> is the File Blocking Continue mechanism: PAN-OS injects markup
     # that sets a cookie and reloads to resume the download.
     "cookie": ('<form method="post" action="#"><input type="submit" value="Continue"></form>'),
+    # <direction/> is the transfer direction on the data filtering page. The
+    # shipped PAN-OS default uses it sentence-initially, so a capitalised word is
+    # expected -- unverified on a live firewall.
+    "direction": "Upload",
 }
 
 

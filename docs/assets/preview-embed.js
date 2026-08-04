@@ -23,6 +23,7 @@
       "application-block-page",
       "credential-block-page",
       "credential-coach-text",
+      "data-filter-block-page",
       "file-block-continue-page",
       "file-block-page",
       "safe-search-block-page",

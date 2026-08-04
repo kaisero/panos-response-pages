@@ -74,6 +74,18 @@ class TestPanOsGuards(unittest.TestCase):
         _size, errors, _warnings = build.validate("safe-search-block-page", page)
         self.assertTrue(any("not available on safe-search-block-page" in e for e in errors), errors)
 
+    def test_direction_is_rejected_off_the_data_filtering_page(self):
+        """<direction/> is provided only on data-filter-block-page.
+
+        Written against a token no other page carries, because that is the case
+        the dict alone does not cover: if `direction` were missing from TOKEN_RE
+        the loop would never scan it, this page would pass, and the firewall
+        would render nothing where the field was.
+        """
+        page = self.HEAD.format("<p><direction/></p>")
+        _size, errors, _warnings = build.validate("file-block-page", page)
+        self.assertTrue(any("not available on file-block-page" in e for e in errors), errors)
+
     def test_rejects_missing_doctype(self):
         _size, errors, _warnings = build.validate("url-block-page", "<html></html>")
         self.assertTrue(any("DOCTYPE" in e for e in errors), errors)

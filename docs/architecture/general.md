@@ -15,7 +15,7 @@ each claim carries an evidence marker.
 |---|---|---|
 | [GlobalProtect Portal Login Page](globalprotect-portal-login-page.md) | `global-protect-portal-custom-login-page` | `login.esp`, `getsoftwarepage.esp` |
 | [GlobalProtect Portal Home Page](globalprotect-portal-home-page.md) | `global-protect-portal-custom-home-page` | `logout.esp`, portal home page |
-| [URL Filtering and block pages](url-filtering-response-pages.md) | nine separate objects | dataplane injection into user traffic |
+| [URL Filtering and block pages](url-filtering-response-pages.md) | ten separate objects | dataplane injection into user traffic |
 
 The two GlobalProtect pages are the ones this reference exists for — they are the
 pages with undocumented structure. The block pages are comparatively simple and are
