@@ -29,7 +29,7 @@ _LEVELS = {"debug": logging.DEBUG, "info": logging.INFO, "warning": logging.WARN
 
 # Attributes LogRecord always carries; anything else was passed via `extra` and
 # is genuinely part of the event.
-_STANDARD = set(vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys() | {"message", "asctime", "taskName"})
+_STANDARD = vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys() | {"message", "asctime", "taskName"}
 
 
 class JsonFormatter(logging.Formatter):

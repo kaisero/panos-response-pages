@@ -13,8 +13,9 @@ import pytest
 from typer.testing import CliRunner
 
 from _paths import DATA
-from panos_response_pages import __version__
+from panos_response_pages import __version__, builder, cli
 from panos_response_pages.cli import app
+from panos_response_pages.portal.page import FRAMES
 from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS
 from panos_response_pages.validate import PAGE_TOKENS
 
@@ -30,16 +31,19 @@ class TestListings(unittest.TestCase):
         self.assertIn(__version__, r.output)
 
     def test_themes_lists_every_style_with_its_label(self):
-        r = runner.invoke(app, ["themes"])
+        r = runner.invoke(app, ["themes", "--config-dir", str(DATA)])
         self.assertEqual(r.exit_code, 0, r.output)
         for name in ("assist", "record", "banner", "glass", "beacon", "mesh"):
             self.assertIn(name, r.output)
         self.assertIn("Assistive Panel", r.output, "the label is what tells them apart")
 
     def test_palettes_lists_every_palette(self):
-        r = runner.invoke(app, ["palettes"])
+        # --config-dir, not the resolved default: on a machine with a
+        # ~/.panos_response_pages this would otherwise assert against whatever
+        # that directory holds rather than against what the repository ships.
+        r = runner.invoke(app, ["palettes", "--config-dir", str(DATA)])
         self.assertEqual(r.exit_code, 0, r.output)
-        for name in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for name in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(name, r.output)
 
     def test_pages_lists_the_tokens_each_page_type_provides(self):
@@ -54,10 +58,14 @@ class TestPossibleValues(unittest.TestCase):
     question rather than just refuse."""
 
     def test_unknown_palette_reports_what_is_available(self):
-        r = runner.invoke(app, ["build", "--palette", "lilac"])
-        self.assertEqual(r.exit_code, 2, r.output)
+        # Exit 1, not 2: `--palette` is no longer validated by the CLI itself.
+        # `palettes.select` raises with the list from inside the build, the
+        # same place an unknown value would be caught either way -- so there is
+        # one message for the mistake instead of two.
+        r = runner.invoke(app, ["build", "--palette", "lilac", "--config-dir", str(DATA)])
+        self.assertEqual(r.exit_code, 1, r.output)
         self.assertIn("unknown palette", r.output)
-        for name in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for name in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(name, r.output)
 
     def test_unknown_theme_reports_what_is_available(self):
@@ -70,9 +78,27 @@ class TestPossibleValues(unittest.TestCase):
 class TestBuild(unittest.TestCase):
     def test_builds_one_style_into_the_requested_directory(self):
         out = Path(tempfile.mkdtemp())
-        r = runner.invoke(app, ["build", "--theme", "glass", "--no-preview", "-o", str(out)])
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette -- a machine with a
+        # ~/.panos_response_pages would otherwise build against whatever that
+        # directory holds instead of what the repository ships.
+        r = runner.invoke(
+            app,
+            [
+                "build",
+                "--theme",
+                "glass",
+                "--palette",
+                "cyber-orange",
+                "--no-preview",
+                "-o",
+                str(out),
+                "--config-dir",
+                str(DATA),
+            ],
+        )
         self.assertEqual(r.exit_code, 0, r.output)
-        built = sorted(p.name for p in (out / "deploy" / "glass").glob("*.html"))
+        built = sorted(p.name for p in (out / "deploy" / "glass" / "cyber-orange").glob("*.html"))
         self.assertEqual(len(built), len(PAGE_TOKENS), built)
         self.assertIn("url-block-page.html", built)
 
@@ -82,7 +108,12 @@ class TestBuild(unittest.TestCase):
         self.assertIn("explicit", r.output, "the report should say which rule chose the data dir")
 
     def test_log_json_replaces_the_report_with_one_machine_readable_stream(self):
-        r = runner.invoke(app, ["--log-json", "-v", "build", "--no-preview", "-o", tempfile.mkdtemp()])
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette.
+        r = runner.invoke(
+            app,
+            ["--log-json", "-v", "build", "--no-preview", "-o", tempfile.mkdtemp(), "--config-dir", str(DATA)],
+        )
         self.assertEqual(r.exit_code, 0, r.output)
         self.assertNotIn("of limit", r.output, "the pretty table must not interleave with JSON")
         first = json.loads(r.output.splitlines()[0])
@@ -112,13 +143,25 @@ class TestInit(unittest.TestCase):
         out = Path(tempfile.mkdtemp())
         r = runner.invoke(app, ["build", "--config-dir", str(target), "--no-preview", "-o", str(out)])
         self.assertEqual(r.exit_code, 0, r.output)
-        self.assertTrue((out / "deploy" / "assist" / "url-block-page.html").is_file())
+        self.assertTrue((out / "deploy" / "assist" / "cyber-orange" / "url-block-page.html").is_file())
+
+
+class TestPortalTablesAgree(unittest.TestCase):
+    def test_the_cli_describes_every_import_the_builder_emits(self):
+        """cli.PORTAL_PAGES carries CLI-only metadata so it cannot simply BE
+        builder.PORTAL_PAGES, which is itself derived from portal.page.FRAMES.
+        A third frame added to FRAMES and not described here would build and
+        ship a page the CLI can neither name nor route to `validate`."""
+        self.assertEqual(set(cli.PORTAL_PAGES), set(builder.PORTAL_PAGES))
+        self.assertEqual(set(builder.PORTAL_PAGES), set(FRAMES))
 
 
 class TestValidateCommand(unittest.TestCase):
     def test_passes_pages_this_tool_produced(self):
         out = Path(tempfile.mkdtemp())
-        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out)])
+        # --config-dir, not the resolved default: see the comment on
+        # test_palettes_lists_every_palette.
+        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out), "--config-dir", str(DATA)])
         r = runner.invoke(app, ["validate", str(out)])
         self.assertEqual(r.exit_code, 0, r.output)
         self.assertIn("0 would fail", r.output)
@@ -141,11 +184,21 @@ class TestValidateReachesThePortal(unittest.TestCase):
     reads exactly like a pass, on the one family whose failures are silent."""
 
     def test_both_families_are_counted(self):
+        # --config-dir, not the resolved default: a machine with a
+        # ~/.panos_response_pages that predates a palette would otherwise
+        # multiply by whatever that stale directory happens to hold.
         out = Path(tempfile.mkdtemp())
-        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out)])
+        # Every palette gets built (theme is the only axis narrowed here), and
+        # `validate` walks the tree recursively -- so the count is per-palette
+        # multiplied by how many palettes exist, not the single-palette figure
+        # this asserted before the matrix existed.
+        from panos_response_pages import palettes
+
+        n_palettes = len(palettes.available(DATA / "palettes"))
+        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out), "--config-dir", str(DATA)])
         r = runner.invoke(app, ["validate", str(out / "deploy")])
         self.assertEqual(r.exit_code, 0, r.output)
-        self.assertIn(f"checked {len(PAGE_TOKENS) + 2} page(s)", r.output)
+        self.assertIn(f"checked {(len(PAGE_TOKENS) + 2) * n_palettes} page(s)", r.output)
 
     def test_a_portal_import_that_would_fail_is_reported(self):
         bad = Path(tempfile.mkdtemp())

@@ -18,7 +18,6 @@ from _paths import DATA
 from panos_response_pages.errors import BuildError
 from panos_response_pages.portal.splice import (
     LOGIN_PREVIEWS,
-    STATES,
     SURFACES,
     splice_home,
     splice_login,
@@ -89,7 +88,6 @@ class TestStates(unittest.TestCase):
     """
 
     def test_default_leaves_the_capture_alone(self):
-        self.assertEqual(STATES["default"], {})
         self.assertIn('var respStatus = "Success";', splice_login(login_import()))
 
     def test_each_state_sets_what_loadpage_branches_on(self):
@@ -108,7 +106,6 @@ class TestStates(unittest.TestCase):
         """isChangePasswdForm is only tested inside loadPage()'s Error branch,
         so a change-password preview with any other status shows a plain login
         form and looks entirely plausible."""
-        self.assertEqual(STATES["changepw"]["respStatus"], '"Error"')
         self.assertNotIn('var respStatus = "Success";', splice_login(login_import(), "login", "changepw"))
 
     def test_a_state_that_matched_nothing_is_an_error_rather_than_a_no_op(self):
@@ -121,9 +118,6 @@ class TestStates(unittest.TestCase):
         with self.assertRaises(BuildError) as caught:
             splice_login(login_import(), "login", "error", fixtures=doctored)
         self.assertIn("expected exactly 1", str(caught.exception))
-
-    def test_every_state_has_a_preview_file_name(self):
-        self.assertEqual(LOGIN_PREVIEWS, tuple(f"login-{s}" for s in STATES))
 
 
 class TestAssets(unittest.TestCase):

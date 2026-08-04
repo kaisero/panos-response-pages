@@ -31,10 +31,12 @@
 
 <!--@ACTIONS-->
 <cookie/>
-<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="File download warning"
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="File download warning"
    data-intro="I was warned before downloading a restricted file type." data-prompt="What I was doing:"
-   href="mailto:{{SUPPORT_EMAIL}}?subject=File%20download%20warning&amp;body=I%20was%20warned%20before%20downloading%20a%20restricted%20file%20type.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20was%20doing%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
+   href="{{CONTACT_HREF}}">Report to IT</a>
 <!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
 
 <!--@EXTRA-->
 <p class="infobox">{{INFO_MARK}}<span>Only continue if you know what this file is and where it came from.</span></p>

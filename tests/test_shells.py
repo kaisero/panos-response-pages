@@ -16,7 +16,7 @@ import json
 import re
 import unittest
 
-from _build import deploy_dir
+from _build import DEFAULT_PALETTE, deploy_dir, preview_dir
 from _paths import DATA
 
 SHELLS = sorted((DATA / "templates/shells").glob("*.html"))
@@ -34,6 +34,11 @@ PLACEHOLDERS = (
     "COMPANY",
     "LOGO_SVG",
     "SCRIPTS",
+    # Both empty on every page but the URL block one, and on every build that has
+    # not opted in -- so a shell missing them builds clean and simply never shows
+    # the handoff, in that one theme, for the one customer who turned it on.
+    "REDIRECT_CSS",
+    "REDIRECT",
 )
 
 # Selector/body pairs. At-rule wrappers (@media, @keyframes) contain nested
@@ -100,6 +105,37 @@ def token_names(block):
     return set(re.findall(r"--([a-z0-9_]+)\s*:", block))
 
 
+# Elements that never close, so an opening tag must not push onto the stack. The
+# SVG shape tags are here because the marks are inlined into the shells and are
+# written self-closing anyway -- this is belt and braces for one that is not.
+VOID_TAGS = frozenset(("br", "img", "meta", "input", "hr", "link", "source", "use", "path", "circle", "rect", "stop"))
+
+
+def redirect_slot_parent(body):
+    """(tag, class attribute) of the element that directly encloses {{REDIRECT}}.
+
+    A depth counter over the tag stream rather than a parser: the shells are
+    generated from templates in this repository, so the markup is known to be
+    well formed, and the alternative is a dependency for one assertion.
+    """
+    stack = []
+    for m in re.finditer(r"<(/?)([\w-]+)([^>]*?)(/?)>|\{\{(\w+)\}\}", body):
+        if m.group(5):
+            if m.group(5) == "REDIRECT":
+                return stack[-1] if stack else (None, "")
+            continue
+        tag = m.group(2).lower()
+        if m.group(4) or tag in VOID_TAGS:
+            continue
+        if m.group(1):
+            if stack:
+                stack.pop()
+            continue
+        found = re.search(r'class="([^"]*)"', m.group(3))
+        stack.append((tag, found.group(1) if found else ""))
+    return None, ""
+
+
 class ShellContract(unittest.TestCase):
     """Each test loops every shell so a new one cannot arrive unchecked."""
 
@@ -112,6 +148,35 @@ class ShellContract(unittest.TestCase):
         for name, text in sorted(self.shells.items()):
             with self.subTest(shell=name):
                 yield name, text, style_of(text)
+
+    def test_the_redirect_slot_is_never_a_child_of_a_multi_column_grid(self):
+        """The notice is optional, so its container must not place children by
+        counting them. `assist` did: its head was a two-column grid holding the
+        mark and the text as loose items, with the mark spanning two rows -- so
+        which column each text item landed in depended on how many there were.
+        Filling the slot pushed the gloss into the mark's column and squeezed the
+        headline and the notice into a 138 px gutter, with Stay clipped outside
+        its own box. Nothing failed: the page built, validated and shipped.
+
+        A single-column grid is fine, and so is flex -- neither reflows when a
+        sibling appears. It is the second track that makes placement positional.
+        """
+        for name, text, css in self.each():
+            tag, classes = redirect_slot_parent(text.split("<body>", 1)[-1])
+            self.assertIsNotNone(tag, f"{name} has no {{{{REDIRECT}}}} in its body")
+            selectors = [f".{c}" for c in classes.split()] + [tag]
+            body = ";".join(
+                decl for selector, decl in rules(css) for one in selector.split(",") if one.strip() in selectors
+            )
+            if "display:grid" not in body.replace(" ", ""):
+                continue
+            tracks = re.search(r"grid-template-columns:([^;}]*)", body)
+            self.assertFalse(
+                tracks and len(tracks.group(1).split()) > 1,
+                f'{name}: {{{{REDIRECT}}}} is a direct child of <{tag} class="{classes}">, '
+                f"a {len(tracks.group(1).split()) if tracks else 0}-column grid -- adding the "
+                f"notice will move its siblings into the wrong column",
+            )
 
     # ---- structure ---------------------------------------------------------
 
@@ -217,6 +282,33 @@ class ShellContract(unittest.TestCase):
                 base <= token_names(root.group(1)),
                 f"{name}: :root is missing {sorted(base - token_names(root.group(1)))}",
             )
+
+    def test_sibling_selectors_on_the_severity_pill_still_have_their_sibling(self):
+        """A shell may hide decoration next to the pill with `.sev...+X`, which
+        is DOM order expressed as CSS and breaks silently if the markup moves.
+
+        banner does this: on a phone the pill and the mark together reach into
+        the headline, so `.sev:not(:empty)+.ghost` drops the mark on the pages
+        that have a label. Reorder the two spans and the rule stops matching --
+        no error, no failing build, just the overlap back on every phone.
+        """
+        for name, text, css in self.each():
+            body = text.split("<body>", 1)[-1]
+            for m in re.finditer(r"\.sev(?::[a-z-]+(?:\([^)]*\))?)*\s*\+\s*\.([a-z-]+)", css):
+                rule, sibling = m.group(0), m.group(1)
+                pill = body.find('class="sev"')
+                self.assertNotEqual(pill, -1, f"{name}: '{rule}' but no element carries class sev")
+                # The pill holds only {{SEVERITY}}, so its element ends at the
+                # first close tag; whatever opens next is its next sibling.
+                after = body[body.index("</", pill) :]
+                nxt = re.search(r"<\w+[^>]*>", after[after.index(">") + 1 :])
+                self.assertIsNotNone(nxt, f"{name}: '{rule}' but nothing follows the pill")
+                self.assertIn(
+                    f'class="{sibling}"',
+                    nxt.group(0),
+                    f"{name}: '{rule}' needs .{sibling} to be the pill's IMMEDIATE next sibling, "
+                    f"but {nxt.group(0)!r} comes first -- the rule silently stops matching",
+                )
 
     def test_declares_both_tone_overrides(self):
         for name, _text, css in self.each():
@@ -376,14 +468,14 @@ class BuiltOutput(unittest.TestCase):
         """Counted before iterating: a theme that silently produced nothing would
         otherwise pass every per-file check by having no files."""
         root = deploy_dir()
-        found = sorted(p.relative_to(root).as_posix() for p in root.glob("*/*.html"))
-        want = sorted(f"{t['name']}/{p}.html" for t in self.themes for p in self.pages)
+        found = sorted(p.relative_to(root).as_posix() for p in root.glob(f"*/{DEFAULT_PALETTE}/*.html"))
+        want = sorted(f"{t['name']}/{DEFAULT_PALETTE}/{p}.html" for t in self.themes for p in self.pages)
         self.assertEqual(found, want)
 
     def test_every_page_of_every_theme_stays_within_budget(self):
         for t in self.themes:
             for page in self.pages:
-                path = deploy_dir() / t["name"] / f"{page}.html"
+                path = deploy_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html"
                 size = len(path.read_bytes())
                 with self.subTest(theme=t["name"], page=page):
                     self.assertLess(
@@ -393,6 +485,34 @@ class BuiltOutput(unittest.TestCase):
                         f"the 17999 B ceiling -- <url/> expands at serve "
                         f"time",
                     )
+
+    def test_the_forced_scheme_blocks_are_preview_only(self):
+        """519-603 B per page of stylesheet that only the gallery can select.
+
+        `data-force-scheme` is written in exactly one place in this project --
+        the gallery's script, on the preview iframe's document. On a firewall
+        nothing sets it, so on a deploy page these blocks are unselectable
+        weight against a ceiling that silently drops the page.
+
+        Both directions, because either failure is invisible: shipped, it is
+        dead bytes nothing reports; missing from preview, the gallery's Light
+        and Dark captions both render the reviewer's own OS scheme and every
+        sign-off on the other one is worthless.
+
+        ShellContract still reads these blocks from the shell SOURCE, where it
+        holds their token sets in step with :root. This is only about which
+        build they reach.
+        """
+        found = 0
+        for t in self.themes:
+            for page in self.pages:
+                deployed = (deploy_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html").read_text(encoding="utf-8")
+                previewed = (preview_dir() / t["name"] / DEFAULT_PALETTE / f"{page}.html").read_text(encoding="utf-8")
+                with self.subTest(theme=t["name"], page=page):
+                    self.assertNotIn("data-force-scheme", deployed, "preview-only CSS reached a deploy page")
+                    self.assertIn("data-force-scheme", previewed, "the gallery cannot switch scheme on this page")
+                found += 1
+        self.assertGreater(found, 0, "no built pages were checked")
 
 
 if __name__ == "__main__":

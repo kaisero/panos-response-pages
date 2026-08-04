@@ -30,11 +30,15 @@
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Blocked file transfer"
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Blocked file transfer"
    data-intro="A file transfer was blocked by policy." data-prompt="Why I need this file:"
-   href="mailto:{{SUPPORT_EMAIL}}?subject=Blocked%20file%20transfer&amp;body=A%20file%20transfer%20was%20blocked%20by%20policy.%0A%0AUser%3A%20<user/>%0A%0AWhy%20I%20need%20this%20file%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
-<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p>
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
 <!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
 <p class="infobox">{{INFO_MARK}}<span>If you need this file for your work, send the report above and IT will review it.</span></p>

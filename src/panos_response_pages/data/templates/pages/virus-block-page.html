@@ -32,11 +32,15 @@
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep" data-to="{{SUPPORT_EMAIL}}" data-subject="Malware detected in a download"
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Malware detected in a download"
    data-intro="A download was blocked by antivirus scanning." data-prompt="What I was doing:"
-   href="mailto:{{SUPPORT_EMAIL}}?subject=Malware%20detected%20in%20a%20download&amp;body=A%20download%20was%20blocked%20by%20antivirus%20scanning.%0A%0AUser%3A%20<user/>%0A%0AWhat%20I%20was%20doing%3A%0A%0AFile%3A%20<fname/>">Report to IT</a>
-<p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> straight away.</p>
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
 <!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> straight away.</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
 <p class="warnline">{{WARN_MARK}}<span>If you have opened a copy of this file from somewhere else, tell IT — it may already be on your device.</span></p>

@@ -18,6 +18,8 @@ from __future__ import annotations
 import base64
 import re
 
+from panos_response_pages.validate import external_refs
+
 # Measured, not guessed. PAN-OS rejected a 24_000 B import with:
 #
 #   page can be at most 21845 characters, but current length: 32422
@@ -81,9 +83,6 @@ _FORM_TOKEN = re.compile(r"<pan_form\s*/>")
 # reads as the start of a tag to a naive scanner, and the observed failure is
 # that the form token stops being substituted.
 _RAW_LT = re.compile(r"<(?![a-zA-Z/!])")
-# Only real attribute references. The logo's percent-encoded xmlns is followed
-# by %27, not a quote, so it does not match.
-_EXTERNAL = re.compile(r"(?:src|href)\s*=\s*['\"](https?://[^'\"]+)")
 
 
 def encoded_size(text: str) -> int:
@@ -164,8 +163,13 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
         errors.append("a csrf-token value is baked in -- it is per-request; logins will fail")
 
     # The portal's CSP blocks external CSS and JS. data: and same-origin are fine.
-    for m in _EXTERNAL.finditer(text):
-        errors.append(f"external reference blocked by the portal CSP: {m.group(1)[:60]}")
+    # A navigational <a href> is not a subresource load and is not what the CSP
+    # refuses -- so the contact link may point off-origin. That exemption is one
+    # rule about one anchor and lives in validate.external_refs(), which the
+    # block-page guard uses too; the reason for the refusal differs between the
+    # two families, the exemption does not.
+    for _ref, url in external_refs(text):
+        errors.append(f"external reference blocked by the portal CSP: {url[:60]}")
 
     # PAN-OS's own ready handler dereferences every one; undeclared ones throw
     # and abort the handler, losing the whole customization.

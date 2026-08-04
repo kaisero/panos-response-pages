@@ -3,39 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="pragma" content="no-cache">
 <title>{{TITLE}}</title>
 <style>
 :root{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
+--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};
 --ob:.28;--gf:88%;--gd:.45;
 --tt:var(--at);--tw:var(--aw)}
 @media(prefers-color-scheme:dark){:root{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%;--gd:.30}}
+--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%;--gd:.30}}
+<!--@SCHEME-->
 html[data-force-scheme=light]{
 --gr:{{C_GROUND}};--sa:{{C_SURFACE_ALT}};
 --ik:{{C_INK}};--im:{{C_INK_MUTED}};--if:{{C_INK_FAINT}};
 --ac:{{C_ACCENT}};--ai:{{C_ACCENT_INK}};--at:{{C_ACCENT_TEXT}};--aw:{{C_ACCENT_WASH}};
---wn:{{C_WARN}};--wni:{{C_WARN_INK}};--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ct:{{C_CRIT}};--cti:{{C_CRIT_INK}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};--ob:.28;--gf:88%;--gd:.45}
+--wnt:{{C_WARN_TEXT}};--ww:{{C_WARN_WASH}};--ctt:{{C_CRIT_TEXT}};--cw:{{C_CRIT_WASH}};--ob:.28;--gf:88%;--gd:.45}
 html[data-force-scheme=dark]{
 --gr:{{C_D_GROUND}};--sa:{{C_D_SURFACE_ALT}};
 --ik:{{C_D_INK}};--im:{{C_D_INK_MUTED}};--if:{{C_D_INK_FAINT}};
 --ac:{{C_D_ACCENT}};--ai:{{C_D_ACCENT_INK}};--at:{{C_D_ACCENT_TEXT}};--aw:{{C_D_ACCENT_WASH}};
---wn:{{C_D_WARN}};--wni:{{C_D_WARN_INK}};--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ct:{{C_D_CRIT}};--cti:{{C_D_CRIT_INK}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%;--gd:.30}
+--wnt:{{C_D_WARN_TEXT}};--ww:{{C_D_WARN_WASH}};--ctt:{{C_D_CRIT_TEXT}};--cw:{{C_D_CRIT_WASH}};--ob:.20;--gf:92%;--gd:.30}
+<!--/@SCHEME-->
 html[data-tone=warn]{--tt:var(--wnt);--tw:var(--ww)}
 html[data-tone=crit]{--tt:var(--ctt);--tw:var(--cw)}
 *{box-sizing:border-box}
-html{font-size:16px}
-@media(min-width:600px){html{font-size:20px}}
+@media(min-width:600px){html{font-size:1.25rem}}
 body{margin:0;min-height:100vh;background:var(--gr);color:var(--ik);
-font:1rem/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
--webkit-font-smoothing:antialiased}
+font:1rem/1.7 system-ui,sans-serif;
+}
 .field{position:fixed;inset:0;overflow:hidden;pointer-events:none}
 /* Hairlines, not a dot screen -- the only radial here is the mask that fades
    the grid out, which paints nothing. Unsupported, the grid simply covers the
@@ -76,7 +76,7 @@ dl{margin:0 0 1.5rem;border-top:1px solid var(--sa)}
 .f{display:flex;gap:.8rem;padding:.5rem 0;border-bottom:1px solid var(--sa)}
 dt{width:5rem;flex:none;font-size:.66rem;color:var(--if)}
 dd{margin:0;min-width:0;font-size:.71rem;font-weight:600;overflow-wrap:anywhere}
-dd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.65rem;
+dd.mono{font-family:ui-monospace,Consolas,monospace;font-size:.65rem;
 font-weight:500}
 .acts{display:flex;flex-wrap:wrap;align-items:center;gap:.65rem 1rem}
 .btn{display:inline-flex;align-items:center;justify-content:center;min-height:2.7rem;
@@ -100,7 +100,7 @@ border-left:3px solid var(--at);color:var(--ik);font-size:.76rem;line-height:1.5
 .warnline{border-left-color:var(--tt)}
 .warnline>svg{color:var(--tt)}
 .note{margin:1.3rem 0 0;font-size:.74rem;color:var(--if);line-height:1.6}
-a:focus-visible,.btn:focus-visible,button:focus-visible{outline:3px solid var(--tt);
+a:focus-visible,.btn:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--tt);
 outline-offset:3px}
 @media(max-width:600px){
 main{padding:1.75rem 1.15rem 2.5rem}
@@ -108,7 +108,8 @@ main{padding:1.75rem 1.15rem 2.5rem}
 h1{font-size:1.55rem}
 .acts>.btn,.acts>form{flex:1 1 auto}
 .acts>form input{width:100%}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+{{REDIRECT_CSS}}
 </style>
 </head>
 <body>
@@ -118,6 +119,7 @@ h1{font-size:1.55rem}
 <div class="pane">
 <div class="ind">{{MARK}}</div>
 <h1>{{HEADLINE}}</h1>
+{{REDIRECT}}
 <p class="gloss" id="gloss">{{GLOSS}}</p>
 <dl>{{FACTS}}</dl>
 <div class="acts">{{ACTIONS}}</div>

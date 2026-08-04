@@ -24,14 +24,14 @@ login import, leaving under a kilobyte of headroom against the 16,170 B ceiling
 from __future__ import annotations
 
 import pathlib
-import re
 from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
+from panos_response_pages import contact
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
-from panos_response_pages.templates import parse_sections, read, substitute
+from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 
 # Slot order is document order. Nothing here is optional: a missing slot is a
 # silent failure on the firewall, so every one is required and named.
@@ -53,8 +53,6 @@ FROM_SHELL = {
     "login": ("STYLE_LOGIN", "BODY"),
     "home": ("STYLE_LOGOUT",),
 }
-
-_SLOT_RE = re.compile(r"\{\{([A-Z_0-9]+)\}\}")
 
 # The logo is a CSS background on both imports, and the shells write this prefix
 # literally so the rule reads as artwork rather than as a substitution.
@@ -83,15 +81,14 @@ def build_portal_page(
     theme: Mapping[str, Any],
     cfg: Mapping[str, Any],
     palette: Mapping[str, Any],
-    preview: bool,
     template_dir: pathlib.Path,
 ) -> str:
     """Compose one portal import. `page` is "login" or "home".
 
-    `preview` is accepted for symmetry with build_page and because the caller
-    decides per build; neither import changes shape for preview. Preview is
-    produced by splicing the captured PAN-OS prefix around this output, which is
-    a separate stage -- these bytes are always the bytes the firewall receives.
+    There is deliberately no `preview` parameter, unlike build_page: neither
+    import changes shape for preview. Preview is produced by splicing the
+    captured PAN-OS prefix around this output, which is a separate stage -- so
+    these bytes are always the bytes the firewall receives.
     """
     if page not in FRAMES:
         raise BuildError(f"unknown portal page {page!r} -- expected one of {', '.join(sorted(FRAMES))}")
@@ -114,9 +111,7 @@ def build_portal_page(
     filled = {slot: substitute(parts[slot], values) for slot in FROM_PAGE[page] + FROM_SHELL[page]}
 
     out = substitute(FRAMES[page], filled)
-    if "{{" in out:
-        leftover = sorted(set(_SLOT_RE.findall(out)))
-        raise BuildError(f"unresolved placeholder(s) in portal/{page}: {', '.join(leftover)}")
+    assert_resolved(out, f"portal/{page}")
 
     # Last, so the bytes that are measured are the bytes that ship. It must not
     # run earlier: parse_sections() needs the <!--@SLOT--> markers intact.
@@ -206,19 +201,27 @@ def _logo(
     # Caught here rather than by the frame's leftover check: by the time this
     # reaches the frame it is percent-encoded, so an unresolved token reads as
     # %7B%7BFOO%7D%7D and the generic check never sees it.
-    if "{{" in svg:
-        leftover = sorted(set(_SLOT_RE.findall(svg)))
-        raise BuildError(f"unresolved placeholder(s) in {key}: {', '.join(leftover) or '{{...}}'}")
+    assert_resolved(svg, key)
     return quote(svg, safe=LOGO_SAFE)
 
 
 def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str]:
     """Everything a portal slot may reference."""
+    contact.check(cfg)
     base = {
         "COMPANY": str(cfg["company"]),
-        "SUPPORT_EMAIL": str(cfg["supportEmail"]),
+        "SUPPORT_EMAIL": contact.email(cfg),
+    }
+    # The portal has no pre-filled body to carry -- there is no incident to
+    # describe on a login page -- so email mode is a bare mailto rather than the
+    # per-page mailto the response pages build.
+    contact_values = {
+        "CONTACT_HREF": contact.href(cfg, f"mailto:{contact.email(cfg)}"),
+        "CONTACT_NAME": contact.name(cfg),
+        "CONTACT_REACHABLE": contact.reachable(cfg),
     }
     values: dict[str, str] = dict(base)
+    values.update(contact_values)
     values["MARK"] = str(cfg["marks"]["shield"])
     # The same name again, escaped for a CSS content: string. The mark is only a
     # symbol; the wordmark is live text, which is what makes a rename in config
@@ -242,10 +245,10 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
     # this family does not restyle, and which is light whatever the visitor's
     # scheme is. So it gets the light copy, and only that page uses it.
     values["PORTAL_LOGO_URI"] = SVG_URI_PREFIX + light
-    # {{SUPPORT_EMAIL}} is resolved before encoding -- substitute() does not
-    # rescan replacement text, so a token left inside the array would ship
-    # literally. No spaces after the commas: every byte is measured.
-    messages = [substitute(str(m), base) for m in cfg["logoutMessages"]]
+    # The messages name a contact, so they need the contact tokens as well as
+    # `base`. Resolved before encoding -- substitute() does not rescan
+    # replacement text, so a token left inside the array would ship literally.
+    messages = [substitute(str(m), {**base, **contact_values}) for m in cfg["logoutMessages"]]
     values["LOGOUT_MESSAGES"] = "[" + ",".join(_js_string(m) for m in messages) + "]"
     values.update({f"C_{k.upper()}": str(v) for k, v in palette["colors"].items()})
     grad = palette.get("gradient", {})

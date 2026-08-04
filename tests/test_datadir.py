@@ -104,10 +104,13 @@ class TestAStaleDataDirectory(unittest.TestCase):
         self.assertIn("init --force", message)
 
     def test_both_families_still_build_from_it(self):
+        from panos_response_pages import palettes
         from panos_response_pages.builder import build_all
         from panos_response_pages.validate import PAGE_TOKENS
 
-        result = build_all(stale_data_dir(), pathlib.Path(tempfile.mkdtemp()), theme="glass", preview=True)
-        self.assertEqual(len(result.results), len(PAGE_TOKENS))
-        self.assertEqual(len(result.portal_results), 2)
+        root = stale_data_dir()
+        n_palettes = len(palettes.available(root / "palettes"))
+        result = build_all(root, pathlib.Path(tempfile.mkdtemp()), theme="glass", preview=True)
+        self.assertEqual(len(result.results), len(PAGE_TOKENS) * n_palettes)
+        self.assertEqual(len(result.portal_results), 2 * n_palettes)
         self.assertFalse(result.failed)

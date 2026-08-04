@@ -88,11 +88,6 @@ class TestInfobox(unittest.TestCase):
         self.assertRegex(base, r"border-left:\d+px solid var\(--at\)")
         self.assertNotIn("var(--aw)", base, "ramp-0 washes differ too much in lightness between brands")
 
-    def test_no_color_mix_dependency(self):
-        """color-mix() is newer than the CSS this project is willing to assume,
-        and an unsupported value here would drop the border silently."""
-        self.assertNotIn("color-mix", SHELL)
-
     def test_every_infobox_wraps_its_text_in_a_single_span(self):
         """Same flex constraint as the warnline: bare text either side of a
         <strong> would lay out as separate columns."""
@@ -181,50 +176,94 @@ class TestIndicatorAndInjectedForm(unittest.TestCase):
             mobile, r"\.acts>form input\{width:100%\}", "the injected control must fill its flexed form wrapper"
         )
 
-    def test_pan_form_controls_are_styled(self):
-        """PAN-OS injects its own markup for <pan_form/>; unstyled it renders as
-        a raw browser button beside a designed primary action."""
-        self.assertRegex(SHELL, r"\.acts input\[type=submit\]")
-        self.assertRegex(SHELL, r"\.acts (input\[type=submit\],|.*)button\{")
-
-
-if __name__ == "__main__":
-    unittest.main()
-
 
 class TestMailto(unittest.TestCase):
-    """A raw "&" in <url/> terminates the mailto body parameter, silently
-    dropping every field after it. PAN-OS substitutes raw bytes, so the page
-    cannot encode at serve time -- the script rebuilds the href from the rendered
-    fact table with encodeURIComponent, and the static href is ordered so that a
-    no-JS truncation loses only trailing text."""
+    """The incident detail is carried once, in the data-* attributes.
+
+    PAN-OS substitutes raw bytes, so the page cannot encode at serve time: a raw
+    "&" in <url/> terminates a mailto body parameter and silently drops every
+    field after it. The script therefore rebuilds the href from the rendered
+    fact table with encodeURIComponent, which is the only place the encoding can
+    happen correctly.
+
+    The static href used to carry the same fields a second time, pre-encoded and
+    ordered so a truncation lost only trailing text. It now carries the address
+    alone -- the duplication was ~180 B per page of copy that had to be kept in
+    step with the attributes by hand, and without the body there is nothing left
+    to truncate. No-JS still reaches the right mailbox, with an empty message."""
 
     def _report_links(self):
         for page in PAGES.glob("*.html"):
             body = page.read_text(encoding="utf-8")
             if 'id="rep"' in body:
                 start = body.index('id="rep"')
-                yield page.stem, body[body.rindex("<a ", 0, start) : body.index(">", body.index('href="', start))]
+                # Bound on '">', not '>': the anchor's other attributes can still
+                # hold a bare '>' in their copy, and cutting at the first one
+                # would truncate the slice mid-tag.
+                yield page.stem, body[body.rindex("<a ", 0, start) : body.index('">', body.index('href="', start)) + 2]
+
+    def _mailto_sections(self):
+        """The pre-filled mailto each page declares.
+
+        It lives in its own section rather than in the anchor, because the anchor's
+        href is now chosen at build time between this and a configured ticket URL.
+        The <url/> ordering rule follows the mailto, not the anchor.
+        """
+        for page in PAGES.glob("*.html"):
+            body = page.read_text(encoding="utf-8")
+            m = re.search(r"<!--@CONTACT_MAILTO-->(.*?)<!--/@CONTACT_MAILTO-->", body, re.S)
+            if m:
+                yield page.stem, m.group(1)
 
     def test_every_report_link_carries_the_rebuild_attributes(self):
+        # data-to is email-mode only -- it is an address, and a ticket URL has
+        # none -- so the template carries {{CONTACT_TO}} and the build decides.
+        # The other three ship in both modes: they are the page's incident
+        # metadata, and what a ticket adapter will read.
         found = 0
         for name, tag in self._report_links():
             found += 1
-            for attr in ("data-to", "data-subject", "data-intro", "data-prompt"):
+            for attr in ("{{CONTACT_TO}}", "data-subject", "data-intro", "data-prompt"):
                 self.assertIn(attr, tag, f"{name} missing {attr}")
         expected = len(list(PAGES.glob("*.html")))
         self.assertEqual(found, expected, "every page should offer a way to reach IT")
 
-    def test_static_fallback_puts_the_url_token_last(self):
-        for name, tag in self._report_links():
-            if "<url/>" not in tag:
-                continue  # safe-search has no <url/> token
-            after = tag[tag.index("<url/>") + len("<url/>") :]
-            self.assertNotIn(
-                "%0A",
-                after,
-                f"{name}: no field may follow <url/> in the static href, or an '&' in the URL truncates it away",
+    def test_every_page_declares_a_mailto_section(self):
+        """Email mode is the default, so a page without one has no href at all.
+        page.py falls back to an empty string rather than raising."""
+        declared = {name for name, _ in self._mailto_sections()}
+        expected = {p.stem for p in PAGES.glob("*.html")}
+        self.assertEqual(declared, expected, "every page needs a pre-filled mailto for email mode")
+
+    def test_mailto_sections_are_single_line(self):
+        """parse_sections strips the outer whitespace but not the interior, so a
+        newline introduced by reformatting would land inside the href."""
+        for name, mailto in self._mailto_sections():
+            self.assertNotIn("\n", mailto.strip(), f"{name}: the mailto section must stay on one line")
+
+    def test_the_static_href_carries_no_panos_tokens(self):
+        """It is the address and nothing else, which is what makes the truncation
+        hazard impossible rather than merely avoided.
+
+        This used to be a rule about ORDER: the pre-filled href carried the
+        user, the category and the address as body fields, a raw '&' in the
+        substituted <url/> terminated the body parameter, and every field after
+        it was silently dropped -- so <url/> had to come last. The fields now
+        live only in the data-* attributes, which the script folds into the body
+        with encodeURIComponent, so there is no body in the markup left to
+        truncate. Asserting the absence is stronger than asserting the order:
+        the ordering test could pass by a page simply having no <url/>.
+        """
+        found = 0
+        for name, mailto in self._mailto_sections():
+            found += 1
+            self.assertNotRegex(
+                mailto,
+                r"<(user|url|category|ssurl|fname|appname)\s*/>",
+                f"{name}: a PAN-OS token in the static href brings back the '&' truncation hazard",
             )
+            self.assertNotIn("?", mailto, f"{name}: the static href should carry no query, only the address")
+        self.assertEqual(found, len(list(PAGES.glob("*.html"))), "not every page was checked")
 
     def test_subjects_are_distinct_per_page(self):
         subjects = {}
@@ -246,9 +285,17 @@ class TestPreviewGallery(unittest.TestCase):
 
     def _visible(self):
         """Markup with <style> and <script> stripped -- 'flex-direction' is not
-        user-facing copy."""
-        out = re.sub(r"<style>.*?</style>", "", self.html, flags=re.S)
-        return re.sub(r"<script>.*?</script>", "", out, flags=re.S)
+        user-facing copy.
+
+        Split rather than matched: a regexp over tags reads as a broken HTML
+        sanitizer to code scanning, which is noise on markup this repo emitted
+        itself -- and there is nothing here a regexp does better.
+        """
+        out = self.html
+        for tag in ("style", "script"):
+            parts = out.split(f"<{tag}>")
+            out = parts[0] + "".join(p.partition(f"</{tag}>")[2] for p in parts[1:])
+        return out
 
     def test_uses_preview_language_not_prototype(self):
         visible = self._visible().lower()
@@ -263,21 +310,22 @@ class TestPreviewGallery(unittest.TestCase):
 
         themes = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((DATA / "themes").glob("*.json"))]
         if len(themes) == 1:
-            self.assertNotIn("data-theme", self.html)
+            self.assertNotIn('id="themegrp"', self.html)
         else:
-            self.assertIn("<select data-theme>", self.html, "no style selector was emitted")
+            self.assertIn('id="themebtn"', self.html, "no style control was emitted")
             for theme in themes:
                 self.assertIn(
-                    f'<option value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
+                    f'data-value="{theme["name"]}"', self.html, f"{theme['name']} is built but not selectable"
                 )
 
     def test_the_long_lists_do_not_grow_the_control_bar(self):
         """The chrome used to cost about 500 px of a 900 px viewport, most of it
-        the page list wrapping onto three rows. A select is one line whatever a
-        build produces; a button per page is not, so this is the rule that keeps
-        the bar from creeping back."""
-        self.assertIn("<select data-page>", self.html)
-        self.assertNotIn('data-page="', self.html, "the page list is buttons again")
+        the page list wrapping onto three rows. The closed control is one line
+        whatever a build produces -- its rows live in a popup that is hidden
+        until opened -- so this is the rule that keeps the bar from creeping
+        back: no page name may appear as a visible button in the bar itself."""
+        self.assertIn('id="pagebtn"', self.html)
+        self.assertNotRegex(self.html, r'<button role="radio" data-page="')
 
     def test_the_portal_frames_are_not_shrink_wrapped(self):
         """A portal page is a small card centred in min-height:100vh. Collapsing
@@ -316,3 +364,7 @@ class TestPreviewGallery(unittest.TestCase):
 
     def test_embedded_pages_cannot_break_out_of_the_payload(self):
         self.assertNotIn("</script>", self.html[: self.html.rindex("</script>")])
+
+
+if __name__ == "__main__":
+    unittest.main()

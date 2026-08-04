@@ -11,7 +11,7 @@ import unittest
 import pytest
 import yaml
 
-from _paths import ROOT
+from _paths import DATA, ROOT
 
 pytestmark = pytest.mark.unit
 
@@ -116,9 +116,28 @@ class TestPreviewIsPublished(unittest.TestCase):
     def test_the_gallery_itself_is_generated_not_committed(self):
         """The opposite rule to the screenshot, for the opposite reason: this one
         CAN be built by CI, so committing it only creates a copy that rots."""
-        noxfile = (ROOT / "noxfile.py").read_text(encoding="utf-8")
-        self.assertIn('PREVIEW_DEST = pathlib.Path("docs/preview")', noxfile)
-        self.assertIn("_build_preview(session)", noxfile, "the docs session does not build the gallery")
+        # Parsed, not grepped and not imported: a string match against another
+        # file's source breaks on reformatting and passes on a value that is
+        # merely spelled the same, while executing noxfile.py needs nox on the
+        # path -- and the test session installs only the test group, so an
+        # import there would pass locally and fail in CI.
+        import ast
+
+        source = (ROOT / "noxfile.py").read_text(encoding="utf-8")
+        dest = None
+        for node in ast.parse(source).body:
+            targets = node.targets if isinstance(node, ast.Assign) else []
+            if any(isinstance(t, ast.Name) and t.id == "PREVIEW_DEST" for t in targets):
+                # PREVIEW_DEST = pathlib.Path("docs/preview") -- the argument is
+                # the fact under test.
+                dest = ast.literal_eval(node.value.args[0])
+
+        self.assertEqual(dest, "docs/preview", "noxfile does not put the gallery under docs/preview")
+        self.assertIn(
+            "_build_preview(session)",
+            source,
+            "the docs session does not build the gallery",
+        )
         self.assertIn("docs/preview/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
     def test_the_generated_gallery_is_excluded_from_codespell(self):
@@ -147,9 +166,19 @@ class TestDocsSite(unittest.TestCase):
         actual = {p.name for p in DOCS.glob("*.md")}
         self.assertEqual(actual - listed, set(), "page(s) not in the nav")
 
-    def test_documents_the_copy_rules_and_their_source(self):
-        text = page("copy-rules.md")
-        self.assertIn("BANNED_COPY", text)
+    def test_documents_the_override_timeout_key(self):
+        """`continueGrantText` names a duration the page cannot check.
+
+        The wording has to match the URL Admin Override timeout configured on the
+        firewall, and nothing in the build knows what that is -- so the page can
+        promise sixty minutes against a fifteen-minute policy and look correct.
+        The docs are the only place that can say so.
+
+        This assertion used to sit alongside one that `copy-rules.md` cited
+        `BANNED_COPY`. That page has been removed; `styles.md` still mentions the
+        constant in passing, but pointing this test at that mention would assert
+        an aside while reading like it still guards the rules.
+        """
         self.assertIn("continueGrantText", page("customising.md"))
 
     def test_documents_the_shell_contract(self):
@@ -157,6 +186,21 @@ class TestDocsSite(unittest.TestCase):
         text = page("styles.md")
         for needle in ("{{SCRIPTS}}", "<dl>", 'id="gloss"', "data-force-scheme"):
             self.assertIn(needle, text, f"styles.md missing contract item: {needle}")
+
+    def test_the_styles_table_lists_every_style(self):
+        """Nothing else notices an undocumented style.
+
+        The build discovers themes by glob, so a new one ships whether or not
+        anyone writes it down -- and the counts in this file are prose, which
+        goes stale silently. This is the one place that fails when it does.
+        """
+        # The first section only: later tables in this page list other things,
+        # and a style is documented by appearing in the one at the top.
+        intro = page("styles.md").split("\n## ")[0]
+        listed = set(re.findall(r"^\| `([a-z0-9-]+)` \|", intro, re.M))
+        shipped = {p.stem for p in (DATA / "themes").glob("*.json")}
+        self.assertEqual(shipped - listed, set(), "style(s) shipped but not in the styles.md table")
+        self.assertEqual(listed - shipped, set(), "styles.md lists style(s) that no longer exist")
 
     def test_documents_the_data_directory_resolution_order(self):
         text = page("index.md")

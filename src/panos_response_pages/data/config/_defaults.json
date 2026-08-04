@@ -1,42 +1,54 @@
 {
   "company": "Example Corp",
+  "_supportEmail": "Where every 'Report to IT' action goes. Mutually exclusive with supportUrl: set one, and blank the other. This mode pre-fills the mail with the page's own fact table -- the user, the address, the category -- so IT receives the incident already described.",
   "supportEmail": "servicedesk@example.com",
-  "_palette": "Colour scheme, from palettes/. One of: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette.",
+  "_supportUrl": "An alternative to supportEmail, for a customer whose front door is a ticket system rather than a mailbox. Must be an absolute https:// URL: a response page is served AS the blocked site, so a relative path resolves against whatever host the user was refused. The link carries no pre-filled context -- an href cannot -- so the user describes the problem themselves. This file ships a supportEmail, and customer configs are MERGED over it, so a customer file setting supportUrl must also set \"supportEmail\": \"\" or the build stops.",
+  "supportUrl": "",
+  "_supportLabel": "What the contact link is CALLED when supportUrl is set. Ignored in supportEmail mode, where the link prints the address itself -- there, the address is both the label and the destination. Name the queue the way your users find it: 'the Service Desk', 'Helpdesk', 'IT Support'. Blank means the built-in default, 'IT support'.",
+  "supportLabel": "IT support",
+  "_palette": "Colour scheme, from palettes/. One of the brand palettes: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette. Setting it here also overrides a style that pins its own palette, which nyan does -- leave it out of a customer file unless that is what you want.",
   "palette": "cyber-orange",
   "_logoSvg": "Placeholder mark. Replace with the customer's logo as INLINE SVG, optimised to <= 2 KB. A traced-path export can be 40 KB and will silently break the page. Keep viewBox 0 0 24 24 and use currentColor so it inherits the theme accent.",
-  "logoSvg": "<svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"M12 8.2v4.4\"/><path d=\"M12 15.6h.01\"/></svg>",
+  "logoSvg": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"M12 8.2v4.4\"/><path d=\"M12 15.6h.01\"/></svg>",
   "_portalName": "Heading under the portal logo. Rendered into the #heading markup by the shell, NOT via gp_portal_name -- PAN-OS applies that variable with .html(), which would replace the login/download switch spans and leave the download page reading 'Sign in'. Names the service, not the company: this same string is a small eyebrow on the login and download pages but the whole <h1> on logout, and a value carrying {{COMPANY}} wraps that heading to two lines as soon as the company name is long. The company is already on every one of these pages -- it is the wordmark beside the logo.",
   "portalName": "GlobalProtect",
   "_portalLogoSvg": "The GlobalProtect portal MARK, as SVG source -- the symbol only, no company name. The name is rendered as text beside it, from `company`, so it follows a rename and takes its colour from the page. Do not draw it in here: an SVG cannot measure text, the viewBox is fixed, and a name longer than the artwork would simply be clipped. Separate from logoSvg because the portal needs this as a percent-encoded data: URI rather than inline markup -- the build does that encoding, so write plain SVG here, with single quotes for attributes. Colour it with the S_* tokens, never a literal hex and never currentColor: this artwork is an isolated document and inherits nothing from the page. The build renders it TWICE, binding S_* to the palette's light values for one copy and its d_ values for the other, and the shells switch between the two in CSS. Keep it square -- it is drawn into a square box.",
   "portalLogoSvg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='{{S_ACCENT}}'/><g transform='translate(16,16) scale(.85) translate(-12,-12.5)'><path d='M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z' fill='{{S_ACCENT_INK}}'/></g></svg>",
   "_portalLogoSvgDark": "Optional. Set it only when the dark-scheme mark is different ARTWORK -- a different symbol, a knockout treatment -- rather than the same drawing in different colours. Left out, the dark copy is portalLogoSvg with S_* bound to the palette's dark values, which is what a mark built from the tokens wants.",
-  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator'.",
+  "_logoutMessages": "The seven GlobalProtect logout messages. PAN-OS selects one by index via logout.esp?code=N, so all seven must be present and in order. This array is the only supported way to change logout wording. Entries 3, 4 and 5 are admin-only errors an end user cannot act on, so they name a real contact instead of saying 'contact system administrator' -- {{CONTACT_REACHABLE}} resolves to the support address, or to the label followed by the ticket URL when supportUrl is set. PAN-OS fills this text in with .text(), so it cannot carry a link -- the URL itself has to be the words the user reads.",
   "logoutMessages": [
     "You have successfully logged out of GlobalProtect portal.",
     "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
     "User not authenticated to GlobalProtect portal.",
-    "System error. Contact {{SUPPORT_EMAIL}}.",
-    "System error, failed to delete user session. Contact {{SUPPORT_EMAIL}}.",
-    "Cannot create user session, maximum capacity reached. Contact {{SUPPORT_EMAIL}}.",
+    "System error. Contact {{CONTACT_REACHABLE}}.",
+    "System error, failed to delete user session. Contact {{CONTACT_REACHABLE}}.",
+    "Cannot create user session, maximum capacity reached. Contact {{CONTACT_REACHABLE}}.",
     "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
   ],
-  "_marks": "Page-level marks, also inline SVG. Referenced by name from a page template's <!--@MARK--> slot.",
+  "_marks": "Page-level marks, inline SVG. `warning` and `info` are the icons the warnline and info callouts use; `shield` is the fallback for a page template that declares no <!--@MARK--> of its own -- every shipped page declares one, so it exists for templates you write. Marks are NOT selectable by name from a template: the slot carries the SVG itself, so an entry nothing here reads is an entry nothing can reach.",
   "marks": {
     "shield": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"m9 12.3 2.1 2.1 4-4.3\"/></svg>",
-    "alert": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z\"/><path d=\"M12 8.4v4.2\"/><path d=\"M12 16h.01\"/></svg>",
-    "key": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"8.5\" cy=\"12\" r=\"3.5\"/><path d=\"M12 12h8\"/><path d=\"M17.5 12v3\"/><path d=\"M20 12v2.2\"/></svg>",
-    "file": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z\"/><path d=\"M14 3v5h5\"/></svg>",
-    "download": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.5v11\"/><path d=\"m7.5 10 4.5 4.5 4.5-4.5\"/><path d=\"M4.5 19.5h15\"/></svg>",
-    "malware": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"7\" y=\"9\" width=\"10\" height=\"9\" rx=\"4.5\"/><path d=\"M9.5 9V7.5a2.5 2.5 0 0 1 5 0V9\"/><path d=\"M4.5 12h2.5M17 12h2.5M5.5 16.5 7.4 15.5M16.6 15.5l1.9 1M5.5 8l1.9 1M16.6 9l1.9-1\"/></svg>",
-    "info": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5.2\"/><path d=\"M12 7.6h.01\"/></svg>",
-    "warning": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.6 21.4 20H2.6Z\"/><path d=\"M12 10.2v3.6\"/><path d=\"M12 16.8h.01\"/></svg>",
-    "search": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"6.5\"/><path d=\"m16 16 4 4\"/></svg>"
+    "info": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 11v5.2\"/><path d=\"M12 7.6h.01\"/></svg>",
+    "warning": "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 3.6 21.4 20H2.6Z\"/><path d=\"M12 10.2v3.6\"/><path d=\"M12 16.8h.01\"/></svg>"
   },
   "_defaultGloss": "Shown when the blocked category is not in the map below. Must be true for every category, so keep it general.",
   "defaultGloss": "This category is restricted by company policy.",
+  "_riskGloss": "The same fallback, for a category whose tone is warn or critical. A page banner reading 'Security risk' over 'restricted by company policy' contradicts itself, so the two generic sentences are separate. Must be true of every security category, so keep it general.",
+  "riskGloss": "This site was blocked because it presents a security risk.",
   "_continueGrantText": "How long a Continue/Override grant lasts. PAN-OS defaults to 15 minutes but this is administrator-configurable per firewall, so it must match your actual URL Admin Override timeout rather than being hardcoded in the page.",
   "continueGrantText": "15 minutes",
-  "_categories": "PAN-OS exposes no severity or reason variable and serves one page per type, so this map is applied client-side by reading the substituted <category/> value. Tone is one of calm | warn | critical. Covers the categories responsible for nearly all real blocks -- everything else falls back to defaultGloss.",
+  "_redirect": "OPT-IN. When a blocked category has a company-sanctioned equivalent, the URL block page can name it and hand the user over after a countdown. Off unless `enabled` is true AND `categories` below maps at least one category -- with both unset, not one byte of this reaches a page. It applies to the URL block page ONLY: no other response page has a <category/> token to key on, and the two coach pages already carry a Continue action a countdown would race.",
+  "redirect": {
+    "_enabled": "The toggle. Leave false until the sanctioned apps below are ALLOWED by policy -- see the warning on `categories`.",
+    "enabled": false,
+    "_seconds": "Default countdown, 1-60. Override per category. Long enough to read one sentence and cancel; 10 is deliberately slower than it needs to be for someone who was expecting the site.",
+    "seconds": 10,
+    "_message": "Default notice text. `{app}` is replaced with that category's `app`. Override per category for a service that needs a different sentence.",
+    "message": "Taking you to {app} \u2014 the approved alternative for this.",
+    "_categories": "category -> the sanctioned app to forward to. WARNING: the target must be permitted by the security policy that produced the block, or the user is sent to a page that blocks them. The page will not loop on that -- served as the blocked site, it can see it is being blocked ON a sanctioned app and refuses to hop again, so a wrong entry here costs one wasted redirect rather than a trap -- but only policy can make the target reachable. A category that `categories` above does not list is calm, and may redirect without an entry there; one that IS listed must have tone `calm`, because a user must never be forwarded off a warning or a security block. The browser checks the resolved tone again before it arms. `url` must be an absolute https:// URL: it is read from this file and never from <url/>, which is chosen by whoever the user was trying to reach. Optional per entry: `seconds` and `message`. Example: \"online-storage-and-backup\": { \"app\": \"Company Drive\", \"url\": \"https://drive.example.com/\", \"seconds\": 5, \"message\": \"Work files belong on {app}. Taking you there.\" }",
+    "categories": {}
+  },
+  "_categories": "PAN-OS exposes no severity or reason variable and serves one page per type, so this map is applied client-side by reading the substituted <category/> value. Tone is one of calm | warn | critical. An empty gloss means 'no tailored copy': the page falls back to defaultGloss, or to riskGloss when the tone is warn or critical. That is how a category earns a tone without paying ~46 B for a sentence it does not need -- spelling all 90 PAN-OS categories out in full would add ~5.6 KB and blow the byte ceiling. Any category absent from this map renders calm with defaultGloss, so the entries here are the ones where that would be wrong. The friendly label shown in the Category row is derived from the slug in the browser and needs no entry.",
   "categories": {
     "command-and-control": {
       "tone": "critical",
@@ -56,7 +68,7 @@
     },
     "grayware": {
       "tone": "warn",
-      "gloss": "This site hosts unwanted software — not clearly malicious, but not safe to run on a work device."
+      "gloss": "This site hosts unwanted software \u2014 not clearly malicious, but not safe to run on a work device."
     },
     "newly-registered-domain": {
       "tone": "warn",
@@ -105,6 +117,66 @@
     "web-advertisements": {
       "tone": "calm",
       "gloss": "Advertising and tracking content is blocked across the company network."
+    },
+    "compromised-website": {
+      "tone": "critical",
+      "gloss": "This is a legitimate site that has been broken into and is currently serving attacks to its visitors."
+    },
+    "browser-runtime-attack": {
+      "tone": "critical",
+      "gloss": ""
+    },
+    "real-time-detection": {
+      "tone": "critical",
+      "gloss": ""
+    },
+    "high-risk": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "medium-risk": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "encrypted-dns": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "scanning-activity": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "questionable": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "not-resolved": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "extremism": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "copyright-infringement": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "peer-to-peer": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "remote-access": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "cryptocurrency": {
+      "tone": "warn",
+      "gloss": ""
+    },
+    "private-ip-addresses": {
+      "tone": "warn",
+      "gloss": ""
     }
   }
 }

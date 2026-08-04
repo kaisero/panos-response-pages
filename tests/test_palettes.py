@@ -8,9 +8,14 @@ and this test holds all three to 4.5:1.
 
 import colorsys
 import json
+import pathlib
+import shutil
+import tempfile
 import unittest
 
 from _paths import DATA
+from panos_response_pages.errors import BuildError
+from panos_response_pages.palettes import load_palette
 
 PALETTES = sorted((DATA / "palettes").glob("*.json"))
 
@@ -56,10 +61,18 @@ def contrast(a, b):
 
 
 class TestPalettes(unittest.TestCase):
-    def test_the_three_palettes_exist(self):
+    def test_the_shipped_palettes_exist(self):
         names = sorted(p.stem for p in PALETTES)
-        for expected in ("cyber-orange", "prisma-blue", "strata-yellow"):
+        for expected in ("cyber-orange", "prisma-blue", "strata-yellow", "nyan"):
             self.assertIn(expected, names)
+
+    def test_every_palette_declares_its_kind(self):
+        """Brand palettes are the customer axis: any style may wear any of them.
+        A style palette belongs to one shell and is pinned by it. The guards
+        below differ by kind, so it is declared rather than guessed at."""
+        for path in PALETTES:
+            kind = json.loads(path.read_text(encoding="utf-8")).get("kind")
+            self.assertIn(kind, ("brand", "style"), f"{path.stem} declares no kind")
 
     def test_palettes_match_their_declared_ramps(self):
         """Each palette declares a five-stop ramp. The 500 stop is the accent
@@ -68,6 +81,7 @@ class TestPalettes(unittest.TestCase):
             "cyber-orange": ["#FFBF9C", "#FF724D", "#FA582D", "#B23808", "#190000"],
             "strata-yellow": ["#FFF0CC", "#FFDE73", "#FFCB06", "#D69F25", "#261B01"],
             "prisma-blue": ["#D9F8FC", "#56D6F4", "#00C0E8", "#0196B3", "#001D2B"],
+            "nyan": ["#FFE4F1", "#FF8FC4", "#FF4FA3", "#C81F6F", "#2A0A1C"],
         }
         for path in PALETTES:
             d = json.loads(path.read_text(encoding="utf-8"))
@@ -92,9 +106,16 @@ class TestPalettes(unittest.TestCase):
         """Regression guard. Deriving the dark ground by mixing the ramp's 1000
         stop toward black preserved its saturation -- 91-100% at 4% lightness,
         which reads brown for yellow and muddy for the rest. A dark UI ground
-        wants the brand hue as a whisper."""
+        wants the brand hue as a whisper.
+
+        Scoped to brand palettes, which is who that argument is about. A style
+        palette's dark ground is artwork rather than a tinted neutral -- the sky
+        IS the picture -- and it is worn by the one shell built around it."""
         for path in PALETTES:
-            c = json.loads(path.read_text(encoding="utf-8"))["colors"]
+            palette = json.loads(path.read_text(encoding="utf-8"))
+            if palette.get("kind") == "style":
+                continue
+            c = palette["colors"]
             for key in ("d_ground", "d_surface", "d_surface_alt"):
                 h = c[key].lstrip("#")
                 r, g, b = (int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
@@ -136,6 +157,51 @@ class TestPalettes(unittest.TestCase):
                     if ratio < AA_NORMAL:
                         failures.append(f"{path.stem} [{scheme}] {label}: {fg} on {bg} = {ratio:.2f}:1")
         self.assertEqual(failures, [], "contrast failures:\n  " + "\n  ".join(failures))
+
+
+class TestFilenameIsAuthoritative(unittest.TestCase):
+    """build_all keys everything -- `loaded`, `blobs[(theme, stem, page)]`,
+    deploy/<style>/<stem>/ -- by the palette file's stem. build_gallery keys
+    everything else -- blob_map, blobs-<name>.js, data-pal, data-palette -- by
+    the JSON's own `name` field. A palette whose `name` disagrees with its
+    filename used to produce either a raw KeyError deep in build_gallery, or a
+    build that reported `ok` while silently writing a gallery with two rows for
+    the same palette and no sidecar for the new one. Both are worse than
+    refusing at load time, where there is still one file to point at.
+
+    Built in a tempfile.TemporaryDirectory() copy of the packaged data dir
+    rather than in place, so a bad fixture never touches the packaged data.
+    """
+
+    def _copy(self) -> pathlib.Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        data_dir = pathlib.Path(tmp.name) / "data"
+        shutil.copytree(DATA, data_dir)
+        return data_dir
+
+    def test_a_mismatched_name_is_a_build_error(self):
+        data_dir = self._copy()
+        palette_dir = data_dir / "palettes"
+        acme = json.loads((palette_dir / "cyber-orange.json").read_text(encoding="utf-8"))
+        acme["name"] = "acme-brand"
+        (palette_dir / "acme.json").write_text(json.dumps(acme), encoding="utf-8")
+
+        with self.assertRaises(BuildError) as caught:
+            load_palette("acme", palette_dir)
+        message = str(caught.exception)
+        self.assertIn("acme-brand", message)
+        self.assertIn("acme", message)
+
+    def test_a_matching_name_still_loads(self):
+        data_dir = self._copy()
+        palette_dir = data_dir / "palettes"
+        acme = json.loads((palette_dir / "cyber-orange.json").read_text(encoding="utf-8"))
+        acme["name"] = "acme"
+        (palette_dir / "acme.json").write_text(json.dumps(acme), encoding="utf-8")
+
+        loaded = load_palette("acme", palette_dir)
+        self.assertEqual(loaded["name"], "acme")
 
 
 if __name__ == "__main__":
