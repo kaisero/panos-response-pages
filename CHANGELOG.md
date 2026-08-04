@@ -4,7 +4,7 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.1]
 
 ### Added
 
@@ -14,23 +14,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fails the build. The ticket link carries no pre-filled context, but the page
   still declares the incident metadata as `data-*` attributes for a future
   ticket-system adapter to read.
-
-### Changed
-
-- Every style is now built in every palette. Pages move from
-  `out/deploy/<style>/` to `out/deploy/<style>/<palette>/`, and portal imports
-  from `out/deploy/<style>/portal/` to `out/deploy/<style>/<palette>/portal/`.
-  **This breaks any script that globs the old paths.**
-- `--palette` narrows a build to one palette instead of selecting the only one
-  built, matching how `--theme` narrows the style axis.
-- A theme's `palette` pin and the config's `palette` key now choose which
-  palette the preview gallery opens on. They no longer decide what is built.
-- The build report prints one row per style and palette, naming that
-  combination's largest page, with anything that warns or fails listed in full
-  underneath.
-
-### Added
-
 - A palette dropdown in the preview gallery, showing each palette's primary
   colour. The gallery chrome follows the selection.
 - **A seventh style, `nyan`** — Nyan Runway. A pixel cat flying across a star
@@ -48,6 +31,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a `palette` key in the theme. Resolution order is `--palette`, then the
   customer's own config file, then the pin, then the default — see above for
   what that order now decides.
+
+### Changed
+
+- Every style is now built in every palette. Pages move from
+  `out/deploy/<style>/` to `out/deploy/<style>/<palette>/`, and portal imports
+  from `out/deploy/<style>/portal/` to `out/deploy/<style>/<palette>/portal/`.
+  **This breaks any script that globs the old paths.**
+- `--palette` narrows a build to one palette instead of selecting the only one
+  built, matching how `--theme` narrows the style axis.
+- A theme's `palette` pin and the config's `palette` key now choose which
+  palette the preview gallery opens on. They no longer decide what is built.
+- The build report prints one row per style and palette, naming that
+  combination's largest page, with anything that warns or fails listed in full
+  underneath.
 
 ## [0.1.0]
 
