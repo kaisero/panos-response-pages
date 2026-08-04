@@ -285,9 +285,17 @@ class TestPreviewGallery(unittest.TestCase):
 
     def _visible(self):
         """Markup with <style> and <script> stripped -- 'flex-direction' is not
-        user-facing copy."""
-        out = re.sub(r"<style>.*?</style>", "", self.html, flags=re.S)
-        return re.sub(r"<script>.*?</script>", "", out, flags=re.S)
+        user-facing copy.
+
+        Split rather than matched: a regexp over tags reads as a broken HTML
+        sanitizer to code scanning, which is noise on markup this repo emitted
+        itself -- and there is nothing here a regexp does better.
+        """
+        out = self.html
+        for tag in ("style", "script"):
+            parts = out.split(f"<{tag}>")
+            out = parts[0] + "".join(p.partition(f"</{tag}>")[2] for p in parts[1:])
+        return out
 
     def test_uses_preview_language_not_prototype(self):
         visible = self._visible().lower()

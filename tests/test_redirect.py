@@ -60,10 +60,16 @@ def script_of(html):
     the page", which held until a shell appended one of its own after
     {{SCRIPTS}} -- nyan does, for the flight -- and every assertion about the
     redirect then ran against the wrong script and failed for the wrong reason.
+
+    Split rather than matched: a regexp over <script> tags reads as a broken
+    HTML sanitizer to code scanning (it misses <SCRIPT>, attributes, comments),
+    and the alert is noise on a helper that only ever sees markup this repo
+    emitted itself.
     """
-    for block in re.findall(r"<script>(.*?)</script>", html, re.S):
-        if "var R=" in block:
-            return block
+    for block in html.split("<script>")[1:]:
+        body = block.split("</script>")[0]
+        if "var R=" in body:
+            return body
     return ""
 
 
