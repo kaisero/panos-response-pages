@@ -621,10 +621,18 @@ def _portal_report(result: BuildResult) -> list[str]:
     says out loud: "page can be at most 21845 characters, but current length: N".
 
     The languages column is there for the reason _language_cell() gives, and it
-    is needed MORE here: this family fits two extra languages before the warn
-    band where the block pages fit five, so a style that opted out has dropped
-    something the reader is more likely to be looking for. Without the column,
-    nyan's opt-out was visible in one of the two tables the same build prints.
+    is needed MORE here: this family is what runs out of room first, so a style
+    that opted out has dropped something the reader is more likely to be looking
+    for. Without the column, nyan's opt-out was visible in only one of the two
+    tables the same build prints.
+
+    Measured with the shipped translations, the portal takes English plus three
+    to five others depending which -- six with the cheapest set, four once two
+    are Cyrillic -- and it is always the family that breaks first. It also breaks
+    differently: PAN-OS REFUSES an oversize import outright, where an oversize
+    block page is accepted and then silently never displayed. The louder failure
+    is the one that arrives first, which is the right way round but only if this
+    table says which languages produced the size.
     """
     worst = _worst_rows(result.portal_results)
     cells = {theme: _language_cell(result, theme) for theme, _palette in worst}
