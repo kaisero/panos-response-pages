@@ -110,6 +110,24 @@ skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/
 # "levl" is a deliberate misspelling in the test asserting that a typo'd
 # settings key is rejected rather than silently ignored.
 ignore-words-list = "levl"
+# German prose inside English documentation. `docs/customising.md` carries the
+# worked `translations` example, and one of its sentences is a translator's
+# German -- where the formal pronoun "Sie" is read as a typo for "Size".
+#
+# A regex rather than the two alternatives, both of which are wider:
+#
+# * `ignore-words-list = "sie"` switches that correction off in every file in the  # codespell:ignore
+#   tree, en.json and the Python sources included. This form is case-SENSITIVE,
+#   so it exempts the German pronoun and still catches a lower-case "sie" typed  # codespell:ignore
+#   for "size" in English prose.
+# * skipping docs/customising.md drops the check on ~400 lines of English
+#   documentation to protect one line of German.
+#
+# The marker used in validate.py cannot be used here: the sentence sits inside a
+# ```json block that a reader copies into their own config, and neither a JSON
+# comment nor an HTML one can be added to that line without breaking the example.
+# Same reasoning as the de.json skip above, at word granularity rather than file.
+ignore-regex = "\\bSie\\b"
 
 [tool.mypy]
 python_version = "3.11"
