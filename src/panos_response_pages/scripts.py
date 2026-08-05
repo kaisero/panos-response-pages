@@ -215,15 +215,27 @@ def category_js(
             # Positional against `dl dt` in document order -- the same contract
             # the numbered {{T_FACT*}} placeholders are built on.
             "[].forEach.call(document.querySelectorAll('dl dt'),function(e,i){if(t.f[i])e.textContent=t.f[i]});"
-            # The page's one a.btn, and the ONLY element whose text is a label.
-            # On ten pages it IS #rep and its text is the report label; on
-            # safe-search it is the settings link, which is why that page --
-            # and only that page -- compiles an a2. Scoped to the button
-            # deliberately: safe-search's #rep is an inline anchor inside a
-            # sentence whose text is the configured contact name, and writing
-            # the report label into it turns "Contact <address>" into
-            # "Contact Report to IT".
-            "var B=Q('a.btn');if(B)B.textContent=t.a2||t.rl;"
+            # The one element on the page whose text is a label. On ten pages it
+            # IS #rep and its text is the report label; on safe-search it is the
+            # settings link, which is why that page -- and only that page --
+            # compiles an a2. Scoped to the button deliberately: safe-search's
+            # #rep is an inline anchor inside a sentence whose text is the
+            # configured contact name, and writing the report label into it
+            # turns "Contact <address>" into "Contact Report to IT".
+            #
+            # The report button FIRST, and only then any a.btn. querySelector
+            # returns the first match in document order, and three pages carry a
+            # PAN-OS token -- <pan_form/> on the two coach pages, <cookie/> on
+            # file-block-continue -- that the firewall expands into markup of
+            # its own BEFORE the report anchor. Whether that markup contains an
+            # a.btn cannot be established from this repository, so the bare
+            # selector made the label's destination depend on serve-time
+            # injection: on the very pages this feature exists for, the report
+            # label could be written into PAN-OS's own Continue control. #rep is
+            # ours and the firewall never injects it, so preferring it costs 14
+            # bytes and removes the question. The fallback is what still finds
+            # safe-search's settings link, which has no id.
+            "var B=Q('a.btn#rep')||Q('a.btn');if(B)B.textContent=t.a2||t.rl;"
             # The three data-* fields the mailto rebuild below reads to compose
             # the body. They ARE copy, on every page that has a #rep at all --
             # safe-search's inline anchor included.
