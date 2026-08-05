@@ -128,6 +128,13 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
         raise BuildError(f"strings document has no entry for page '{page}'")
     p = resolve(pages[page], values)
     shared = resolve(doc.get("shared", {}), values)
+    # Most pages offer the same fallback ("... with the details above"), so it
+    # lives in `shared` and is written once per language. The two pages that
+    # want the user moving now -- a live credential submission, a malware hit --
+    # say "straight away" instead, and carry their own pair. Overriding beats a
+    # second shared key: the alternative names the variant rather than the page,
+    # and a translator then has to work out which pages use which.
+    contact_alt = p.get("contactAlt", shared["contactAlt"])
     out: dict[str, str] = {
         "T_TITLE": p["title"],
         "T_HEADLINE": p["headline"],
@@ -137,8 +144,8 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
         "T_REPORT_SUBJECT": p["report"]["subject"],
         "T_REPORT_INTRO": p["report"]["intro"],
         "T_REPORT_PROMPT": p["report"]["prompt"],
-        "T_CONTACT_ALT1": shared["contactAlt"][0],
-        "T_CONTACT_ALT2": shared["contactAlt"][1],
+        "T_CONTACT_ALT1": contact_alt[0],
+        "T_CONTACT_ALT2": contact_alt[1],
     }
     for i, label in enumerate(p["facts"], start=1):
         out[f"T_FACT{i}"] = label

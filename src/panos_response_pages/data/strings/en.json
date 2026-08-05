@@ -16,6 +16,19 @@
         "intro": "Please review this application block.",
         "prompt": "Why I need this application:"
       }
+    },
+    "credential-block-page": {
+      "title": "Credential submission blocked",
+      "headline": "Credential submission blocked",
+      "gloss": "You just tried to send your work username and password to a site we do not recognise as trusted.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "contactAlt": ["Or email ", " straight away."],
+      "extra": "{{COMPANY}} will never ask for your password on a page like this one. If a site asks you to sign in and something feels off, close the tab and go to the service directly from your bookmarks.",
+      "report": {
+        "subject": "Possible phishing page - credential submission blocked",
+        "intro": "A credential submission was blocked.",
+        "prompt": "What I was doing:"
+      }
     }
   }
 }

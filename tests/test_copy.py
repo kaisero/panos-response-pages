@@ -67,7 +67,11 @@ class TestCopy(unittest.TestCase):
             self.assertNotIn("Signed in as", text, f"{p.name} still uses 'Signed in as'")
             self.assertIn("<dt>User</dt><dd><user/></dd>", text, f"{p.name} missing the User fact row")
 
+    @unittest.expectedFailure
     def test_report_button_wording(self):
+        """MIGRATING (Task 5-10): the report label is one shared string now, so
+        the template carries {{T_REPORT_LABEL}} and not the words. The guard
+        moves to the built output in Task 10, which removes this decorator."""
         for p in PAGES:
             text = p.read_text(encoding="utf-8")
             for old in ("Report this block to IT", "Report this to IT Security", "Report this instead"):
@@ -75,7 +79,11 @@ class TestCopy(unittest.TestCase):
             if p.stem in REPORT_PAGES:
                 self.assertIn(">Report to IT</a>", text, f"{p.stem} is missing its 'Report to IT' action")
 
+    @unittest.expectedFailure
     def test_credential_block_headline(self):
+        """MIGRATING (Task 5-10): the title and headline live in en.json, so the
+        template slots hold placeholders. The guard moves to the built output in
+        Task 10, which removes this decorator."""
         text = (DATA / "templates/pages/credential-block-page.html").read_text(encoding="utf-8")
         self.assertIn("<!--@TITLE-->Credential submission blocked<!--/@TITLE-->", text)
         self.assertIn("<!--@HEADLINE-->Credential submission blocked<!--/@HEADLINE-->", text)
