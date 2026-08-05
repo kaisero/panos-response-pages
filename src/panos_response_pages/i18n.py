@@ -16,8 +16,9 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import unicodedata
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from panos_response_pages import contact, logs
 from panos_response_pages.errors import BuildError
@@ -877,6 +878,86 @@ def _refuse_markup(where: str, doc: Mapping[str, Any], prefix: str = "", *, reme
         )
 
 
+# Unicode normalisation form. NFC is what every editor, browser and HTTP client
+# produces by default and what every shipped strings file already is -- which is
+# exactly why nothing noticed that nothing enforced it.
+#
+# The failure this refuses is a file re-saved in NFD. macOS is the environment
+# where it happens without anyone choosing it: the filesystem normalises FILE
+# NAMES to a decomposed form, and a handful of editors and shell pipelines carry
+# the same habit into file CONTENT. A decomposed file is invisible to a reader:
+#
+# * It looks identical in a terminal and in a diff -- the combining mark renders
+#   on top of the base letter, which is what a combining mark is for.
+# * It passes check_complete's key parity: the keys are ASCII.
+# * It passes empty_leaves: nothing is empty.
+# * It passes markup_leaves: there is no angle bracket.
+# * It passes json.loads, it passes the build, and it passes validate.
+#
+# What it does NOT pass is the ceiling. PAN-OS refuses an oversize page by never
+# displaying it, and NFD costs two extra bytes for EVERY decomposable character:
+# Cyrillic and Vietnamese are the shipped languages where that is most of a page.
+# Russian's ё and й and Ukrainian's ї and й all have decomposed forms, and those
+# letters are frequent enough that an NFD re-save moves a page's size measurably
+# -- silently, against a limit that also fails silently.
+#
+# And it makes a page disagree with itself. The base language reaches the markup
+# as text while every other language reaches an inline <script> as JSON, so a
+# document normalised one way beside a document normalised the other renders the
+# same word as two different byte sequences on the same page: copy/paste, search
+# and any character-count check then behave differently depending on which
+# language the browser selected.
+#
+# NFC rather than "any consistent form": it is the web's default, it is what
+# json.dumps(ensure_ascii=False) writes back out, and picking the form the whole
+# ecosystem already produces means this rule never fires on a file written by
+# ordinary means.
+NORMAL_FORM: Literal["NFC"] = "NFC"
+
+
+def denormalised_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
+    """Paths whose value is not NFC-normalised. Same walk as empty_leaves()."""
+    out: list[str] = []
+    for key, value in doc.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, Mapping):
+            out += denormalised_leaves(value, f"{path}.")
+        elif isinstance(value, list):
+            out += [f"{path}[{i}]" for i, v in enumerate(value) if _is_denormalised(v)]
+        elif _is_denormalised(value):
+            out.append(path)
+    return out
+
+
+def _is_denormalised(value: Any) -> bool:
+    return isinstance(value, str) and not unicodedata.is_normalized(NORMAL_FORM, value)
+
+
+def _refuse_denormalised(lang: str, doc: Mapping[str, Any]) -> None:
+    """Names the language AND every key path, like _refuse_empty and
+    _refuse_markup -- and for a stronger reason than either.
+
+    A denormalised string is the one failure in this module that a reader cannot
+    see. An empty fragment is visible in the file and a tag is visible in the
+    file; a decomposed character is byte-level only, so a count alone would send
+    the author hunting through a document that looks entirely correct. The path
+    is the whole of the remedy, together with the one-line fix below it.
+    """
+    bad = denormalised_leaves(doc)
+    if bad:
+        raise BuildError(
+            f"{lang}.json has {len(bad)} string(s) that are not {NORMAL_FORM}-normalised:\n  "
+            + "\n  ".join(bad)
+            + f"\nThey look identical to the {NORMAL_FORM} form in a terminal and in a diff, and they "
+            "build, validate and render -- but every decomposed character costs two extra bytes "
+            "against a page size PAN-OS enforces by silently not displaying the page, and the same "
+            "word then differs between the markup and the runtime dictionary.\n"
+            "Re-save the file normalised: "
+            f"python -c \"import pathlib,unicodedata as u;p=pathlib.Path('{lang}.json');"
+            f"p.write_text(u.normalize('{NORMAL_FORM}',p.read_text(encoding='utf-8')),encoding='utf-8')\""
+        )
+
+
 def _refuse_empty(lang: str, doc: Mapping[str, Any]) -> None:
     """Names the language AND every key path, because the author fixing this has
     to find the string in a file they may not read."""
@@ -921,11 +1002,24 @@ def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
     language over. It is the only rule in this function that does not depend on
     a second language being configured: the config's copy is inside the script
     of a single-language build too. See CONFIG_COPY_KEYS.
+
+    Every strings document is also checked for Unicode normalisation. It sits
+    here rather than in the test suite alone because the tests only ever see the
+    documents in THIS tree, and the documented way to add a language is to fork
+    the data directory with `init` -- the forked file is the one an editor
+    re-saves, and it would otherwise reach a firewall decomposed with nothing on
+    the path having looked. The shipped tree gets a second, config-free sweep in
+    tests/test_i18n.py, the same pair the markup rule already runs in. The
+    config's own copy is deliberately NOT swept: unlike a tag, which kills the
+    page script, a decomposed character in a customer's own sentence renders
+    correctly, and refusing their build over it would refuse a build that works.
+    See NORMAL_FORM.
     """
     base = base_language(cfg)
     base_doc = load(base, data_dir)
     want = flat_keys(base_doc)
     _refuse_empty(base, base_doc)
+    _refuse_denormalised(base, base_doc)
     _refuse_markup(f"{base}.json", base_doc)
     _refuse_markup("the config", config_copy(cfg), remedy=CONFIG_REMEDY)
     for lang, block in (cfg.get("translations") or {}).items():
@@ -935,6 +1029,7 @@ def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
             continue
         doc = load(lang, data_dir)
         _refuse_empty(lang, doc)
+        _refuse_denormalised(lang, doc)
         _refuse_markup(f"{lang}.json", doc)
         got = flat_keys(doc)
         missing = sorted(want - got)

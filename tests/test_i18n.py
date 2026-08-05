@@ -5,6 +5,7 @@ import pathlib
 import re
 import shutil
 import tempfile
+import unicodedata
 import unittest
 from typing import ClassVar
 
@@ -188,6 +189,142 @@ class TestNoStringIsEmpty(unittest.TestCase):
         words, and the runtime's `if(V&&V.textContent)` guard depends on it."""
         self.assertEqual(i18n.empty_leaves(i18n.load("en", DATA)), [])
         i18n.check_complete({"baseLanguage": "en", "languages": ["en"]}, DATA)
+
+
+class TestEveryStringsDocumentIsNormalised(unittest.TestCase):
+    """NFD copy passes every other check in the module and still costs bytes.
+
+    The build refuses a strings document that is not NFC-normalised. This is the
+    least visible rule here: a decomposed character is a base letter plus a
+    separate combining mark, it renders identically, it diffs identically, its
+    keys are ASCII so key parity is untouched, nothing is empty and nothing has
+    an angle bracket. It passes json.loads, the build, and validate.
+
+    What it costs is two bytes per decomposed character, against a page size
+    PAN-OS enforces by silently not displaying the page -- and Cyrillic is where
+    that adds up, because Russian's yo and short-i and Ukrainian's yi and short-i
+    are all decomposable and all frequent. It also makes a page disagree with
+    itself: the base language is markup and every other language is JSON in a
+    <script>, so a document normalised one way beside a document normalised the
+    other renders the same word as two different byte sequences.
+
+    Enforced in the BUILD rather than only here, for the reason the markup rule
+    is: `init` forks the data directory, that fork is what an editor re-saves,
+    and this suite never sees it.
+    """
+
+    def _write(self, tmp, name, doc):
+        d = tmp / "strings"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+
+    def _check(self, tmp):
+        i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"]}, tmp)
+
+    # The Cyrillic short i, composed and decomposed. Identical on screen; two
+    # codepoints against one, and three UTF-8 bytes against two.
+    COMPOSED = "й"
+    DECOMPOSED = "й"
+
+    def test_the_two_forms_really_are_indistinguishable_and_really_do_differ(self):
+        """The premise of the rule, asserted rather than assumed."""
+        self.assertEqual(unicodedata.normalize("NFC", self.DECOMPOSED), self.COMPOSED)
+        self.assertNotEqual(self.DECOMPOSED, self.COMPOSED)
+        self.assertEqual(len(self.COMPOSED.encode()), 2)
+        self.assertEqual(len(self.DECOMPOSED.encode()), 4)
+
+    def test_rejects_a_decomposed_string_and_names_the_language_and_the_key(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": self.DECOMPOSED}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            msg = str(ctx.exception)
+            self.assertIn("de.json", msg)
+            self.assertIn("shared.a", msg)
+            self.assertIn("NFC", msg)
+
+    def test_names_the_fragment_of_a_split_sentence_by_index(self):
+        """Same walk as empty_leaves and markup_leaves: a list position is a path,
+        not a length."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"pages": {"p": {"extra": ["a", "b", "c"]}}})
+            self._write(tmp, "de", {"pages": {"p": {"extra": ["a", self.DECOMPOSED, "c"]}}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("pages.p.extra[1]", str(ctx.exception))
+
+    def test_rejects_it_in_the_base_language_too(self):
+        """The base language is the half that reaches the markup, so a document
+        decomposed THERE is the half a translated page is compared against."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": self.DECOMPOSED}})
+            self._write(tmp, "de", {"shared": {"a": "y"}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("en.json", str(ctx.exception))
+
+    def test_the_message_says_how_to_fix_it(self):
+        """The one failure in this module a reader cannot see in their editor, so
+        the path alone is not enough: the message carries the re-save."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": self.DECOMPOSED}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("normalize", str(ctx.exception))
+
+    def test_composed_cyrillic_is_fine(self):
+        """The form every editor, browser and HTTP client writes by default. This
+        rule must never fire on a file produced by ordinary means."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": self.COMPOSED}})
+            self._check(tmp)
+
+    def test_every_shipped_document_is_normalised(self):
+        """The config-free sweep, and the wider of the two.
+
+        check_complete only ever sees the languages a config turned on, and the
+        shipped default is ["en"] -- so on a default build not one translation is
+        checked. Globbed rather than listed: a language file is covered the day it
+        is added, without anyone remembering to add it here. Checked as raw TEXT
+        as well as per leaf, because the keys, the whitespace and the file's own
+        punctuation are outside every leaf and are re-saved with the rest of it.
+        """
+        for path in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=path.stem):
+                self.assertEqual(i18n.denormalised_leaves(i18n.load(path.stem, DATA)), [])
+                text = path.read_text(encoding="utf-8")
+                self.assertTrue(
+                    unicodedata.is_normalized("NFC", text),
+                    f"{path.name} is not NFC-normalised as a whole file",
+                )
+
+    def test_no_shipped_string_carries_a_bare_combining_mark(self):
+        """NFC is not quite the whole property.
+
+        A combining mark with no precomposed partner survives normalisation --
+        NFC cannot compose what Unicode has no single codepoint for -- so a file
+        can be NFC and still carry a base letter plus a floating accent. That is
+        legal Unicode and it is not how any of this copy is written: every
+        accented character in the shipped tree is precomposed. Asserted so that a
+        paste from a source that decomposes differently is caught as well.
+        """
+        for path in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=path.stem):
+                bad = [
+                    (leaf, ch)
+                    for leaf, value in _leaves(i18n.load(path.stem, DATA))
+                    for ch in value
+                    if unicodedata.combining(ch)
+                ]
+                self.assertEqual(bad, [], "copy should use precomposed characters, not base letter plus combining mark")
 
 
 class TestNoCopyReachesAScriptAsMarkup(unittest.TestCase):
