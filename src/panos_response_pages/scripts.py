@@ -199,22 +199,43 @@ def category_js(
             "for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();"
             "if(lk==" + json.dumps(base_lang) + ")break;if(T[lk]){t=T[lk];break}}"
             "if(t){var Q=function(s){return document.querySelector(s)};"
+            # A sentence a build-time anchor splits in two: text, anchor, text.
+            # Both halves are copy; the anchor between them holds a configured
+            # address or name and is left exactly as served. Two page shapes
+            # have it -- .plain (the alternate contact line) and .note
+            # (safe-search's contact sentence) -- so it is a function rather
+            # than the same four statements written out twice.
+            "var S=function(e,a,b){if(e&&e.childNodes.length>2){"
+            "e.childNodes[0].nodeValue=a;e.childNodes[2].nodeValue=b}};"
             "document.documentElement.lang=lk;document.title=t.t;"
             "var H=Q('h1');if(H)H.textContent=t.h;"
             "var G0=Q('#gloss');if(G0)G0.textContent=t.g;"
             # Positional against `dl dt` in document order -- the same contract
             # the numbered {{T_FACT*}} placeholders are built on.
             "[].forEach.call(document.querySelectorAll('dl dt'),function(e,i){if(t.f[i])e.textContent=t.f[i]});"
-            # The report anchor's own text plus the three data-* fields the
-            # mailto rebuild below reads to compose the body.
-            "var R=Q('#rep');if(R){R.lastChild.nodeValue=t.rl;"
-            "R.setAttribute('data-subject',t.rs);R.setAttribute('data-intro',t.ri);"
-            "R.setAttribute('data-prompt',t.rp)}"
-            # "Or email <a>address</a> with the details above." -- text, anchor,
-            # text. The address between them is not copy and is left alone.
-            "var P=Q('.plain');if(P&&P.childNodes.length>2){P.childNodes[0].nodeValue=t.ca[0];"
-            "P.childNodes[2].nodeValue=t.ca[1]}"
-            "var X=Q('.infobox span,.warnline span');if(X&&t.x)X.textContent=t.x;"
+            # The page's one a.btn, and the ONLY element whose text is a label.
+            # On ten pages it IS #rep and its text is the report label; on
+            # safe-search it is the settings link, which is why that page --
+            # and only that page -- compiles an a2. Scoped to the button
+            # deliberately: safe-search's #rep is an inline anchor inside a
+            # sentence whose text is the configured contact name, and writing
+            # the report label into it turns "Contact <address>" into
+            # "Contact Report to IT".
+            "var B=Q('a.btn');if(B)B.textContent=t.a2||t.rl;"
+            # The three data-* fields the mailto rebuild below reads to compose
+            # the body. They ARE copy, on every page that has a #rep at all --
+            # safe-search's inline anchor included.
+            "var R=Q('#rep');if(R){R.setAttribute('data-subject',t.rs);"
+            "R.setAttribute('data-intro',t.ri);R.setAttribute('data-prompt',t.rp)}"
+            "S(Q('.plain'),t.ca[0],t.ca[1]);"
+            # `extra` is a string when the slot is one run of prose and a list
+            # when the template interrupts it with markup. Safe-search is the
+            # list case: fragment 0 is the infobox, and 1 and 2 straddle the
+            # contact anchor in the .note below it. Assigned whole to
+            # textContent the list stringifies, rendering all three
+            # comma-joined into the infobox and never swapping the note at all.
+            "var x=t.x||'';if(x.pop){S(Q('.note'),x[1],x[2]);x=x[0]}"
+            "var X=Q('.infobox span,.warnline span');if(X&&x)X.textContent=x;"
             # The static pill. Only swapped when it says something: a calm page
             # carries an empty one, and writing a label into it would invent a
             # severity the page never declared. The category lookup re-sets this

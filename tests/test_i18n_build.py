@@ -12,6 +12,7 @@ snapshot to make it pass.
 import hashlib
 import json
 import pathlib
+import re
 import shutil
 import tempfile
 import unittest
@@ -57,6 +58,29 @@ def broken_data_dir(strings=None, **over) -> pathlib.Path:
 def build(root: pathlib.Path) -> None:
     """Build `root` for its verdict only -- nothing is written and nothing kept."""
     build_all(root, root / "out", preview=False, write=False)
+
+
+def multi_language_page(name: str) -> str:
+    """One page built with a second language configured, as HTML.
+
+    A real build_page, not the emitted script in isolation: the dictionary has
+    to survive JSON encoding into a <script> body, and the selector has to be
+    emitted before the category lookup that depends on it.
+    """
+    root = broken_data_dir(strings={"de": translated_strings()}, languages=["en", "de"])
+    cfg = load_config("contoso", root / "config")
+    palette = load_palette("cyber-orange", root / "palettes")
+    return build_page(name, load_themes(root)[0], cfg, palette, False, root / "templates")
+
+
+def runtime_code(html: str) -> str:
+    """The runtime script of a built page, with the dictionary elided.
+
+    The dictionary is most of the script's bytes and none of its logic, and a
+    failing assertion that prints it is unreadable.
+    """
+    script = next(s for s in re.findall(r"<script>(.*?)</script>", html, re.S) if "navigator.languages" in s)
+    return re.sub(r"var T=\{.*?\},LS=", "var T={...},LS=", script, flags=re.S)
 
 
 class TestABuildRunsTheLanguageValidators(unittest.TestCase):
@@ -132,12 +156,7 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
     land on the page it exists for.
     """
 
-    @staticmethod
-    def _page(name: str) -> str:
-        root = broken_data_dir(strings={"de": translated_strings()}, languages=["en", "de"])
-        cfg = load_config("contoso", root / "config")
-        palette = load_palette("cyber-orange", root / "palettes")
-        return build_page(name, load_themes(root)[0], cfg, palette, False, root / "templates")
+    _page = staticmethod(multi_language_page)
 
     def test_the_selector_runs_before_the_category_lookup(self):
         """The lookup reads the words the selector chose. Emitted the other way
@@ -171,6 +190,80 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
         html = self._page("url-block-page")
         self.assertIn('"de":{', html)
         self.assertNotIn('"en":{', html)
+
+
+class TestTheRuntimeHandlesTheSafeSearchShape(unittest.TestCase):
+    """safe-search-block-page is the one page whose EXTRA and ACTIONS do not
+    look like everyone else's, and every assumption the runtime makes about
+    page shape lands on it.
+
+    It has no report button: its only `a.btn` is the settings link, and its
+    `#rep` is an inline anchor inside a sentence whose text is the configured
+    contact name -- not copy, and not the report label. Its `extra` is three
+    fragments rather than one run of prose.
+
+    None of this fires with a single language, which is exactly why it needs
+    pinning: the first real `de.json` would ship all three at once.
+    """
+
+    _page = staticmethod(multi_language_page)
+
+    def test_the_note_is_text_anchor_text(self):
+        """The structural fact the childNodes[0] / childNodes[2] swap rests on.
+        If the template ever grows a fourth node the indices move, and the
+        swap would write the fragments into the wrong places in silence."""
+        html = self._page("safe-search-block-page")
+        note = re.search(r'<p class="note">(.*?)</p>', html, re.S)
+        self.assertIsNotNone(note, "safe-search lost its .note paragraph")
+        text, _anchor, tail = re.match(r'(.*?)(<a id="rep".*?</a>)(.*)', note.group(1), re.S).groups()
+        self.assertTrue(text.strip(), "no text node before the contact anchor")
+        self.assertTrue(tail.strip(), "no text node after the contact anchor")
+        self.assertNotIn("<", text)
+        self.assertNotIn("<", tail)
+        self.assertIn("Still blocked", text)
+        self.assertIn("IT will take a look", tail)
+
+    def test_a_list_valued_extra_is_split_across_the_infobox_and_the_note(self):
+        """`extra` here is [infobox sentence, note lead-in, note tail].
+
+        Handed whole to textContent it stringifies: the infobox renders all
+        three joined by commas, and the two halves of the .note sentence are
+        never swapped at all.
+        """
+        html = self._page("safe-search-block-page")
+        self.assertIn('"x":["de:Set SafeSearch', html, "the dictionary lost the split extra")
+        code = runtime_code(html)
+        self.assertNotIn("textContent=t.x", code, "a list-valued extra is assigned straight to textContent")
+        self.assertIn("'.note'", code, "the .note fragments are never swapped")
+
+    def test_the_report_label_is_scoped_to_the_report_button(self):
+        """`#rep` is the report button on ten pages and an inline contact
+        anchor on this one. Writing the report label into whatever `#rep`
+        resolves to turns "Contact <address>" into "Contact Report to IT"."""
+        html = self._page("safe-search-block-page")
+        # The structural difference the scoping keys on.
+        self.assertNotIn('class="btn" id="rep"', html)
+        self.assertIn('<a id="rep"', html)
+        code = runtime_code(html)
+        self.assertNotIn("R.lastChild.nodeValue=t.rl", code, "the label is written into every #rep")
+        self.assertIn("Q('a.btn')", code, "nothing scopes the label to the report button")
+        # The mail body IS copy and must still follow the language.
+        for field, key in (("data-subject", "t.rs"), ("data-intro", "t.ri"), ("data-prompt", "t.rp")):
+            self.assertIn(f"R.setAttribute('{field}',{key})", code, f"{field} stopped being swapped")
+
+    def test_the_report_button_still_takes_the_label_on_every_other_page(self):
+        """The other half of the scoping: ten pages DO want t.rl in their
+        button, and there the button and `#rep` are the same element."""
+        html = self._page("url-block-page")
+        self.assertIn('<a class="btn" id="rep"', html)
+        self.assertIn("t.rl", runtime_code(html), "the report label is no longer swapped anywhere")
+
+    def test_the_second_action_label_is_swapped(self):
+        """`a2` is compiled for this page and nothing read it, so the settings
+        button stayed in the base language on an otherwise-swapped page."""
+        html = self._page("safe-search-block-page")
+        self.assertIn('"a2":"de:Open search settings"', html)
+        self.assertIn("t.a2", runtime_code(html), "a2 is compiled into the dictionary and never read")
 
 
 class TestSingleLanguageIsFree(unittest.TestCase):
