@@ -359,10 +359,19 @@ class TestNoCopyCarriesMarkup(unittest.TestCase):
     info box around its <strong>.
     """
 
-    def test_no_string_in_the_shipped_document_contains_a_tag(self):
-        doc = i18n.load("en", DATA)
-        bad = [(path, value) for path, value in _leaves(doc) if "<" in value or ">" in value]
-        self.assertEqual(bad, [], "copy containing markup renders escaped in every non-base language")
+    def test_no_string_in_any_shipped_document_contains_a_tag(self):
+        """Every shipped language, not just the base one.
+
+        The rule bites hardest away from the base language -- that is the path
+        where the tag renders as characters -- so a translator adding one is the
+        likeliest way it happens. Globbed rather than listed: a language file is
+        covered the day it is added, without anyone remembering to add it here.
+        """
+        for path in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=path.stem):
+                doc = i18n.load(path.stem, DATA)
+                bad = [(leaf, value) for leaf, value in _leaves(doc) if "<" in value or ">" in value]
+                self.assertEqual(bad, [], "copy containing markup renders escaped in every non-base language")
 
     def test_the_split_reassembles_into_the_sentence_the_page_shows(self):
         """The split is a rendering detail, not an edit. Joined back up, the
