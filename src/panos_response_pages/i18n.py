@@ -13,6 +13,7 @@ weight that German does not exercise.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 from collections.abc import Mapping
@@ -73,3 +74,64 @@ def check(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
         path = strings_path(lang, data_dir)
         if not path.exists():
             raise BuildError(f"language '{lang}' is configured but {lang}.json is missing from {path.parent}")
+
+
+# The one block a language may omit. Per-language category glosses are ~1800 B
+# on the two pages that carry the category map; absent, a non-base language
+# shows the translated defaultGloss/riskGloss for that category's TONE, which
+# still varies severity and colour per category because the tone map itself is
+# never translated and never duplicated.
+OPTIONAL_BLOCKS = ("categories",)
+
+
+def load(lang: str, data_dir: pathlib.Path) -> dict[str, Any]:
+    path = strings_path(lang, data_dir)
+    if not path.exists():
+        raise BuildError(f"missing strings file: {path}")
+    doc: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return doc
+
+
+def flat_keys(doc: Mapping[str, Any], prefix: str = "") -> set[str]:
+    """Every leaf path in a strings document.
+
+    Lists are indexed rather than counted, so a German `facts` array one entry
+    short names the missing position instead of reporting a length mismatch the
+    translator then has to locate by eye.
+    """
+    out: set[str] = set()
+    for key, value in doc.items():
+        if not prefix and key in OPTIONAL_BLOCKS:
+            continue
+        path = f"{prefix}{key}"
+        if isinstance(value, dict):
+            out |= flat_keys(value, f"{path}.")
+        elif isinstance(value, list):
+            out |= {f"{path}[{i}]" for i in range(len(value))}
+        else:
+            out.add(path)
+    return out
+
+
+def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
+    """Every configured language carries exactly the base language's key set.
+
+    Exactly, not merely at least: an extra key is a typo or a stale entry, and
+    either way it is a string that will never reach a page. Reported rather than
+    ignored, because both are real mistakes that are invisible in the output.
+    """
+    base = base_language(cfg)
+    want = flat_keys(load(base, data_dir))
+    for lang in languages(cfg):
+        if lang == base:
+            continue
+        got = flat_keys(load(lang, data_dir))
+        missing = sorted(want - got)
+        extra = sorted(got - want)
+        if missing or extra:
+            parts = []
+            if missing:
+                parts.append(f"missing {len(missing)} key(s):\n  " + "\n  ".join(missing))
+            if extra:
+                parts.append(f"unknown {len(extra)} key(s):\n  " + "\n  ".join(extra))
+            raise BuildError(f"{lang}.json is out of step with {base}.json -- " + "; ".join(parts))
