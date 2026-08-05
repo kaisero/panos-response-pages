@@ -29,6 +29,7 @@ Use `panos-response-pages` to generate response pages that
 
 - Provide responsive design for desktop and mobile
 - Automatically serve light or dark mode depending on OS settings
+- Detect OS Language and automatically provide localized experience for multiple languages
 - Automatically redirect users to sanctioned apps based on URL category match
 - Link to the IT service desk via mail or link
 - Support 7 themes across 4 colour palettes
