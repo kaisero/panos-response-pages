@@ -108,3 +108,38 @@ class TestStringsCompleteness(unittest.TestCase):
             self._write(tmp, "en", {"shared": {"a": "x"}, "categories": {"gambling": "en gloss"}})
             self._write(tmp, "de", {"shared": {"a": "y"}})
             i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"]}, tmp)
+
+
+class TestPageValues(unittest.TestCase):
+    def test_builds_the_placeholder_values_for_one_page(self):
+        doc = {
+            "shared": {"reportLabel": "Report to IT", "contactAlt": ["Or email ", " with the details above."]},
+            "pages": {
+                "application-block-page": {
+                    "title": "Application blocked",
+                    "headline": "This application is blocked",
+                    "gloss": "Company policy restricts this application on the network.",
+                    "facts": ["Application", "User", "Time"],
+                    "extra": (
+                        "If you need this application for your work, send the report above and IT will review it."
+                    ),
+                    "report": {
+                        "subject": "Blocked application report",
+                        "intro": "Please review this application block.",
+                        "prompt": "Why I need this application:",
+                    },
+                }
+            },
+        }
+        v = i18n.page_values(doc, "application-block-page")
+        self.assertEqual(v["T_TITLE"], "Application blocked")
+        self.assertEqual(v["T_FACT1"], "Application")
+        self.assertEqual(v["T_FACT3"], "Time")
+        self.assertEqual(v["T_REPORT_LABEL"], "Report to IT")
+        self.assertEqual(v["T_CONTACT_ALT1"], "Or email ")
+        self.assertEqual(v["T_REPORT_SUBJECT"], "Blocked application report")
+
+    def test_names_the_page_when_it_is_absent(self):
+        with self.assertRaises(BuildError) as ctx:
+            i18n.page_values({"shared": {}, "pages": {}}, "url-block-page")
+        self.assertIn("url-block-page", str(ctx.exception))

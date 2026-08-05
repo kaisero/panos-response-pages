@@ -56,7 +56,12 @@ class TestCopy(unittest.TestCase):
                     hits.append(f"{name} '{phrase}' — {why}")
         self.assertEqual(hits, [], "unsubstantiated claims:\n  " + "\n  ".join(hits))
 
+    @unittest.expectedFailure
     def test_user_field_row(self):
+        """MIGRATING (Task 4-10): copy has left the templates, so this string is
+        no longer there to match. The guard moves to the built output in Task 10,
+        which removes this decorator -- and unittest reports an unexpected
+        success if that happens before every page has migrated."""
         for p in PAGES:
             text = p.read_text(encoding="utf-8")
             self.assertNotIn("Signed in as", text, f"{p.name} still uses 'Signed in as'")

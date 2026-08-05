@@ -92,6 +92,36 @@ def load(lang: str, data_dir: pathlib.Path) -> dict[str, Any]:
     return doc
 
 
+def page_values(doc: Mapping[str, Any], page: str) -> dict[str, str]:
+    """The {{T_*}} values one page needs, flattened from the strings document.
+
+    Fact labels are numbered rather than named. The runtime swaps them
+    positionally against `dl dt` in document order, so the array IS the
+    contract; giving the template names as well would create a second ordering
+    that could silently disagree with it.
+    """
+    pages = doc.get("pages", {})
+    if page not in pages:
+        raise BuildError(f"strings document has no entry for page '{page}'")
+    p = pages[page]
+    shared = doc.get("shared", {})
+    values: dict[str, str] = {
+        "T_TITLE": p["title"],
+        "T_HEADLINE": p["headline"],
+        "T_GLOSS": p["gloss"],
+        "T_EXTRA": p.get("extra", ""),
+        "T_REPORT_LABEL": shared["reportLabel"],
+        "T_REPORT_SUBJECT": p["report"]["subject"],
+        "T_REPORT_INTRO": p["report"]["intro"],
+        "T_REPORT_PROMPT": p["report"]["prompt"],
+        "T_CONTACT_ALT1": shared["contactAlt"][0],
+        "T_CONTACT_ALT2": shared["contactAlt"][1],
+    }
+    for i, label in enumerate(p["facts"], start=1):
+        values[f"T_FACT{i}"] = label
+    return values
+
+
 def flat_keys(doc: Mapping[str, Any], prefix: str = "") -> set[str]:
     """Every leaf path in a strings document.
 

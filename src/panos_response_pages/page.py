@@ -7,7 +7,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from panos_response_pages import contact, redirect
+from panos_response_pages import contact, i18n, redirect
 from panos_response_pages.errors import BuildError
 from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
@@ -95,6 +95,11 @@ def build_page(
     # otherwise surfaces as a KeyError from inside substitution, naming a
     # template token instead of the config key the author got wrong.
     contact.check(cfg)
+    # The base language is written into the markup as real text. Resolved before
+    # the sections are substituted, because a translated string may itself carry
+    # {{COMPANY}} or {{CONTINUE_GRANT}} -- re.sub does not rescan replacement
+    # text, so a value inserted in a later pass would ship as literal braces.
+    strings = i18n.load(i18n.base_language(cfg), template_dir.parent)
     base = {
         "COMPANY": cfg["company"],
         # Empty in URL mode. The token still has to resolve: it appears in
@@ -108,6 +113,12 @@ def build_page(
         "CONTINUE_GRANT": cfg["continueGrantText"],
         "WARN_MARK": cfg["marks"]["warning"],
         "INFO_MARK": cfg["marks"]["info"],
+        # MIGRATING (Task 4-5): a page whose copy has not moved into the strings
+        # document yet has no entry there and still carries its English text in
+        # its own template, so it needs no {{T_*}} values. Once every page has
+        # migrated the guard goes and page_values is called unconditionally --
+        # which is what makes a missing entry a build error again.
+        **(i18n.page_values(strings, page) if page in strings.get("pages", {}) else {}),
     }
     # The two contact sections are resolved first and on their own: they carry
     # {{SUPPORT_EMAIL}} and nothing else, and their results ARE the values the
