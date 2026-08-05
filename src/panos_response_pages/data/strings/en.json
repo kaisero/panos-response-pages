@@ -130,6 +130,19 @@
         "intro": "I was warned before continuing.",
         "prompt": "Why I think the category is wrong:"
       }
+    },
+    "virus-block-page": {
+      "title": "Download blocked",
+      "headline": "Download blocked",
+      "gloss": "Antivirus scanning found malware in this file, so the download was stopped.",
+      "facts": ["File", "User", "Time"],
+      "contactAlt": ["Or email ", " straight away."],
+      "extra": "If you have opened a copy of this file from somewhere else, tell IT — it may already be on your device.",
+      "report": {
+        "subject": "Malware detected in a download",
+        "intro": "A download was blocked by antivirus scanning.",
+        "prompt": "What I was doing:"
+      }
     }
   }
 }

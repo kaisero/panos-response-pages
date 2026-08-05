@@ -13,7 +13,7 @@
   preference, and there is no category token here to derive severity from.
 -->
 
-<!--@TITLE-->Download blocked<!--/@TITLE-->
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
 
 <!--@TONE-->crit<!--/@TONE-->
 
@@ -21,27 +21,27 @@
 
 <!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="9" width="10" height="9" rx="4.5"/><path d="M9.5 9V7.5a2.5 2.5 0 0 1 5 0V9"/><path d="M4.5 12H7M17 12h2.5M5.5 16.5 7.4 15.5M16.6 15.5l1.9 1M5.5 8l1.9 1M16.6 9l1.9-1"/></svg><!--/@MARK-->
 
-<!--@HEADLINE-->Download blocked<!--/@HEADLINE-->
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
 
-<!--@GLOSS-->Antivirus scanning found malware in this file, so the download was stopped.<!--/@GLOSS-->
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
 
 <!--@FACTS-->
-<div class="f"><dt>File</dt><dd class="mono"><fname/></dd></div>
-<div class="f"><dt>User</dt><dd><user/></dd></div>
-<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<div class="f"><dt>{{T_FACT1}}</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT3}}</dt><dd id="ts"></dd></div>
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Malware detected in a download"
-   data-intro="A download was blocked by antivirus scanning." data-prompt="What I was doing:"
-   href="{{CONTACT_HREF}}">Report to IT</a>
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}" data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{T_REPORT_LABEL}}</a>
 {{CONTACT_ALT}}
 <!--/@ACTIONS-->
 
 <!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
 
-<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> straight away.</p><!--/@CONTACT_ALT-->
+<!--@CONTACT_ALT--><p class="plain">{{T_CONTACT_ALT1}}<a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>{{T_CONTACT_ALT2}}</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
-<p class="warnline">{{WARN_MARK}}<span>If you have opened a copy of this file from somewhere else, tell IT — it may already be on your device.</span></p>
+<p class="warnline">{{WARN_MARK}}<span>{{T_EXTRA}}</span></p>
 <!--/@EXTRA-->
