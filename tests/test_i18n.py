@@ -3,6 +3,7 @@
 import json
 import pathlib
 import unittest
+from typing import ClassVar
 
 import pytest
 
@@ -131,7 +132,7 @@ class TestPageValues(unittest.TestCase):
                 }
             },
         }
-        v = i18n.page_values(doc, "application-block-page")
+        v = i18n.page_values(doc, "application-block-page", {})
         self.assertEqual(v["T_TITLE"], "Application blocked")
         self.assertEqual(v["T_FACT1"], "Application")
         self.assertEqual(v["T_FACT3"], "Time")
@@ -141,5 +142,58 @@ class TestPageValues(unittest.TestCase):
 
     def test_names_the_page_when_it_is_absent(self):
         with self.assertRaises(BuildError) as ctx:
-            i18n.page_values({"shared": {}, "pages": {}}, "url-block-page")
+            i18n.page_values({"shared": {}, "pages": {}}, "url-block-page", {})
         self.assertIn("url-block-page", str(ctx.exception))
+
+
+class TestPlaceholderResolution(unittest.TestCase):
+    """Copy may itself contain {{COMPANY}} or {{CONTINUE_GRANT}}.
+
+    substitute() is one re.sub pass and re.sub does not rescan its replacement,
+    so a placeholder inside a translated value is inserted literally. In the
+    base language that surfaces as a BuildError from assert_resolved. In the
+    runtime dictionary -- which never passes through substitute() at all --
+    it would ship the literal braces to a user with no error anywhere.
+    """
+
+    VALUES: ClassVar = {"COMPANY": "Example Corp", "CONTINUE_GRANT": "15 minutes"}
+
+    def test_resolves_inside_a_string(self):
+        self.assertEqual(
+            i18n.resolve("Report to {{COMPANY}} security.", self.VALUES),
+            "Report to Example Corp security.",
+        )
+
+    def test_resolves_inside_a_list(self):
+        self.assertEqual(
+            i18n.resolve(["a {{COMPANY}} b", "c"], self.VALUES),
+            ["a Example Corp b", "c"],
+        )
+
+    def test_resolves_inside_a_nested_dict(self):
+        self.assertEqual(
+            i18n.resolve({"r": {"intro": "for {{CONTINUE_GRANT}}"}}, self.VALUES),
+            {"r": {"intro": "for 15 minutes"}},
+        )
+
+    def test_unknown_placeholder_still_raises(self):
+        with self.assertRaises(BuildError):
+            i18n.resolve("{{NOPE}}", self.VALUES)
+
+    def test_page_values_are_resolved(self):
+        doc = {
+            "shared": {"reportLabel": "R", "contactAlt": ["a", "b"]},
+            "pages": {
+                "p": {
+                    "title": "t",
+                    "headline": "h",
+                    "gloss": "g",
+                    "facts": ["f"],
+                    "extra": "Ask {{COMPANY}}.",
+                    "report": {"subject": "s", "intro": "i", "prompt": "p"},
+                }
+            },
+        }
+        v = i18n.page_values(doc, "p", self.VALUES)
+        self.assertEqual(v["T_EXTRA"], "Ask Example Corp.")
+        self.assertNotIn("{{", "".join(str(x) for x in v.values()))

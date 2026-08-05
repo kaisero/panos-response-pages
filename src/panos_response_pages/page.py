@@ -113,13 +113,18 @@ def build_page(
         "CONTINUE_GRANT": cfg["continueGrantText"],
         "WARN_MARK": cfg["marks"]["warning"],
         "INFO_MARK": cfg["marks"]["info"],
-        # MIGRATING (Task 4-5): a page whose copy has not moved into the strings
-        # document yet has no entry there and still carries its English text in
-        # its own template, so it needs no {{T_*}} values. Once every page has
-        # migrated the guard goes and page_values is called unconditionally --
-        # which is what makes a missing entry a build error again.
-        **(i18n.page_values(strings, page) if page in strings.get("pages", {}) else {}),
     }
+    # Copy is resolved against the values above, not alongside them: a
+    # placeholder inside a translated string has to be substituted BEFORE that
+    # string becomes a replacement, because re.sub will not rescan it.
+    #
+    # MIGRATING (Task 4-5): a page whose copy has not moved into the strings
+    # document yet has no entry there and still carries its English text in
+    # its own template, so it needs no {{T_*}} values. Once every page has
+    # migrated the guard goes and page_values is called unconditionally --
+    # which is what makes a missing entry a build error again.
+    if page in strings.get("pages", {}):
+        base.update(i18n.page_values(strings, page, base))
     # The two contact sections are resolved first and on their own: they carry
     # {{SUPPORT_EMAIL}} and nothing else, and their results ARE the values the
     # {{CONTACT_*}} tokens in ACTIONS and EXTRA resolve to. Folding them into

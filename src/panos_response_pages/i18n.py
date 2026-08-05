@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from panos_response_pages.errors import BuildError
+from panos_response_pages.templates import substitute
 
 # Two-letter primary subtag, lowercase. Anchored: "de-AT" must be refused
 # loudly rather than silently truncated to a file that does not exist.
@@ -92,7 +93,29 @@ def load(lang: str, data_dir: pathlib.Path) -> dict[str, Any]:
     return doc
 
 
-def page_values(doc: Mapping[str, Any], page: str) -> dict[str, str]:
+def resolve(value: Any, values: Mapping[str, object]) -> Any:
+    """Resolve {{PLACEHOLDER}}s inside copy, preserving the value's shape.
+
+    Copy is data here, not template text, so it never passes through the
+    template substitution pass -- and re.sub does not rescan its replacement, so
+    a placeholder inside a translated value would otherwise survive verbatim.
+
+    In the BASE language that surfaces loudly, as a BuildError from
+    assert_resolved. In a non-base language it would not surface at all: the
+    runtime dictionary is JSON handed to textContent, so a German user would
+    simply read "{{COMPANY}}" off the page. That asymmetry is why this is
+    applied to both paths rather than left to the template pass.
+    """
+    if isinstance(value, str):
+        return substitute(value, values)
+    if isinstance(value, list):
+        return [resolve(v, values) for v in value]
+    if isinstance(value, dict):
+        return {k: resolve(v, values) for k, v in value.items()}
+    return value
+
+
+def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object]) -> dict[str, str]:
     """The {{T_*}} values one page needs, flattened from the strings document.
 
     Fact labels are numbered rather than named. The runtime swaps them
@@ -103,9 +126,9 @@ def page_values(doc: Mapping[str, Any], page: str) -> dict[str, str]:
     pages = doc.get("pages", {})
     if page not in pages:
         raise BuildError(f"strings document has no entry for page '{page}'")
-    p = pages[page]
-    shared = doc.get("shared", {})
-    values: dict[str, str] = {
+    p = resolve(pages[page], values)
+    shared = resolve(doc.get("shared", {}), values)
+    out: dict[str, str] = {
         "T_TITLE": p["title"],
         "T_HEADLINE": p["headline"],
         "T_GLOSS": p["gloss"],
@@ -118,8 +141,8 @@ def page_values(doc: Mapping[str, Any], page: str) -> dict[str, str]:
         "T_CONTACT_ALT2": shared["contactAlt"][1],
     }
     for i, label in enumerate(p["facts"], start=1):
-        values[f"T_FACT{i}"] = label
-    return values
+        out[f"T_FACT{i}"] = label
+    return out
 
 
 def flat_keys(doc: Mapping[str, Any], prefix: str = "") -> set[str]:
