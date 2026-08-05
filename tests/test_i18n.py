@@ -253,6 +253,19 @@ class TestEnglishCoversEveryPage(unittest.TestCase):
         self.assertEqual(sorted(doc["pages"]), sorted(PAGE_TOKENS))
 
 
+class TestSeverityLabels(unittest.TestCase):
+    def test_severity_labels_come_from_the_strings_file(self):
+        """The third home of English copy. It cannot stay in Python once the
+        other two are consolidated -- a German page would show 'Caution'."""
+        doc = i18n.load("en", DATA)
+        self.assertEqual(doc["shared"]["severity"], {"calm": "", "warn": "Caution", "crit": "Security risk"})
+
+    def test_scripts_module_no_longer_defines_them(self):
+        import panos_response_pages.scripts as scripts
+
+        self.assertFalse(hasattr(scripts, "SEV_LABEL"), "SEV_LABEL must not survive in scripts.py")
+
+
 class TestTemplatesCarryNoCopy(unittest.TestCase):
     def test_no_prose_left_in_page_slots(self):
         """Copy lives in the strings files now. A slot with words in it is copy

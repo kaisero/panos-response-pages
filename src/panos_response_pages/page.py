@@ -9,7 +9,7 @@ from typing import Any
 
 from panos_response_pages import contact, i18n, redirect
 from panos_response_pages.errors import BuildError
-from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
+from panos_response_pages.scripts import FRAME_BUSTER, category_js
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
@@ -177,7 +177,7 @@ def build_page(
             "ACTIONS": parts["ACTIONS"],
             "EXTRA": parts.get("EXTRA", ""),
             "TONE": tone,
-            "SEVERITY": SEV_LABEL.get(tone, ""),
+            "SEVERITY": strings["shared"]["severity"].get(tone, ""),
             "MARK": parts.get("MARK", cfg["marks"]["shield"]),
             "REDIRECT_CSS": redirect_css,
             "REDIRECT": redirect_html,
@@ -196,6 +196,7 @@ def build_page(
                 eff["defaultGloss"],
                 eff["riskGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1",
+                severity=strings["shared"]["severity"],
                 has_category='id="cat"' in parts["FACTS"],
                 email_mode=contact.mode(cfg) == contact.EMAIL,
             )

@@ -2,7 +2,8 @@
   "lang": "en",
   "shared": {
     "reportLabel": "Report to IT",
-    "contactAlt": ["Or email ", " with the details above."]
+    "contactAlt": ["Or email ", " with the details above."],
+    "severity": { "calm": "", "warn": "Caution", "crit": "Security risk" }
   },
   "pages": {
     "application-block-page": {

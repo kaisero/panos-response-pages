@@ -15,12 +15,6 @@ from panos_response_pages.errors import BuildError
 # and collapsing them to one char silently rendered every critical page as calm.
 TONE_CSS = {"calm": "calm", "warn": "warn", "critical": "crit"}
 
-# Claims a response page cannot substantiate. PAN-OS gives the page no visibility
-
-# into {{SEVERITY}} and the runtime lookup emitted into category_js -- the two must
-# agree, or a page whose tone changes at runtime shows a stale label.
-SEV_LABEL = {"calm": "", "warn": "Caution", "crit": "Security risk"}
-
 # Slug words that must not be title-cased into the friendly category label.
 # Acronyms map to their own casing; joining words to lowercase. Emitted as a JS
 # object literal with bare keys, so every entry costs its own length and no more
@@ -52,6 +46,7 @@ def category_js(
     risk_gloss: str,
     lock_copy: bool,
     *,
+    severity: Mapping[str, str],
     has_category: bool,
     email_mode: bool,
 ) -> str:
@@ -65,6 +60,13 @@ def category_js(
     listed for its TONE alone: spelling the generic sentence out per category
     costs ~46 B each, and repeating it across the categories that need no
     tailored copy would not fit under the byte ceiling.
+
+    severity is the tone -> label map, keyed by CSS tone. It is copy, so it
+    comes from the strings document rather than a constant here: a page built in
+    German must not have "Caution" compiled into its script. The same map fills
+    the static {{SEVERITY}} slot -- PAN-OS gives the page no visibility into the
+    tone, so the two must agree, or a page whose tone changes at runtime shows a
+    stale label.
 
     lock_copy pins BOTH the tone and the gloss to what the page template declares.
     The credential pages use it: a phishing interstitial must not be repainted calm
@@ -95,7 +97,7 @@ def category_js(
             + ";"
             + "if(m){document.documentElement.setAttribute('data-tone',m[0]);"
             "var v=document.querySelector('.sev');"
-            "if(v)v.textContent=" + json.dumps(SEV_LABEL, separators=(",", ":")) + "[m[0]]||'';"
+            "if(v)v.textContent=" + json.dumps(severity, separators=(",", ":")) + "[m[0]]||'';"
             # An empty gloss means "no tailored copy": fall back to the generic
             # sentence, but not to the calm one on a warn/crit category -- the
             # banner would read "Security risk" over "restricted by policy".
