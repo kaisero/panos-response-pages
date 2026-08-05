@@ -163,7 +163,7 @@ def audit_copy(html_text: str) -> list[str]:
     return [f'copy claim "{phrase}" -- {why}' for phrase, why in BANNED_COPY if phrase in low]
 
 
-def _built_with(languages: Sequence[str]) -> str:
+def built_with(languages: Sequence[str]) -> str:
     """The language set that produced a size, for the two size messages.
 
     Empty for a single-language page, and for the CLI's pass over already-built
@@ -172,6 +172,11 @@ def _built_with(languages: Sequence[str]) -> str:
 
     Size is the only failure this names languages for. Every other check in this
     module is about the SHAPE of the markup, which no language changes.
+
+    Public because the portal guards say the same sentence about the same fact.
+    Their ceiling is a different ceiling and their recovery is a different
+    recovery, but "which languages are in this file" is one question with one
+    answer, and two copies of it would eventually phrase it two ways.
     """
     if len(languages) < 2:
         return ""
@@ -191,7 +196,7 @@ def validate(page: str, html_text: str, languages: Sequence[str] = ()) -> tuple[
     errors: list[str] = []
     warnings: list[str] = []
     size = len(html_text.encode("utf-8"))
-    built_with = _built_with(languages)
+    langs = built_with(languages)
     # Named on both, not just the error. The warn line exists because <url/>
     # expands at SERVE time -- the margin it protects is what a long blocked URL
     # consumes -- so a page that entered the warn band by gaining a language has
@@ -200,19 +205,18 @@ def validate(page: str, html_text: str, languages: Sequence[str] = ()) -> tuple[
         f" Try dropping the optional per-language `categories` block first: ~{CATEGORIES_BLOCK_BYTES} B "
         "per extra language, more where every category is translated. "
         'A style with no room for any of it declares "i18n": false and ships the base language alone.'
-        if built_with
+        if langs
         else ""
     )
 
     if size > MAX_BYTES:
         errors.append(
             f"{size} B exceeds the {MAX_BYTES} B ceiling by {size - MAX_BYTES} B --"
-            f"{built_with} PAN-OS would silently serve the default page.{recovery}"
+            f"{langs} PAN-OS would silently serve the default page.{recovery}"
         )
     elif size > WARN_BYTES:
         warnings.append(
-            f"{size} B is within {MAX_BYTES - size} B of the ceiling;"
-            f"{built_with} <url/> expands at serve time.{recovery}"
+            f"{size} B is within {MAX_BYTES - size} B of the ceiling;{langs} <url/> expands at serve time.{recovery}"
         )
 
     if not html_text.lstrip().startswith("<!DOCTYPE html>"):

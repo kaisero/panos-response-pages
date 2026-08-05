@@ -729,6 +729,26 @@ class TestTheReportNamesTheLanguages(unittest.TestCase):
         text = format_report(built()[1])
         self.assertNotIn("i18n:false", text)
 
+    def portal_row(self, text, theme):
+        """The portal table's row for a style. Keyed on the import name, which is
+        the one column the two tables do not share."""
+        return next(ln for ln in text.splitlines() if ln.split()[:3] == [theme, "prisma-blue", "login"])
+
+    def test_the_portal_table_names_the_language_set_too(self):
+        """The same build prints two tables. A language set on one of them is a
+        report that answers the question for half the files it produced."""
+        _out, result = built_with_languages(("en", "de"))
+        self.assertIn("en,de", self.portal_row(format_report(result), "glass"))
+
+    def test_the_portal_table_shows_the_opt_out(self):
+        """`"i18n": false` is theme-level: it drops the portal dictionary as well
+        as the block-page one. It was visible in one table and silent in the
+        other -- on the family with the LESS headroom of the two."""
+        _out, result = built_with_languages(("en", "de"))
+        row = self.portal_row(format_report(result), "nyan")
+        self.assertIn("i18n:false", row)
+        self.assertNotIn("en,de", row)
+
 
 class TestTheCeilingErrorNamesTheLanguageSet(unittest.TestCase):
     """An overflow that actually happens, so the message on it is one somebody
@@ -788,6 +808,23 @@ class TestTheCeilingErrorNamesTheLanguageSet(unittest.TestCase):
             with self.subTest(error=error[:60]):
                 self.assertIn("`categories` block", error)
                 self.assertIn('"i18n": false', error)
+
+    def test_the_portal_error_says_the_same_two_things(self):
+        """The portal import is measured against a different ceiling and refused
+        rather than silently dropped, but the reader's question is identical:
+        what is in this file, and what can come out. It used to name neither.
+
+        `categories` is deliberately absent from the answer. That block is the
+        block pages' optional one; the portal dictionary has none, and offering
+        it here would send the reader looking for something not in the file.
+        """
+        errors = [e for r in self.result.portal_results for e in r.errors]
+        self.assertTrue(errors, "twelve languages fit in the portal imports; the fixture no longer overflows")
+        for error in errors:
+            with self.subTest(error=error[:60]):
+                self.assertIn(f"built with {len(self.LANGS)} languages", error)
+                self.assertIn('"i18n": false', error)
+                self.assertNotIn("`categories`", error)
 
     def test_the_report_names_the_style_and_the_page(self):
         """The message says what is in the page; the row it hangs under says
@@ -902,29 +939,14 @@ class TestSingleLanguageIsFree(unittest.TestCase):
         self.assertEqual(checked, len(SNAPSHOT))
 
     def test_built_file_set_matches_snapshot_exactly(self):
+        """The other half of byte-identity: the hashes above say nothing about a
+        file the build stopped producing, or one it started producing."""
         out, _result = built()
         deploy_dir = pathlib.Path(out) / "deploy"
+        built_files = {f.relative_to(deploy_dir).as_posix() for f in deploy_dir.rglob("*.html")}
+        snapshot_files = set(SNAPSHOT)
 
-        # Walk deploy dir and collect all .html files as snapshot-style keys
-        built_files = set()
-        for html_file in deploy_dir.rglob("*.html"):
-            # Get relative path from deploy_dir and convert to posix-style key
-            rel_path = html_file.relative_to(deploy_dir)
-            key = rel_path.as_posix()
-            built_files.add(key)
-
-        snapshot_files = set(SNAPSHOT.keys())
-
-        # Check for extras and missing
         extras = built_files - snapshot_files
         missing = snapshot_files - built_files
-
-        if extras or missing:
-            msg_parts = []
-            if extras:
-                msg_parts.append(f"Extra files in build: {sorted(extras)}")
-            if missing:
-                msg_parts.append(f"Missing files from build: {sorted(missing)}")
-            self.fail("; ".join(msg_parts))
-
-        self.assertEqual(built_files, snapshot_files)
+        self.assertEqual(extras, set(), f"files in the build that the snapshot does not pin: {sorted(extras)}")
+        self.assertEqual(missing, set(), f"files the snapshot pins that the build did not produce: {sorted(missing)}")

@@ -308,7 +308,9 @@ def build_all(
                 # build_portal_page strips on the way out, so these are already the
                 # bytes the firewall receives; nothing may touch them afterwards.
                 imports[page] = build_portal_page(page, th, cfg, th_palette, portal_templates)
-                size, errors, warnings = validate_portal(imports[page])
+                # The same argument, for the same reason, as the block-page call
+                # above: what the IMPORT carries, not what the config asked for.
+                size, errors, warnings = validate_portal(imports[page], languages=i18n.shipped(cfg, th))
                 encoded = encoded_size(imports[page])
                 if write:
                     # A subdirectory, not a portal-login.html prefix: the two
@@ -488,17 +490,31 @@ def _portal_report(result: BuildResult) -> list[str]:
 
     The encoded column is there because that is the only number PAN-OS ever
     says out loud: "page can be at most 21845 characters, but current length: N".
+
+    The languages column is there for the reason _language_cell() gives, and it
+    is needed MORE here: this family fits two extra languages before the warn
+    band where the block pages fit five, so a style that opted out has dropped
+    something the reader is more likely to be looking for. Without the column,
+    nyan's opt-out was visible in one of the two tables the same build prints.
     """
+    worst = _worst_rows(result.portal_results)
+    cells = {theme: _language_cell(result, theme) for theme, _palette in worst}
+    # Sized to the content, and 88 is every column before this one -- the same
+    # arithmetic format_report does, for the same reason.
+    rule = "  " + "-" * (88 + max(len("languages"), *(len(c) for c in cells.values()), 0))
     lines = [
         "",
-        f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  {'of ceiling':>10}  status",
-        "  " + "-" * 88,
+        f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  "
+        f"{'of ceiling':>10}  {'status':6}  languages",
+        rule,
     ]
-    for (theme, palette), r in _worst_rows(result.portal_results).items():
+    for (theme, palette), r in worst.items():
         status = _status(result.portal_results, theme, palette)
         pct = f"{r.size / SOFT_MAX * 100:.0f}%"
-        lines.append(f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status}")
-    lines.append("  " + "-" * 88)
+        lines.append(
+            f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status:6}  {cells[theme]}"
+        )
+    lines.append(rule)
     lines.append(
         f"  import ceiling {SOFT_MAX} B ({MAX_ENCODED} encoded)  |  "
         f"largest import {result.portal_largest} B  |  headroom {SOFT_MAX - result.portal_largest} B"
