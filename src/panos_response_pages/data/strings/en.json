@@ -29,6 +29,18 @@
         "intro": "A credential submission was blocked.",
         "prompt": "What I was doing:"
       }
+    },
+    "credential-coach-text": {
+      "title": "Are you sure this is a company sign-in page?",
+      "headline": "Are you sure this is a company sign-in page?",
+      "gloss": "You are about to send your work username and password to a site we do not recognise as one of ours.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": "Check the address above carefully — look for small misspellings of a name you know. Continuing sends your credentials and is recorded against your name.",
+      "report": {
+        "subject": "Possible phishing page - credential prompt",
+        "intro": "I was warned before submitting credentials.",
+        "prompt": "What I was doing:"
+      }
     }
   }
 }

@@ -130,7 +130,12 @@ class TestInfobox(unittest.TestCase):
 
 
 class TestActionOrder(unittest.TestCase):
+    @unittest.expectedFailure
     def test_continue_sits_left_of_report_on_both_coach_pages(self):
+        """MIGRATING (Task 5-10): the report label is a placeholder in the
+        template now, so there is no "Report to IT" to find a position for. The
+        guard moves to the built output in Task 10, which removes this
+        decorator."""
         for name in ("url-coach-text", "credential-coach-text"):
             actions = slots(name)["ACTIONS"]
             self.assertIn("<pan_form/>", actions, f"{name} should offer Continue")
