@@ -410,9 +410,17 @@ class TestTheGalleryControl(unittest.TestCase):
         cls.index = (preview_dir() / "index.html").read_text(encoding="utf-8")
 
     def test_the_control_lists_friendly_names_not_codes(self):
+        """Every shipped language, each under the name its own document gives it.
+
+        Derived from SHIPPED rather than spelled out, because a literal map here
+        is a second list of languages: adding a strings file would fail this test
+        for no reason but its own bookkeeping, and the fix would be to retype the
+        names that `name` already carries. What is asserted is the property --
+        every offered code is a shipped one, and no row shows a bare code.
+        """
         rows = re.findall(r'<li role="option" data-value="(\w+)"[^>]*>([^<]*)</li>', self.index)
         offered = {code: label for code, label in rows if code in SHIPPED}
-        self.assertEqual(offered, {"en": "English", "de": "German"})
+        self.assertEqual(offered, {lang: i18n.display_name(lang, DATA) for lang in SHIPPED})
 
     def test_the_control_opens_on_the_base_language(self):
         self.assertIn('<span id="langlabel">English</span>', self.index)

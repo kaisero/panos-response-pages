@@ -106,7 +106,15 @@ docstring-code-format = true
 # file in the tree -- a far larger hole than one skipped translation. Matched
 # with a leading glob so the skip holds whether codespell walks the tree (the
 # hook, with pass_filenames: false) or is handed the directory by hand.
-skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures,*/data/strings/de.json"
+#
+# es.json, it.json and fr.json are skipped for exactly the same reason, and each
+# by name rather than by a `strings/*.json` glob: the glob would take en.json
+# with it, and en.json is the one file in that directory where a real typo in
+# the shipped copy would live. The Romance function words are the worst offenders
+# of all -- their pronouns, articles and prepositions are ordinary words in one
+# language and English misspellings in the dictionary, and there are more of them
+# per sentence than in German.
+skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures,*/data/strings/de.json,*/data/strings/es.json,*/data/strings/it.json,*/data/strings/fr.json"
 # "levl" is a deliberate misspelling in the test asserting that a typo'd
 # settings key is rejected rather than silently ignored.
 ignore-words-list = "levl"
