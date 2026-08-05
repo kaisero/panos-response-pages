@@ -107,14 +107,32 @@ class TestCopy(unittest.TestCase):
         self.assertEqual(hits, [], "unsubstantiated claims:\n  " + "\n  ".join(hits))
 
     def test_every_shipped_language_is_linted(self):
-        """The pass above is a loop over a glob, so it reports success on an
-        empty one. This is what makes "every language" a claim rather than an
-        accident of which files happened to exist."""
+        """The pass above is a loop over a glob and a list of phrases, and both
+        were English-only once. Neither can say so about itself.
+
+        The file set is walked from the DATA root rather than re-globbing the
+        directory _sources() globs -- a strings document filed anywhere under
+        the tree is copy that ships, and re-running the same glob would only
+        prove the glob equals itself.
+
+        The phrase list is checked for teeth on a non-English sentence. Nothing
+        else here would notice the German entries being dropped from
+        BANNED_COPY: the pass would still run over de.json, still find nothing,
+        and still report success.
+        """
         linted = {name for name, _ in self._sources()}
-        self.assertIn("en.json", linted, "the base language is not linted")
-        self.assertIn(CONFIG.name, linted, "the customer-facing defaults are not linted")
-        for path in sorted(STRINGS.glob("*.json")):
-            self.assertIn(path.name, linted, f"{path.name} ships copy that nothing lints")
+        shipped = {p.name for p in DATA.rglob("*.json") if p.parent.name == "strings"}
+        self.assertIn("en.json", shipped, "the base language is not in the shipped tree")
+        self.assertGreater(len(shipped), 1, "only one language ships; 'every language' cannot be a claim yet")
+        self.assertEqual(linted, shipped | {CONFIG.name}, "a shipped document is not linted")
+
+        # Marked for the same reason validate.py marks its own German entries:
+        # an English misspelling dictionary reads these words as typos.
+        german = "Ihre Eingabe wurde nicht übermittelt, und die Regel gilt für alle."  # codespell:ignore
+        self.assertTrue(
+            [phrase for phrase, _why in BANNED if phrase in german.lower()],
+            "the phrase list has no German entry, so de.json ships copy this pass cannot fail",
+        )
 
     def test_continue_grant_duration_comes_from_config(self):
         """The Continue timeout is admin-configurable; hardcoding it asserts a
