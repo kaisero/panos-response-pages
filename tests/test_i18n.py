@@ -13,7 +13,7 @@ import pytest
 from _build import LANGUAGE_BLOCK, translated_strings
 from _paths import DATA
 from panos_response_pages import i18n, scripts
-from panos_response_pages.builder import load_themes
+from panos_response_pages.builder import build_all, load_themes
 from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
 from panos_response_pages.page import build_page
@@ -279,6 +279,106 @@ class TestNoCopyReachesAScriptAsMarkup(unittest.TestCase):
 
     def test_the_shipped_tree_passes(self):
         i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"]}, DATA)
+
+
+class TestNoConfigCopyReachesAScriptAsMarkup(unittest.TestCase):
+    """The other half of the same rule: copy that lives in the CONFIG.
+
+    `defaultGloss`, `riskGloss` and every `categories.<name>.gloss` are
+    json.dumps'd into the category selector; `redirect.message` and each
+    per-category `message` and `app` are json.dumps'd into the notice's script.
+    A `<user/>` in any of them takes exactly the path a `<user/>` in a strings
+    file takes -- the firewall expands it at serve time, inside a JS string
+    literal, and `ACME\\ukaiser` reads as an invalid \\u escape:
+
+        SyntaxError: Invalid Unicode escape sequence
+
+    Reproduced before this guard existed, on the shipped English config: the
+    build was clean, validate was green, and `node --check` on the served page
+    refused both scripts. Which is why none of these cases configures a second
+    language -- unlike the strings-file rule, this one bites a single-language
+    build, because the config's copy is in the script either way.
+    """
+
+    # (config, the path the message must name). One value each, so a failure
+    # names the case rather than a list of every path at once.
+    CASES: ClassVar = (
+        ({"defaultGloss": "Blocked for <user/>."}, "defaultGloss"),
+        ({"riskGloss": "A risk for <user/>."}, "riskGloss"),
+        ({"categories": {"malware": {"tone": "critical", "gloss": "Seen from <user/>."}}}, "categories.malware.gloss"),
+        ({"redirect": {"message": "Taking <user/> to {app}."}}, "redirect.message"),
+        (
+            {"redirect": {"categories": {"social-networking": {"message": "Zu <b>x</b>.", "url": "https://x.test/"}}}},
+            "redirect.categories.social-networking.message",
+        ),
+        (
+            {"redirect": {"categories": {"social-networking": {"app": "Engage <user/>", "url": "https://x.test/"}}}},
+            "redirect.categories.social-networking.app",
+        ),
+    )
+
+    def _check(self, **cfg):
+        i18n.check_complete({"baseLanguage": "en", "languages": ["en"], **cfg}, DATA)
+
+    def test_each_config_copy_value_is_refused_by_path(self):
+        for cfg, path in self.CASES:
+            with self.subTest(path=path):
+                with self.assertRaises(BuildError) as ctx:
+                    self._check(**cfg)
+                msg = str(ctx.exception)
+                self.assertIn(path, msg, "the author has to be told which config key to open")
+                self.assertIn("kills the whole page script", msg)
+
+    def test_the_remedy_does_not_offer_to_split_the_string(self):
+        """Config copy is never markup on any page -- it reaches textContent.
+        There is no element here to keep, so the strings-file advice would send
+        the author looking for a template that does not exist."""
+        with self.assertRaises(BuildError) as ctx:
+            self._check(defaultGloss="Blocked for <user/>.")
+        self.assertNotIn("contactAlt", str(ctx.exception))
+        self.assertIn("never as markup", str(ctx.exception))
+
+    def test_a_closing_bracket_alone_counts(self):
+        with self.assertRaises(BuildError):
+            self._check(riskGloss="A risk >")
+
+    def test_the_svg_config_keys_keep_their_markup(self):
+        """The rule is aimed at copy, not at the config. `logoSvg`, `marks.*` and
+        the portal logos are deliberately SVG, and the `_`-prefixed documentation
+        keys in _defaults.json are prose about `<lang>` and `<user/>`. A walk of
+        the config document rather than of its named copy keys would refuse every
+        build there is."""
+        self._check(
+            logoSvg='<svg viewBox="0 0 24 24"><path d="M0 0"/></svg>',
+            portalLogoSvg="<svg/>",
+            portalLogoSvgDark="<svg/>",
+            marks={"shield": "<svg/>", "lock": "<svg/>"},
+            _defaultGloss="Documentation about <user/>, not copy.",
+        )
+
+    def test_the_shipped_config_passes(self):
+        """Both shipped customer documents, merged as a build merges them. The
+        364-file byte snapshot depends on this staying true."""
+        for customer in ("contoso", "sase"):
+            with self.subTest(customer=customer):
+                cfg = load_config(customer, DATA / "config")
+                self.assertEqual(i18n.markup_leaves(i18n.config_copy(cfg)), [])
+                i18n.check_complete(cfg, DATA)
+
+    def test_a_build_refuses_it(self):
+        """End to end, because the guard is only worth anything at the call site:
+        this exact config built clean before it existed."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            data = tmp / "data"
+            shutil.copytree(DATA, data)
+            path = data / "config" / "_defaults.json"
+            cfg = json.loads(path.read_text(encoding="utf-8"))
+            cfg["defaultGloss"] = "Blocked for <user/>, by company policy."
+            path.write_text(json.dumps(cfg), encoding="utf-8")
+            with self.assertRaises(BuildError) as ctx:
+                build_all(data, tmp / "out", theme="beacon", palette_name="cyber-orange", write=False)
+        self.assertIn("defaultGloss", str(ctx.exception))
 
 
 class TestPageValues(unittest.TestCase):

@@ -650,6 +650,78 @@ def empty_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
 # `init`-forked data directory that is the documented way to add a language.
 MARKUP_CHARS = ("<", ">")
 
+# What to do about it, for copy that is a SENTENCE around an element.
+SPLIT_REMEDY = "Split the string around the element and let the template own the tag, as `contactAlt` does."
+
+# The same rule, one document over: the customer-authored copy that lives in the
+# CONFIG rather than in a strings file, and reaches the very same <script>.
+#
+# * `defaultGloss` and `riskGloss` are json.dumps'd straight into the category
+#   selector -- see scripts.py::category_js, where they become `d` and `r`.
+# * every `categories.<name>.gloss` is a value in that selector's compact map.
+# * `redirect.message`, and each `redirect.categories.<name>.message` and `app`,
+#   are json.dumps'd into the notice's script -- see redirect.py::_script, where
+#   they become `D` and the rows of `R`.
+#
+# None of that depends on a second language being configured: these values are in
+# the script of a single-language build too, which is what makes this wider than
+# the strings-file rule it sits beside. Reproduced with `<user/>` in
+# `defaultGloss` on the shipped English config -- a clean build, a green
+# validate, and `node --check` on the served page saying
+#
+#     SyntaxError: Invalid Unicode escape sequence
+#
+# NAMED keys, never a walk of the config document. Most of that document is not
+# copy and must keep its angle brackets: `logoSvg`, `marks.*` and
+# `portalLogoSvg` are deliberately SVG markup, and the `_`-prefixed
+# documentation keys in _defaults.json are prose about `<lang>` and `<user/>`.
+# A walk would refuse every build there is.
+CONFIG_COPY_KEYS = ("defaultGloss", "riskGloss")
+
+# The copy inside one `redirect.categories` entry. `url` is deliberately absent:
+# it is a destination rather than copy, and its rules -- absolute https, nothing
+# that breaks out of an href -- belong with redirect.check's other url rules.
+REDIRECT_COPY_KEYS = ("message", "app")
+
+# These reach the page through textContent, never through substitution, so there
+# is no tag here that would have rendered and nothing to split around.
+CONFIG_REMEDY = (
+    "These values are written into the page as text, never as markup, so there is no tag to keep: "
+    "remove it and say the same thing in words."
+)
+
+
+def config_copy(cfg: Mapping[str, Any]) -> dict[str, Any]:
+    """Just the config values that are copy, in the config's own shape.
+
+    A sub-document rather than a flat list because markup_leaves() walks a
+    document and reports the path it walked, and the path is the whole point:
+    `redirect.categories.online-storage-and-backup.message` is what the author
+    has to open their config and find.
+    """
+    out: dict[str, Any] = {k: cfg[k] for k in CONFIG_COPY_KEYS if isinstance(cfg.get(k), str)}
+    cats = {
+        name: {"gloss": entry["gloss"]}
+        for name, entry in (cfg.get("categories") or {}).items()
+        if isinstance(entry, Mapping) and isinstance(entry.get("gloss"), str)
+    }
+    if cats:
+        out["categories"] = cats
+    red = cfg.get("redirect")
+    if isinstance(red, Mapping):
+        block: dict[str, Any] = {"message": red["message"]} if isinstance(red.get("message"), str) else {}
+        rows = {
+            name: {k: entry[k] for k in REDIRECT_COPY_KEYS if isinstance(entry.get(k), str)}
+            for name, entry in (red.get("categories") or {}).items()
+            if isinstance(entry, Mapping)
+        }
+        rows = {name: row for name, row in rows.items() if row}
+        if rows:
+            block["categories"] = rows
+        if block:
+            out["redirect"] = block
+    return out
+
 
 def markup_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
     """Paths whose value carries an angle bracket. Same walk as empty_leaves()."""
@@ -669,9 +741,14 @@ def _has_markup(value: Any) -> bool:
     return isinstance(value, str) and any(c in value for c in MARKUP_CHARS)
 
 
-def _refuse_markup(where: str, doc: Mapping[str, Any], prefix: str = "") -> None:
+def _refuse_markup(where: str, doc: Mapping[str, Any], prefix: str = "", *, remedy: str = SPLIT_REMEDY) -> None:
     """Names the source AND every key path, like _refuse_empty: whoever fixes
-    this has to find the string in a file they may not read."""
+    this has to find the string in a file they may not read.
+
+    `remedy` is the last line only. The diagnosis is one rule and reads the same
+    wherever the string came from; what to DO about it differs, because config
+    copy is never markup on any page and has no element to be split around.
+    """
     bad = markup_leaves(doc, prefix)
     if bad:
         raise BuildError(
@@ -680,8 +757,7 @@ def _refuse_markup(where: str, doc: Mapping[str, Any], prefix: str = "") -> None
             + "\nCopy reaches every non-base language as JSON inside a <script>. A tag renders there "
             "as literal angle brackets, and a PAN-OS token such as <user/> is expanded by the firewall "
             "at serve time -- inside a JS string literal, where a username like ACME\\ukaiser reads as "
-            "an invalid \\u escape and kills the whole page script.\nSplit the string around the element "
-            "and let the template own the tag, as `contactAlt` does."
+            "an invalid \\u escape and kills the whole page script.\n" + remedy
         )
 
 
@@ -717,12 +793,25 @@ def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
     value reaches the script by exactly the path a strings value does -- the
     block is the documented place to translate customer-authored copy, so it
     cannot be the one place the rule does not reach.
+
+    And it runs over the config's own copy -- `defaultGloss`, `riskGloss`, the
+    per-category glosses and the redirect notice's sentences. Those are the
+    base-language originals of exactly the `translations` values swept below:
+    guarding the translation of a sentence and not the sentence would be one
+    rule with a hole in the middle of it. Here rather than beside each value's
+    own validator (redirect.check, page.py) because splitting it across three
+    call sites is how the wording, the diagnosis and the coverage drift apart --
+    and because these are the values check_complete already reasons about, one
+    language over. It is the only rule in this function that does not depend on
+    a second language being configured: the config's copy is inside the script
+    of a single-language build too. See CONFIG_COPY_KEYS.
     """
     base = base_language(cfg)
     base_doc = load(base, data_dir)
     want = flat_keys(base_doc)
     _refuse_empty(base, base_doc)
     _refuse_markup(f"{base}.json", base_doc)
+    _refuse_markup("the config", config_copy(cfg), remedy=CONFIG_REMEDY)
     for lang, block in (cfg.get("translations") or {}).items():
         _refuse_markup(f"the config `translations` block for '{lang}'", block, f"translations.{lang}.")
     for lang in languages(cfg):
