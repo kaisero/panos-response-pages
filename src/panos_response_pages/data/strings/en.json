@@ -53,6 +53,18 @@
         "intro": "A data transfer was blocked by policy.",
         "prompt": "Why I need to send this:"
       }
+    },
+    "file-block-continue-page": {
+      "title": "Continue with this download?",
+      "headline": "Continue with this download?",
+      "gloss": "Downloading files of this type is restricted by company policy. You can continue if you need this file for your work.",
+      "facts": ["File", "User", "Time"],
+      "extra": "Only continue if you know what this file is and where it came from.",
+      "report": {
+        "subject": "File download warning",
+        "intro": "I was warned before downloading a restricted file type.",
+        "prompt": "What I was doing:"
+      }
     }
   }
 }
