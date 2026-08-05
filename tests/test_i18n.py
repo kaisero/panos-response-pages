@@ -342,6 +342,67 @@ class TestTemplatesCarryNoCopy(unittest.TestCase):
                 self.assertEqual(stripped, "", f"{f.stem} {name} still contains copy: {stripped!r}")
 
 
+class TestCustomerTranslations(unittest.TestCase):
+    """Customer-authored copy is translated in the customer's own config, not
+    in the shipped strings files -- resolution is whole-tree, so putting it
+    there would force a customer to fork the entire data directory to
+    translate one sentence."""
+
+    DOC: ClassVar = {"shared": {"defaultGloss": "shipped EN", "continueGrantText": "15 minutes"}}
+
+    def test_falls_back_to_the_strings_file(self):
+        got = i18n.config_strings({}, self.DOC, "en")
+        self.assertEqual(got["defaultGloss"], "shipped EN")
+
+    def test_customer_translation_wins(self):
+        cfg = {"translations": {"de": {"defaultGloss": "Kunden-DE", "continueGrantText": "30 Minuten"}}}
+        got = i18n.config_strings(cfg, self.DOC, "de")
+        self.assertEqual(got["defaultGloss"], "Kunden-DE")
+        self.assertEqual(got["continueGrantText"], "30 Minuten")
+
+    def test_untranslated_customer_key_falls_back_to_the_strings_file(self):
+        cfg = {"translations": {"de": {"defaultGloss": "Kunden-DE"}}}
+        got = i18n.config_strings(cfg, self.DOC, "de")
+        self.assertEqual(got["continueGrantText"], "15 minutes")
+
+    def test_rejects_a_translation_for_an_unconfigured_language(self):
+        cfg = {"baseLanguage": "en", "languages": ["en"], "translations": {"fr": {"defaultGloss": "x"}}}
+        with self.assertRaises(BuildError) as ctx:
+            i18n.check(cfg, DATA)
+        self.assertIn("fr", str(ctx.exception))
+
+    def test_the_rejection_names_both_lists_the_author_could_fix(self):
+        """The block is in the config, not in a language file, and either list
+        could be the one that is wrong. A message naming only the language
+        leaves the author guessing which of the two to edit."""
+        cfg = {"baseLanguage": "en", "languages": ["en"], "translations": {"fr": {"defaultGloss": "x"}}}
+        with self.assertRaises(BuildError) as ctx:
+            i18n.check(cfg, DATA)
+        msg = str(ctx.exception)
+        self.assertIn("translations", msg)
+        self.assertIn("languages", msg)
+
+    def test_a_configured_language_may_carry_a_block(self):
+        i18n.check({"baseLanguage": "en", "languages": ["en"], "translations": {"en": {"supportLabel": "x"}}}, DATA)
+
+
+class TestShippedConfigCopyMatchesTheDefaults(unittest.TestCase):
+    """The four customer-authored strings exist twice on purpose.
+
+    `_defaults.json` is what the BASE language page is built from; the `shared`
+    block of a strings file is what every OTHER language falls back to when the
+    customer has not translated it. English carries both, so the two have to
+    agree -- a drift between them would change today's copy for a customer whose
+    base language is not English, silently and only in that direction."""
+
+    def test_english_strings_repeat_the_shipped_defaults_verbatim(self):
+        cfg = json.loads((DATA / "config/_defaults.json").read_text(encoding="utf-8"))
+        shared = i18n.load("en", DATA)["shared"]
+        for key in i18n.CONFIG_STRING_KEYS:
+            with self.subTest(key=key):
+                self.assertEqual(shared[key], cfg[key], f"en.json and _defaults.json disagree about {key}")
+
+
 class TestFactLabelCounts(unittest.TestCase):
     def test_every_language_has_one_label_per_dt(self):
         """Fact labels swap positionally against `dl dt` in document order. One

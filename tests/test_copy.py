@@ -95,16 +95,23 @@ class TestCopy(unittest.TestCase):
 
         Read out of the strings files as well as the templates: the sentence
         carrying the duration is copy now, so that is where it would be
-        hardcoded -- and where the placeholder has to survive translation."""
+        hardcoded -- and where the placeholder has to survive translation.
+
+        A strings file is linted on its PAGE copy only. `shared.continueGrantText`
+        is not copy about the duration, it IS the duration: the per-language
+        value {{CONTINUE_GRANT}} falls back to when a customer who changed the
+        setting has not translated it. That it still says what _defaults.json
+        says is asserted in test_i18n.py, and this exemption depends on it."""
         cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
         self.assertIn("continueGrantText", cfg)
-        strings = [(p.name, p.read_text(encoding="utf-8")) for p in sorted(STRINGS.glob("*.json"))]
-        for name, body in self._sources() + strings:
+        strings = [(p.name, json.loads(p.read_text(encoding="utf-8"))) for p in sorted(STRINGS.glob("*.json"))]
+        copy = [(name, json.dumps(doc["pages"], ensure_ascii=False)) for name, doc in strings]
+        for name, body in self._sources() + copy:
             if name == CONFIG.name:
                 continue
             self.assertNotIn("15 minutes", body, f"{name} hardcodes the Continue grant duration")
-        for name, body in strings:
-            coach = json.loads(body)["pages"]["url-coach-text"]
+        for name, doc in strings:
+            coach = doc["pages"]["url-coach-text"]
             self.assertIn("{{CONTINUE_GRANT}}", coach["extra"], f"{name}: url-coach-text drops the configured duration")
 
 

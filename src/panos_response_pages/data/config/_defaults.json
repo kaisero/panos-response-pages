@@ -10,6 +10,8 @@
   "baseLanguage": "en",
   "_languages": "Every language compiled into the page. The browser picks one from navigator.languages at load time. Two-letter codes only -- 'de' matches de-AT, de-CH and de-DE. Each needs a strings/<code>.json. Leaving this as [\"en\"] produces byte-identical output to a build from before this feature existed.",
   "languages": ["en"],
+  "_translations": "Your OWN copy, per language. The strings files translate what this project ships; this translates what YOU changed -- defaultGloss, riskGloss, continueGrantText, supportLabel. Keys you leave out fall back to the shipped translation. Example: {\"de\": {\"continueGrantText\": \"30 Minuten\"}}",
+  "translations": {},
   "_palette": "Colour scheme, from palettes/. One of the brand palettes: cyber-orange, strata-yellow, prisma-blue. Override per build with --palette. Setting it here also overrides a style that pins its own palette, which nyan does -- leave it out of a customer file unless that is what you want.",
   "palette": "cyber-orange",
   "_logoSvg": "Placeholder mark. Replace with the customer's logo as INLINE SVG, optimised to <= 2 KB. A traced-path export can be 40 KB and will silently break the page. Keep viewBox 0 0 24 24 and use currentColor so it inherits the theme accent.",

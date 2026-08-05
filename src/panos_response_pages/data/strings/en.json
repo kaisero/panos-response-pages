@@ -3,7 +3,11 @@
   "shared": {
     "reportLabel": "Report to IT",
     "contactAlt": ["Or email ", " with the details above."],
-    "severity": { "calm": "", "warn": "Caution", "crit": "Security risk" }
+    "severity": { "calm": "", "warn": "Caution", "crit": "Security risk" },
+    "defaultGloss": "This category is restricted by company policy.",
+    "riskGloss": "This site was blocked because it presents a security risk.",
+    "continueGrantText": "15 minutes",
+    "supportLabel": "IT support"
   },
   "pages": {
     "application-block-page": {

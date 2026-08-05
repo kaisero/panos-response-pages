@@ -76,6 +76,18 @@ def check(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
         if not path.exists():
             raise BuildError(f"language '{lang}' is configured but {lang}.json is missing from {path.parent}")
 
+    # A `translations` block for a language nothing compiles is copy the author
+    # wrote and no user will ever read. Refused rather than ignored, and named as
+    # a CONFIG problem: both lists live in the same file, either one could be the
+    # one that is wrong, so the message says which two to reconcile instead of
+    # pointing at a language file that has nothing to do with it.
+    for lang in cfg.get("translations", {}):
+        if lang not in langs:
+            raise BuildError(
+                f"`translations` has a block for '{lang}', which is not in `languages` ({', '.join(langs)}). "
+                "Add it to `languages` or remove the block."
+            )
+
 
 # The one block a language may omit. Per-language category glosses are ~1800 B
 # on the two pages that carry the category map; absent, a non-base language
@@ -91,6 +103,33 @@ def load(lang: str, data_dir: pathlib.Path) -> dict[str, Any]:
         raise BuildError(f"missing strings file: {path}")
     doc: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return doc
+
+
+# Customer-authored copy: shipped in _defaults.json, overridable per customer,
+# and therefore translatable only in the customer's own file. The strings files
+# carry the shipped English of each one in `shared`, which is what a language the
+# customer has not translated falls back to.
+CONFIG_STRING_KEYS = ("defaultGloss", "riskGloss", "continueGrantText", "supportLabel")
+
+
+def config_strings(cfg: Mapping[str, Any], doc: Mapping[str, Any], lang: str) -> dict[str, str]:
+    """Customer-authored strings for one language.
+
+    These four are the copy this project does NOT ship: a customer may rewrite
+    any of them in their own config, so a translation of the shipped wording
+    would be a translation of a sentence they no longer use. Their translations
+    therefore live in the customer's file too -- data directories resolve as a
+    whole tree, and putting a per-customer sentence in strings/<lang>.json would
+    force a customer to fork the entire tree to translate it.
+
+    Precedence mirrors config-over-defaults: the customer's `translations` block
+    wins over the shipped strings file, and a key they have not translated falls
+    back to it rather than to the base language.
+    """
+    shared = doc.get("shared", {})
+    out = {k: str(shared[k]) for k in CONFIG_STRING_KEYS if k in shared}
+    out.update({k: str(v) for k, v in cfg.get("translations", {}).get(lang, {}).items()})
+    return out
 
 
 def resolve(value: Any, values: Mapping[str, object]) -> Any:
