@@ -41,6 +41,18 @@
         "intro": "I was warned before submitting credentials.",
         "prompt": "What I was doing:"
       }
+    },
+    "data-filter-block-page": {
+      "title": "Data transfer blocked",
+      "headline": "Data transfer blocked",
+      "gloss": "Company policy restricts transferring this content, so the transfer was stopped.",
+      "facts": ["Direction", "File", "Application", "User", "Time"],
+      "extra": "If you need to send this for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked data transfer",
+        "intro": "A data transfer was blocked by policy.",
+        "prompt": "Why I need to send this:"
+      }
     }
   }
 }
