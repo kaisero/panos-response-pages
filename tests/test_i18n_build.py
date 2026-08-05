@@ -35,3 +35,31 @@ class TestSingleLanguageIsFree(unittest.TestCase):
             self.assertEqual(got, want, f"{key} changed; single-language output must stay byte-identical")
             checked += 1
         self.assertEqual(checked, len(SNAPSHOT))
+
+    def test_built_file_set_matches_snapshot_exactly(self):
+        out, _result = built()
+        deploy_dir = pathlib.Path(out) / "deploy"
+
+        # Walk deploy dir and collect all .html files as snapshot-style keys
+        built_files = set()
+        for html_file in deploy_dir.rglob("*.html"):
+            # Get relative path from deploy_dir and convert to posix-style key
+            rel_path = html_file.relative_to(deploy_dir)
+            key = rel_path.as_posix()
+            built_files.add(key)
+
+        snapshot_files = set(SNAPSHOT.keys())
+
+        # Check for extras and missing
+        extras = built_files - snapshot_files
+        missing = snapshot_files - built_files
+
+        if extras or missing:
+            msg_parts = []
+            if extras:
+                msg_parts.append(f"Extra files in build: {sorted(extras)}")
+            if missing:
+                msg_parts.append(f"Missing files from build: {sorted(missing)}")
+            self.fail("; ".join(msg_parts))
+
+        self.assertEqual(built_files, snapshot_files)
