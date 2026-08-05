@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from typing import Any
 from urllib.parse import quote
 
-from panos_response_pages import contact
+from panos_response_pages import contact, i18n
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
@@ -104,7 +104,14 @@ def build_portal_page(
             raise BuildError(f"portal/shells/{theme['shell']}.html is missing its <!--@{slot}--> section")
         parts[slot] = shell[slot]
 
-    values = _values(cfg, palette)
+    # `shipped`, not `languages`: a style declaring `"i18n": false` opts out of
+    # BOTH families. One flag with one meaning is easier to explain, to document
+    # and to test than "base-language block pages, multilingual portal", and a
+    # style half-translated across its own two families is a worse artefact than
+    # one that is consistently English. nyan's login import has 3562 B of
+    # headroom and would fit German comfortably; it is a novelty style, and this
+    # costs it nothing real.
+    values = _values(cfg, palette, page, template_dir.parent, len(i18n.shipped(cfg, theme)) > 1)
     # Slot bodies carry {{COMPANY}}, {{PORTAL_NAME}} and the palette tokens, so
     # they are resolved BEFORE being placed in the frame -- re.sub does not
     # rescan replacement text.
@@ -116,6 +123,147 @@ def build_portal_page(
     # Last, so the bytes that are measured are the bytes that ship. It must not
     # run earlier: parse_sections() needs the <!--@SLOT--> markers intact.
     return strip_output(out)
+
+
+# The published dictionary. A global rather than a closure variable because the
+# download widget below it is a separate <script> that needs three of these
+# strings, and it must keep working -- in the base language -- when this block
+# matched nothing. Uniquely named for the same reason every id here is: this
+# runs inside PAN-OS' own document, beside PAN-OS' own scripts.
+PORTAL_LANG_GLOBAL = "window.__gpT"
+
+
+# Two rules govern every line of this family's JavaScript, and both fail
+# SILENTLY on a firewall:
+#
+#   * No raw '<'. `i<L.length` is one, which is why the selection is written
+#     with .some() rather than as a counting loop -- the same reason the stylesheet
+#     disabler and the download widget already avoid one. A raw '<' anywhere in
+#     the import stops PAN-OS substituting <pan_form/>, and the login form is
+#     simply not there.
+#   * Nothing in the LOGIN import may contain the string `logout_text_array`.
+#     portal/validate.py tells the two imports apart by looking for it, and a
+#     login file carrying it would be checked against the home rules.
+def _i18n_pick(dict_json: str, base_lang: str) -> str:
+    """Open the closure and choose a language, or fall through to the markup."""
+    return (
+        "(function(){var T=" + dict_json + ",L=navigator.languages||[navigator.language||''];\n"
+        "L.some(function(x){var k=x.slice(0,2).toLowerCase();\n"
+        # The base language STOPS the search: a browser that ranks it above a
+        # compiled language must keep the import it was served, which is already
+        # in that language as real text.
+        "if(k=='" + base_lang + "'){return true}\n"
+        "if(!T[k]){return false}\n"
+    )
+
+
+# The home import is script-only and PAN-OS writes that body itself, so the one
+# thing to translate is the array its ready handler reads.
+#
+# The timing is settled rather than assumed: fixtures/logout-suffix.html:26
+# shows a real appliance reading logout_text_array[ 0 ] inside
+# $(document).ready, and this is emitted at the end of <!--@HEAD_SCRIPT-->, a
+# synchronous <script> in <head> that runs long before ready fires. Which of the
+# seven the firewall picked is baked into the generated file, so the German
+# array has to be the same seven entries in the same order -- the page has no
+# way to know which index it will be handed.
+_I18N_HOME = "var t=T[k];logout_text_array=t.lm;document.documentElement.lang=k;return true})})();"
+
+# The login import. This runs at the START of <!--@FOOT_SCRIPT--> because it
+# needs both the parsed body and the form PAN-OS substituted into it -- in
+# <head> it would find neither.
+#
+# `.pl` and `.ps` are SCOPED to #heading and .gloss. Both classes appear in both
+# elements (one file serves login.esp and getsoftwarepage.esp, and the copy
+# switches with them), so an unscoped selector swaps the wrong one.
+#
+# The last five swaps reach PAN-OS' OWN injected form, whose placeholders and
+# button value are English -- see fixtures/pan_form-login.html. They are not
+# this project's words, but they are addressable by id once the form has been
+# substituted, and a German login page with an English "Username" box is a
+# half-translated page. Every one is guarded, so a release that renames an id
+# leaves PAN-OS' wording rather than breaking the page: the same degradation the
+# download widget already takes on #taGetSofewarePage.
+#
+# Those five run TWICE, and the second time is not belt and braces. PAN-OS'
+# prefix ends with `window.onload = loadPage`, and loadPage re-assigns
+# #user.placeholder and #passwd.placeholder from its own labelUsername /
+# labelPassword -- after this script, which is parser-inserted at the end of the
+# body. Swapped once, the two boxes visibly revert to "Username" and "Password"
+# while the rest of the page stays German. `window.onload` was assigned in the
+# head, so it is registered before this listener and runs before it; re-applying
+# on `load` is what makes the swap stick. This was found in a browser, not by
+# reading: a DOM harness that never fires `load` shows the swap working.
+#
+# The placeholder swap also requires the existing placeholder to be NON-EMPTY.
+# loadPage's Challenge branch deliberately blanks #passwd, because #dInputStr
+# then carries the challenge prompt and the field is no longer a password;
+# writing "Kennwort" over that blank would state something false.
+_I18N_LOGIN = (
+    "var t=" + PORTAL_LANG_GLOBAL + "=T[k],D=document;\n"
+    "D.documentElement.lang=k;\n"
+    "var Q=function(s){return D.querySelector(s)},"
+    "S=function(s,v){var e=Q(s);if(e&&v){e.textContent=v}};\n"
+    "S('#heading .pl',t.signIn);S('#heading .ps',t.getSoftware);\n"
+    "S('.gloss .pl',t.glossSignIn);S('.gloss .ps',t.glossSoftware);\n"
+    "S('#dllab',t.download);\n"
+    "var c=Q('#dlcar');if(c){c.setAttribute('aria-label',t.otherPlatforms)}\n"
+    # text, anchor, text -- the same three-node sentence the block pages swap,
+    # and the same guard on it. The anchor between the fragments is built here,
+    # so only the two text nodes are copy.
+    "var n=Q('.note');if(n&&n.childNodes.length>2){"
+    "n.childNodes[0].nodeValue=t.note[0];n.childNodes[2].nodeValue=t.note[1]}\n"
+    "var P=function(s,v){var e=Q(s);if(e&&v&&e.placeholder){e.placeholder=v}};\n"
+    "var F=function(){P('#user',t.formUser);P('#passwd',t.formPassword);\n"
+    "P('#new_passwd',t.formNewPassword);P('#confirm_new_passwd',t.formConfirmPassword);\n"
+    "var b=Q('#submit');if(b&&t.formSubmit){b.value=t.formSubmit}};\n"
+    "F();window.addEventListener('load',F);\n"
+    "return true})})();"
+)
+
+_I18N = {"login": _I18N_LOGIN, "home": _I18N_HOME}
+
+
+def _i18n_script(page: str, dict_json: str, base_lang: str) -> str:
+    """The language selector for one import, or nothing to select between.
+
+    An empty dictionary is not merely a saving: `T` would be `{}`, every lookup
+    would miss, and the import would carry ~700 B of script that can never do
+    anything.
+    """
+    if dict_json in ("", "{}"):
+        return ""
+    return "<script>\n" + _i18n_pick(dict_json, base_lang) + _I18N[page] + "\n</script>"
+
+
+# The six strings the download widget writes. They are the only copy in this
+# family that is a JS LITERAL rather than markup: the button's text is COMPUTED
+# from the user agent, so there is no element standing in the document with the
+# words already in it for the selector above to swap.
+#
+# They are filled from the strings file all the same, which is what keeps the
+# base language out of the template -- and it is what makes the two forms below
+# possible at all.
+DOWNLOAD_LITERALS = ("macos", "windows", "bit64", "bit32", "downloadFor", "chooseDownload")
+
+
+def _download_values(login: Mapping[str, Any], *, multilingual: bool) -> dict[str, str]:
+    """The DL_* placeholders: a bare literal, or a lookup that falls back to it.
+
+    The single-language form is the literal ALONE -- not `(T.x||'...')` with an
+    empty dictionary behind it. That is the promise the byte-identity snapshot
+    holds this family to: a customer who configures one language gets exactly the
+    import they got before any of this existed, down to the byte.
+    """
+    out = {}
+    for key in DOWNLOAD_LITERALS:
+        literal = _js_string(str(login[key]))
+        out[f"DL_{key.upper()}"] = f"(T.{key}||{literal})" if multilingual else literal
+    # Read once, at the top of the widget, so a swap does not depend on the
+    # selector still being in scope -- it is a separate <script>. `||{}` is what
+    # makes every lookup above degrade to its literal when nothing matched.
+    out["DL_T"] = f"var T={PORTAL_LANG_GLOBAL}||{{}};" if multilingual else ""
+    return out
 
 
 def _css_string(value: str) -> str:
@@ -205,7 +353,13 @@ def _logo(
     return quote(svg, safe=LOGO_SAFE)
 
 
-def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str]:
+def _values(
+    cfg: Mapping[str, Any],
+    palette: Mapping[str, Any],
+    page: str,
+    data_dir: pathlib.Path,
+    multilingual: bool,
+) -> dict[str, str]:
     """Everything a portal slot may reference."""
     contact.check(cfg)
     base = {
@@ -230,6 +384,28 @@ def _values(cfg: Mapping[str, Any], palette: Mapping[str, Any]) -> dict[str, str
     # The heading text. Carried in markup rather than in gp_portal_name, which
     # PAN-OS applies with .html() and would use to replace the whole heading.
     values["PORTAL_NAME"] = substitute(str(cfg["portalName"]), base)
+    # Copy, resolved against the values above -- a portal string may carry
+    # {{COMPANY}} just as a block-page string may, and substitute() will not
+    # rescan its own replacement.
+    #
+    # Read from `data_dir`, which is the portal template directory's parent. On a
+    # data directory that predates this family that is the PACKAGED tree rather
+    # than the customer's -- the same fallback datadir.portal_data() already
+    # warns about, and the same consequence: portal edits made there are ignored
+    # until `init --force` refreshes it.
+    strings = i18n.load(i18n.base_language(cfg), data_dir)
+    values.update(i18n.portal_values(strings, page, values))
+    if page == "login":
+        values.update(_download_values(i18n.resolve(strings["portal"]["login"], values), multilingual=multilingual))
+    # The language runtime, and the empty string on the single-language builds
+    # that are every existing customer -- which is what keeps those imports
+    # byte-identical to imports from before this existed. `strip_output` drops
+    # the blank line the empty value leaves behind.
+    values["PORTAL_I18N"] = (
+        _i18n_script(page, i18n.portal_runtime(cfg, page, data_dir, values), i18n.base_language(cfg))
+        if multilingual
+        else ""
+    )
     # The artwork, encoded once per scheme. The shells write the media type
     # prefix themselves, so these are the encoded SVG alone; PORTAL_LOGO_URI is
     # the whole URI, for the one place that still needs it in a JS string.

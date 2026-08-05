@@ -330,6 +330,148 @@ class TestEnglishCoversEveryPage(unittest.TestCase):
         self.assertEqual(sorted(doc["pages"]), sorted(PAGE_TOKENS))
 
 
+class TestPortalStrings(unittest.TestCase):
+    """The GlobalProtect portal's copy, which lives in the SHELLS rather than in
+    the page templates -- the reverse of the block-page family.
+
+    Two surfaces, not eleven pages: PAN-OS fixes the file shape per import, and
+    the words are decoration the shell decides.
+    """
+
+    def test_portal_block_covers_both_surfaces(self):
+        doc = i18n.load("en", DATA)
+        self.assertEqual(sorted(doc["portal"]), ["home", "login"])
+
+    def test_logout_messages_are_seven(self):
+        """PAN-OS bakes the index into the generated logout.esp -- see
+        fixtures/logout-suffix.html:26, which reads logout_text_array[ 0 ].
+        The page cannot know which message will be shown, so every language
+        must supply all seven, in the same order."""
+        for f in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=f.stem):
+                doc = i18n.load(f.stem, DATA)
+                self.assertEqual(len(doc["portal"]["home"]["logoutMessages"]), 7, f.stem)
+
+    def test_the_english_logout_messages_repeat_the_shipped_defaults(self):
+        """`logoutMessages` is customer-authored config AND shipped copy, for the
+        same reason the four CONFIG_STRING_KEYS are: the config value is what the
+        base-language import renders, the strings file is what every other
+        language translates. A drift between them would translate a sentence the
+        English page no longer shows."""
+        cfg = json.loads((DATA / "config/_defaults.json").read_text(encoding="utf-8"))
+        doc = i18n.load("en", DATA)
+        self.assertEqual(doc["portal"]["home"]["logoutMessages"], cfg["logoutMessages"])
+
+    def test_the_form_strings_match_what_panos_emits(self):
+        """The five form* keys are PAN-OS's own words, not ours -- they are in
+        the strings file because the runtime swaps them, and they are kept
+        byte-identical to the capture so a diff against a future one means
+        something."""
+        form = (DATA / "fixtures/pan_form-login.html").read_text(encoding="utf-8")
+        login = i18n.load("en", DATA)["portal"]["login"]
+        for key, attr in (
+            ("formUser", 'placeholder="{}"'),
+            ("formPassword", 'placeholder="{}"'),
+            ("formNewPassword", 'placeholder="{}"'),
+            ("formConfirmPassword", 'placeholder="{}"'),
+            ("formSubmit", 'value="{}"'),
+        ):
+            with self.subTest(key=key):
+                self.assertIn(attr.format(login[key]), form)
+
+    def test_portal_values_are_resolved(self):
+        doc = i18n.load("en", DATA)
+        doc["portal"]["login"]["signIn"] = "Sign in for {{COMPANY}}"
+        v = i18n.portal_values(doc, "login", {"COMPANY": "Example Corp"})
+        self.assertEqual(v["T_SIGNIN"], "Sign in for Example Corp")
+        self.assertEqual(v["T_NOTE1"], "Need help? Contact ")
+        self.assertEqual(v["T_NOTE2"], ".")
+
+    def test_the_home_surface_fills_no_slot(self):
+        """Its import is script-only. The seven messages reach the page as a JS
+        array, not as markup, so there is no {{T_*}} for them to fill."""
+        values = {"CONTACT_REACHABLE": "IT support"}
+        self.assertEqual(i18n.portal_values(i18n.load("en", DATA), "home", values), {})
+
+    def test_a_one_fragment_note_is_refused_by_name(self):
+        doc = i18n.load("en", DATA)
+        doc["portal"]["login"]["note"] = ["only one"]
+        with self.assertRaises(BuildError) as ctx:
+            i18n.portal_values(doc, "login", {})
+        self.assertIn("note", str(ctx.exception))
+        self.assertIn("portal/login", str(ctx.exception))
+
+    def test_a_missing_surface_is_named(self):
+        with self.assertRaises(BuildError) as ctx:
+            i18n.portal_values({"portal": {}}, "login", {})
+        self.assertIn("login", str(ctx.exception))
+
+    def test_the_note_is_two_fragments_either_side_of_the_contact_anchor(self):
+        """Same shape as `contactAlt`: the template owns the anchor, so the
+        sentence is split around it rather than carrying a tag."""
+        for f in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=f.stem):
+                note = i18n.load(f.stem, DATA)["portal"]["login"]["note"]
+                self.assertEqual(len(note), i18n.CONTACT_ALT_PARTS, f"{f.stem}: portal.login.note")
+
+    def test_the_windows_label_keeps_its_trailing_space(self):
+        """It is concatenated with the bit-ness -- "Windows " + "64-bit". A
+        translator trimming it silently produces "Windows64-bit"."""
+        for f in sorted((DATA / "strings").glob("*.json")):
+            with self.subTest(language=f.stem):
+                windows = i18n.load(f.stem, DATA)["portal"]["login"]["windows"]
+                self.assertTrue(windows.endswith(" "), f"{f.stem}: {windows!r}")
+
+
+class TestPortalRuntimeDict(unittest.TestCase):
+    """The per-import dictionary, base language excluded."""
+
+    CFG: ClassVar = {"baseLanguage": "en", "languages": ["en", "de"], "company": "Example Corp"}
+    VALUES: ClassVar = {"COMPANY": "Example Corp", "CONTACT_REACHABLE": "IT support"}
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-gp-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / "strings").mkdir()
+        shutil.copy(DATA / "strings/en.json", self.tmp / "strings/en.json")
+        (self.tmp / "strings/de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
+
+    def test_the_base_language_is_not_shipped(self):
+        cfg = {"baseLanguage": "en", "languages": ["en"], "company": "Example Corp"}
+        self.assertEqual(i18n.portal_runtime(cfg, "login", self.tmp, self.VALUES), "{}")
+
+    def test_the_home_dictionary_carries_the_seven_messages(self):
+        text = i18n.portal_runtime(self.CFG, "home", self.tmp, self.VALUES)
+        self.assertEqual(len(json.loads(text)["de"]["lm"]), 7)
+
+    def test_a_customer_translation_of_the_messages_wins(self):
+        """Same precedence as every other customer-authored string: they may
+        have rewritten the seven, in which case a translation of OUR wording is
+        a translation of a sentence their portal never shows."""
+        cfg = dict(self.CFG, translations={"de": {"logoutMessages": ["a", "b", "c", "d", "e", "f", "g"]}})
+        text = i18n.portal_runtime(cfg, "home", self.tmp, self.VALUES)
+        self.assertEqual(json.loads(text)["de"]["lm"], ["a", "b", "c", "d", "e", "f", "g"])
+
+    def test_the_messages_reach_the_dictionary_resolved(self):
+        """Four of the seven name the contact. Unresolved they would reach a
+        German reader as literal braces -- assert_resolved never looks inside a
+        JS string literal that was assembled here."""
+        text = i18n.portal_runtime(self.CFG, "home", self.tmp, self.VALUES)
+        self.assertNotIn("{{", text)
+        self.assertIn("IT support", text)
+
+    def test_the_login_dictionary_escapes_a_raw_less_than(self):
+        """json.dumps leaves '<' alone, and portal/validate.py refuses one
+        anywhere in an import: the observed failure is that <pan_form/> silently
+        stops being substituted and the login form is lost entirely."""
+        doc = json.loads((DATA / "strings/en.json").read_text(encoding="utf-8"))
+        doc["portal"]["login"]["signIn"] = "a < b"
+        (self.tmp / "strings/de.json").write_text(json.dumps(doc), encoding="utf-8")
+        text = i18n.portal_runtime(self.CFG, "login", self.tmp, self.VALUES)
+        self.assertNotIn("<", text)
+        self.assertIn("\\u003c", text)
+
+
 def _leaves(value, path=""):
     """Every string leaf of a strings document, with its path."""
     if isinstance(value, dict):

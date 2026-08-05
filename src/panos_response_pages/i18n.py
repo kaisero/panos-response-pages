@@ -326,6 +326,92 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
     return out
 
 
+# Portal copy lives in the SHELLS, identically in all seven, rather than in the
+# page templates -- the reverse of the block-page family, where the shells carry
+# no copy at all. That is a property of this family's split: PAN-OS fixes the
+# file shape (page template) and the theme decides decoration (shell), and the
+# words are decoration.
+#
+# `home` names no slot. Its import is script-only -- PAN-OS writes that body
+# itself -- so its one piece of copy, the seven logout messages, reaches the page
+# as a JS array rather than as markup, and there is no {{T_*}} for it to fill.
+PORTAL_SLOTS = {
+    "login": ("signIn", "getSoftware", "glossSignIn", "glossSoftware", "download", "otherPlatforms"),
+    "home": (),
+}
+
+
+def portal_values(doc: Mapping[str, Any], surface: str, values: Mapping[str, object]) -> dict[str, str]:
+    """The {{T_*}} values one portal import needs.
+
+    Resolved against `values` for the same reason page_values() is: a portal
+    string may carry {{COMPANY}} exactly as a block-page string may, and
+    substitute() does not rescan its own replacement text.
+    """
+    block = doc.get("portal", {})
+    if surface not in block:
+        raise BuildError(f"strings document has no portal entry for '{surface}'")
+    s = resolve(block[surface], values)
+    out = {f"T_{k.upper()}": s[k] for k in PORTAL_SLOTS[surface]}
+    if surface == "login":
+        # The same split as contactAlt, and the same arity check: the shell owns
+        # the anchor, so the sentence is two fragments either side of it, and a
+        # one-fragment translation is an IndexError that names no file and no
+        # key. CONTACT_ALT_PARTS because it IS the same number -- one anchor
+        # inside one sentence -- not because the two slots are the same slot.
+        note = s["note"]
+        if len(note) != CONTACT_ALT_PARTS:
+            raise BuildError(
+                f"`note` for portal/{surface} has {len(note)} fragment(s); "
+                f"the shell wraps its contact anchor in exactly {CONTACT_ALT_PARTS}"
+            )
+        out["T_NOTE1"], out["T_NOTE2"] = note[0], note[1]
+    return out
+
+
+def portal_runtime(
+    cfg: Mapping[str, Any],
+    surface: str,
+    data_dir: pathlib.Path,
+    values: Mapping[str, object],
+) -> str:
+    """The per-import language dictionary, as a JS object literal.
+
+    '<' is escaped rather than left to json.dumps: portal/validate.py refuses a
+    raw '<' anywhere in an import, because the observed failure is not an error
+    on the firewall -- it is that <pan_form/> silently stops being substituted
+    and the login form is lost entirely.
+
+    Keys are spelled out rather than shortened to one letter as the block-page
+    dictionary's are. That dictionary ships on eleven pages in seven styles
+    across every palette; this one ships twice per style, so the same saving is
+    two orders of magnitude smaller and not worth an unreadable emitted script.
+    """
+    base = base_language(cfg)
+    out: dict[str, Any] = {}
+    for lang in languages(cfg):
+        if lang == base:
+            continue
+        doc = load(lang, data_dir)
+        block = doc.get("portal", {})
+        if surface not in block:
+            raise BuildError(f"{lang}.json has no portal entry for '{surface}'")
+        s = resolve(block[surface], values)
+        if surface == "home":
+            # A customer may have rewritten the seven messages in their own
+            # config, in which case their translation of them wins -- the same
+            # precedence config_strings() gives every other customer-authored
+            # string. Read straight off the `translations` block rather than
+            # through config_strings(), which str()s every value it does not know
+            # and would put the repr of a list where seven sentences belong.
+            written = cfg.get("translations", {}).get(lang, {}).get("logoutMessages")
+            messages = resolve([str(m) for m in written], values) if written else list(s["logoutMessages"])
+            out[lang] = {"lm": messages}
+        else:
+            out[lang] = s
+    return json.dumps(out, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c")
+
+
 # Single-letter keys. This dictionary ships in every page of every style, so a
 # descriptive key costs its own length x pages x styles x languages for nothing:
 # the only reader is the emitted script twenty lines away.

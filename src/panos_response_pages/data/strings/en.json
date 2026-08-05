@@ -149,5 +149,38 @@
         "prompt": "What I was doing:"
       }
     }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Sign in",
+      "getSoftware": "Get Agent Software",
+      "glossSignIn": "Use your company account to sign in.",
+      "glossSoftware": "Download the agent for your operating system, then sign in from the app.",
+      "download": "Download",
+      "otherPlatforms": "Other platforms",
+      "note": ["Need help? Contact ", "."],
+      "downloadFor": "Download for ",
+      "chooseDownload": "Choose your download",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bit",
+      "bit32": "32-bit",
+      "formUser": "Username",
+      "formPassword": "Password",
+      "formNewPassword": "New Password",
+      "formConfirmPassword": "confirm New Password",
+      "formSubmit": "Log In"
+    },
+    "home": {
+      "logoutMessages": [
+        "You have successfully logged out of GlobalProtect portal.",
+        "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
+        "User not authenticated to GlobalProtect portal.",
+        "System error. Contact {{CONTACT_REACHABLE}}.",
+        "System error, failed to delete user session. Contact {{CONTACT_REACHABLE}}.",
+        "Cannot create user session, maximum capacity reached. Contact {{CONTACT_REACHABLE}}.",
+        "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
+      ]
+    }
   }
 }

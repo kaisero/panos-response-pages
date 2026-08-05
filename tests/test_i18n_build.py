@@ -541,6 +541,171 @@ class TestThemeOptOut(unittest.TestCase):
                 self.assertEqual(result.theme_languages[theme["name"]], want)
 
 
+class TestThePortalImportsCarryTheRuntime(unittest.TestCase):
+    """The GlobalProtect family, whose failures are all silent.
+
+    A different runtime from the block pages': different file shapes, a
+    different ceiling, and one rule -- no raw '<' -- that costs the login page
+    its form rather than producing an error anybody sees.
+    """
+
+    SHELLS = ("assist", "banner", "beacon", "glass", "mesh", "record")
+
+    @staticmethod
+    def german(key: str) -> str:
+        """One shipped German login string, read from the file that owns it."""
+        return str(json.loads((DATA / "strings/de.json").read_text(encoding="utf-8"))["portal"]["login"][key])
+
+    def test_login_import_carries_no_raw_less_than(self):
+        """portal/validate.py:85 refuses a '<' NOT followed by a tag-ish
+        character -- the observed failure is that <pan_form/> silently stops
+        being substituted and the login form is lost entirely.
+
+        Asserted with the module's own regex rather than a plain `"<" not in
+        text`: the file is HTML and full of legitimate '<'. json.dumps does not
+        escape '<', so the emitted dictionary is where one would arrive from,
+        and a counting loop is the other way in.
+        """
+        from panos_response_pages.portal.validate import _RAW_LT
+
+        out, _result = built_with_languages(("en", "de"))
+        for shell in self.SHELLS:
+            with self.subTest(shell=shell):
+                text = (out / f"deploy/{shell}/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+                self.assertEqual([m.group(0) for m in _RAW_LT.finditer(text)], [], shell)
+
+    def test_both_imports_still_validate(self):
+        """Every import rule at once, on the files a two-language build writes.
+        The size ceiling is in here as well: German lands `beacon` well inside
+        the warn line, and this is what says so."""
+        from panos_response_pages.portal.validate import validate_portal
+
+        out, _result = built_with_languages(("en", "de"))
+        for shell in self.SHELLS:
+            for surface in ("login", "home"):
+                with self.subTest(shell=shell, surface=surface):
+                    text = (out / f"deploy/{shell}/prisma-blue/portal/{surface}.html").read_text(encoding="utf-8")
+                    _size, errors, _warn = validate_portal(text)
+                    self.assertEqual(errors, [], f"{shell}/{surface}: {errors}")
+
+    def test_home_import_reassigns_the_logout_array(self):
+        """fixtures/logout-suffix.html:26 reads logout_text_array inside
+        $(document).ready; HEAD_SCRIPT is synchronous in <head> and therefore
+        runs first. The reassignment is what makes German logout messages
+        work."""
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/home.html").read_text(encoding="utf-8")
+        self.assertRegex(text, r"logout_text_array\s*=\s*\w+\.lm", "no reassignment from the language dict")
+        # Read out of the language file rather than written here: this test is
+        # about the messages REACHING the import, and a second copy of them is a
+        # copy that can drift. The FIRST is the one asserted whole because it is
+        # the only one of the seven that carries no {{CONTACT_REACHABLE}} -- the
+        # rest reach the import resolved, which the next line is about.
+        messages = json.loads((DATA / "strings/de.json").read_text(encoding="utf-8"))["portal"]["home"]
+        self.assertIn('"lm":[' + json.dumps(messages["logoutMessages"][0], ensure_ascii=False), text)
+        self.assertNotIn("{{", text, "a placeholder reached the dictionary unresolved")
+
+    def test_the_login_import_never_names_the_home_discriminator(self):
+        """portal/validate.py tells the two imports apart by looking for
+        `logout_text_array`. Anything added to the login file that mentions it
+        would have that file checked against the home rules -- which would
+        report its </head> and its form token as errors, on the one import that
+        is required to carry both."""
+        out, _result = built_with_languages(("en", "de"))
+        for shell in self.SHELLS:
+            with self.subTest(shell=shell):
+                text = (out / f"deploy/{shell}/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+                self.assertNotIn("logout_text_array", text)
+
+    def test_the_download_widget_reads_the_published_dictionary(self):
+        """The six strings the widget writes are JS literals -- the button's
+        text is computed from the user agent, so there is no element standing in
+        the document for the selector to swap. It reads them from the global the
+        selector publishes, and falls back to the literal it had before."""
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertIn("var T=window.__gpT||{};", text)
+        self.assertIn("(T.macos||'macOS')", text)
+        self.assertIn("(T.chooseDownload||'Choose your download')", text)
+        self.assertIn('"chooseDownload":' + json.dumps(self.german("chooseDownload"), ensure_ascii=False), text)
+
+    def test_panos_own_form_strings_are_swapped_and_guarded(self):
+        """The placeholders and the button value belong to PAN-OS, not to this
+        project, but they are addressable once the form has been substituted --
+        and a German login page with an English "Username" box is half
+        translated. Every swap is guarded, so a release that renames an id
+        leaves PAN-OS' own wording rather than breaking the page."""
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertIn("P('#user',t.formUser);", text)
+        self.assertIn("var b=Q('#submit');if(b&&t.formSubmit){b.value=t.formSubmit}", text)
+        self.assertIn('"formUser":' + json.dumps(self.german("formUser"), ensure_ascii=False), text)
+
+    def test_the_form_swap_survives_panos_own_onload_handler(self):
+        """BLOCKER, found in a browser rather than by reading.
+
+        PAN-OS' prefix ends with `window.onload = loadPage`, and loadPage
+        re-assigns #user.placeholder and #passwd.placeholder from its own
+        labelUsername / labelPassword -- after this script, which is
+        parser-inserted at the end of the body. Swapped once, the two boxes
+        visibly revert to English while the rest of the page stays German. The
+        onload assignment happens in the head, so it is registered before this
+        listener and runs before it.
+        """
+        prefix = (DATA / "fixtures/panos-prefix-login.html").read_text(encoding="utf-8")
+        # The premise: PAN-OS really does re-set them, at load, unconditionally.
+        self.assertIn("window.onload = loadPage", prefix)
+        self.assertIn("divUserTitle.placeholder = labelUsername", prefix)
+
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertIn("F();window.addEventListener('load',F);", text)
+
+    def test_a_blanked_placeholder_is_left_blank(self):
+        """loadPage's Challenge branch sets #passwd's placeholder to "" on
+        purpose: #dInputStr then carries the challenge prompt and the field is
+        no longer a password. Writing the translated word over that blank
+        would state something false, so the swap requires a placeholder to
+        already be there."""
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertIn("var P=function(s,v){var e=Q(s);if(e&&v&&e.placeholder){e.placeholder=v}};", text)
+
+    def test_the_surface_spans_are_scoped_to_their_own_container(self):
+        """`.pl` and `.ps` appear in BOTH #heading and .gloss -- one import
+        serves login.esp and getsoftwarepage.esp, and the copy switches with
+        them. An unscoped selector swaps the wrong one, and the page reads as a
+        heading of body text."""
+        out, _result = built_with_languages(("en", "de"))
+        text = (out / "deploy/glass/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertIn("S('#heading .pl',t.signIn);S('#heading .ps',t.getSoftware);", text)
+        self.assertIn("S('.gloss .pl',t.glossSignIn);S('.gloss .ps',t.glossSoftware);", text)
+
+    def test_opted_out_theme_ships_no_portal_runtime_either(self):
+        """THE DECISION, recorded where it is checkable: `i18n: false` is a
+        THEME-level flag and disables BOTH families.
+
+        nyan's portal login is 11438 B with 3562 B of headroom, so it would fit
+        German comfortably -- the flag is not being read as a measurement here.
+        One flag with one meaning is easier to explain, to document and to test
+        than "base-language block pages, multilingual portal", and a style that
+        is half-translated across its own two families is a worse artefact than
+        one that is consistently English.
+        """
+        out, _result = built_with_languages(("en", "de"))
+        for surface in ("login", "home"):
+            with self.subTest(surface=surface):
+                nyan = (out / f"deploy/nyan/prisma-blue/portal/{surface}.html").read_text(encoding="utf-8")
+                glass = (out / f"deploy/glass/prisma-blue/portal/{surface}.html").read_text(encoding="utf-8")
+                self.assertNotIn("navigator.languages", nyan, "i18n:false is theme-level, both families")
+                self.assertIn("navigator.languages", glass, "no style compiled the portal runtime at all")
+        # The other half: the opted-out style keeps the untranslated literals
+        # rather than lookups into a dictionary it does not carry.
+        nyan = (out / "deploy/nyan/prisma-blue/portal/login.html").read_text(encoding="utf-8")
+        self.assertNotIn("window.__gpT", nyan)
+        self.assertIn("a.textContent=mac?'macOS':", nyan)
+
+
 class TestTheReportNamesTheLanguages(unittest.TestCase):
     """A style shipping fewer languages than the config lists is exactly the
     invisible failure this project refuses. It has to be on the row."""
