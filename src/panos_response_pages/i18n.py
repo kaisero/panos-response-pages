@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from panos_response_pages import contact
@@ -78,6 +78,58 @@ def shipped(cfg: Mapping[str, Any], theme: Mapping[str, Any]) -> list[str]:
 
 def strings_path(lang: str, data_dir: pathlib.Path) -> pathlib.Path:
     return data_dir / "strings" / f"{lang}.json"
+
+
+# The language's own display name, in English, as a top-level key of its strings
+# document -- "English", "German", not "en" and "de".
+#
+# In the strings file rather than in a table here because check_complete()
+# enforces exact key parity: a language physically cannot ship without supplying
+# its own display name, and there is no second list to fall out of step with the
+# first. `lang` is already a top-level metadata key, so this is not a new shape.
+#
+# Read only by the preview gallery. runtime_dict() emits a fixed set of short
+# keys and page_values() reads named ones, so this key reaches no built page --
+# which is what makes it free for every customer who never opens the gallery.
+NAME_KEY = "name"
+
+
+def display_name(lang: str, data_dir: pathlib.Path) -> str:
+    """What the gallery's Language control calls this language.
+
+    Falls back to the code rather than raising: an out-of-step file is already
+    excluded by previewable(), and a data directory predating this key would
+    otherwise fail a build over a string only the preview reads.
+    """
+    return str(load(lang, data_dir).get(NAME_KEY) or lang)
+
+
+def previewable(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> list[str]:
+    """Every language the gallery may offer, base language first.
+
+    EVERY shipped strings file, not `languages` -- the shipped default is
+    `languages: ["en"]`, so a config-driven list would be empty on a default
+    build and nobody could look at the German that ships in this tree. The
+    Redirect toggle shows an opt-in feature a config has not enabled for exactly
+    the same reason, and like that toggle this is preview-only: build_page
+    refuses the list on a deploy build.
+
+    A file whose key set is out of step with the base language is left out. It
+    would reach runtime_dict() as a KeyError naming a template key rather than
+    the file, and a half-written translation nobody has configured yet must not
+    be able to fail a build that is otherwise correct. Left out of this list it
+    is also left out of the dropdown, so there is no entry that selects nothing.
+    """
+    base = base_language(cfg)
+    out = [base]
+    want = flat_keys(load(base, data_dir))
+    for path in sorted(strings_path(base, data_dir).parent.glob("*.json")):
+        lang = path.stem
+        if lang == base or not LANG_RE.match(lang):
+            continue
+        if flat_keys(load(lang, data_dir)) == want:
+            out.append(lang)
+    return out
 
 
 def check(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
@@ -475,15 +527,25 @@ def portal_runtime(
 # Single-letter keys. This dictionary ships in every page of every style, so a
 # descriptive key costs its own length x pages x styles x languages for nothing:
 # the only reader is the emitted script twenty lines away.
-def runtime_dict(cfg: Mapping[str, Any], page: str, data_dir: pathlib.Path) -> dict[str, dict[str, Any]]:
+def runtime_dict(
+    cfg: Mapping[str, Any],
+    page: str,
+    data_dir: pathlib.Path,
+    langs: Sequence[str] | None = None,
+) -> dict[str, dict[str, Any]]:
     """Per-page translations for every language EXCEPT the base one.
 
     The base language is already in the markup as real text; shipping it here as
     well would be the largest single waste in the design.
+
+    `langs` overrides which languages are compiled. Absent -- every deploy build
+    -- it is `languages(cfg)`, which is the only honest answer for a page a
+    firewall serves. The preview gallery passes previewable() instead, so a
+    reviewer can look at a language the config has not turned on yet.
     """
     base = base_language(cfg)
     out: dict[str, dict[str, Any]] = {}
-    for lang in languages(cfg):
+    for lang in languages(cfg) if langs is None else langs:
         if lang == base:
             continue
         doc = load(lang, data_dir)

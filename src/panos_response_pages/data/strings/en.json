@@ -1,5 +1,6 @@
 {
   "lang": "en",
+  "name": "English",
   "shared": {
     "reportLabel": "Report to IT",
     "contactAlt": ["Or email ", " with the details above."],
