@@ -10,7 +10,7 @@ from typing import ClassVar
 
 import pytest
 
-from _build import translated_strings
+from _build import LANGUAGE_BLOCK, translated_strings
 from _paths import DATA
 from panos_response_pages import i18n, scripts
 from panos_response_pages.builder import load_themes
@@ -118,6 +118,76 @@ class TestStringsCompleteness(unittest.TestCase):
             self._write(tmp, "en", {"shared": {"a": "x"}, "categories": {"gambling": "en gloss"}})
             self._write(tmp, "de", {"shared": {"a": "y"}})
             i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"]}, tmp)
+
+
+class TestNoStringIsEmpty(unittest.TestCase):
+    """An empty leaf passes every other check and breaks the page anyway.
+
+    check_complete compares key SETS and flat_keys indexes list positions, so an
+    empty fragment sits at a valid key with a valid index and is invisible to
+    both. What it is not invisible to is the DOM: a fragment that renders no
+    text node drops the sentence from three child nodes to two, and the runtime
+    swap -- which keys on childNodes.length>2 -- then does nothing at all. The
+    sentence silently stays in the base language on an otherwise translated
+    page. Task 9 is where real German prose arrives, which is why this is a
+    build error now rather than a review note then.
+    """
+
+    def _write(self, tmp, name, doc):
+        d = tmp / "strings"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def _check(self, tmp, base="en"):
+        i18n.check_complete({"baseLanguage": base, "languages": ["en", "de"]}, tmp)
+
+    def test_rejects_an_empty_string_and_names_the_language_and_the_key(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": ""}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            msg = str(ctx.exception)
+            self.assertIn("de.json", msg)
+            self.assertIn("shared.a", msg)
+
+    def test_rejects_an_empty_fragment_of_a_split_sentence(self):
+        """The case this exists for: a translation whose sentence OPENS with the
+        emphasised phrase or with the anchor has nothing to put in fragment 0."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"pages": {"p": {"extra": ["a", "b", "c"]}}})
+            self._write(tmp, "de", {"pages": {"p": {"extra": ["", "b", "c"]}}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("pages.p.extra[0]", str(ctx.exception))
+
+    def test_rejects_it_in_the_base_language_too(self):
+        """Worse there, not better: the base language IS the markup, so an empty
+        fragment collapses the shape for every language at once."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": ""}})
+            self._write(tmp, "de", {"shared": {"a": "y"}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("en.json", str(ctx.exception))
+
+    def test_a_fragment_that_is_only_a_space_is_fine(self):
+        """Empty, not blank. " " renders a text node and keeps the shape, and
+        several shipped fragments legitimately end in one."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"contactAlt": ["Or email ", " straight away."]}})
+            self._write(tmp, "de", {"shared": {"contactAlt": ["de:Or email ", " "]}})
+            self._check(tmp)
+
+    def test_the_shipped_document_passes(self):
+        """The one deliberate exception: the calm severity pill carries no
+        words, and the runtime's `if(V&&V.textContent)` guard depends on it."""
+        self.assertEqual(i18n.empty_leaves(i18n.load("en", DATA)), [])
+        i18n.check_complete({"baseLanguage": "en", "languages": ["en"]}, DATA)
 
 
 class TestPageValues(unittest.TestCase):
@@ -315,8 +385,6 @@ class TestSeverityLabels(unittest.TestCase):
         self.assertEqual(doc["shared"]["severity"], {"calm": "", "warn": "Caution", "crit": "Security risk"})
 
     def test_scripts_module_no_longer_defines_them(self):
-        import panos_response_pages.scripts as scripts
-
         self.assertFalse(hasattr(scripts, "SEV_LABEL"), "SEV_LABEL must not survive in scripts.py")
 
 
@@ -508,24 +576,50 @@ class TestRuntimeDict(unittest.TestCase):
         self.assertIn("30 Minuten", x)
         self.assertNotIn("15 minutes", x)
 
+    def _with_categories(self, gloss: str) -> None:
+        """Give the German fixture the optional per-language categories block.
+
+        en.json ships none, so nothing that builds from the shipped tree can
+        reach `entry["c"]` at all -- which is exactly how the one copy value in
+        runtime_dict() that skipped resolve() stayed that way.
+        """
+        doc = translated_strings()
+        doc["categories"] = {"malware": gloss}
+        (self.tmp / "strings/de.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def test_the_categories_block_is_resolved_like_every_other_value(self):
+        self._with_categories("{{COMPANY}} blockiert diese Seite.")
+        d = i18n.runtime_dict(self.CFG, "url-block-page", self.tmp)
+        self.assertEqual(d["de"]["c"]["malware"], "Example Corp blockiert diese Seite.")
+
     def test_no_placeholder_survives_into_the_dictionary(self):
         """The silent half of the placeholder bug.
 
-        Nothing downstream of here would catch it: this dictionary is JSON
-        handed to textContent, so an unresolved {{COMPANY}} is not a build
-        error -- it is a German user reading literal braces off the page.
+        This dictionary is JSON handed to textContent. assert_resolved() does
+        scan it -- it scans the whole built page -- so a survivor fails the
+        build, but with a message naming the page and neither the language nor
+        the key. Cheaper to refuse it here.
 
         Asserted against the two pages that actually carry a placeholder inside
-        their copy, not against an easy one.
+        their copy, not against an easy one, and against a fixture carrying the
+        optional categories block -- the shipped en.json has none, so without it
+        this test cannot reach that value at all.
         """
+        self._with_categories("Von {{COMPANY}} gesperrt.")
         for page in ("credential-block-page", "url-coach-text"):
             with self.subTest(page=page):
                 blob = json.dumps(i18n.runtime_dict(self.CFG, page, self.tmp))
+                self.assertIn('"c":', blob, f"{page}: the fixture's categories block never reached the dictionary")
                 self.assertNotIn("{{", blob, f"{page}: unresolved placeholder in the runtime dictionary")
 
 
 class TestEmittedRuntime(unittest.TestCase):
     SEVERITY: ClassVar = {"calm": "", "warn": "Caution", "crit": "Security risk"}
+
+    TIMESTAMP = (
+        "var ts=document.getElementById('ts');"
+        "if(ts)ts.textContent=new Date().toLocaleString(document.documentElement.lang||undefined);"
+    )
 
     def _js(self, **over):
         kwargs = {
@@ -543,18 +637,43 @@ class TestEmittedRuntime(unittest.TestCase):
         break it."""
         self.assertEqual(self._js(), self._js(lang_dict=""))
 
+    def test_the_emitted_language_block_is_exactly_the_golden(self):
+        """Equality, not membership, and over the whole script.
+
+        There is no JS engine in this suite, so the only property a test can
+        check is the bytes emitted -- and a substring assertion checks almost
+        none of them. Nine separate mutations of this block (transposed S()
+        arguments, childNodes[1] for [2], x.length for x.pop, whole statements
+        deleted) each produce a visibly broken page and each survives every
+        assertion below this one. This is what refuses them.
+
+        The block is page-independent, so this covers all eleven pages and all
+        seven shells; test_i18n_build.py asserts that independence rather than
+        assuming it.
+        """
+        js = self._js(lang_dict='{"de":{}}', email_mode=False)
+        self.assertEqual(
+            js, '<script>(function(){var T={"de":{}},' + LANGUAGE_BLOCK + self.TIMESTAMP + "})();</script>"
+        )
+
     def test_multi_language_emits_the_selector(self):
         js = self._js(lang_dict='{"de":{"h":"Hallo"}}')
-        self.assertIn("navigator.languages", js)
-        self.assertIn("Hallo", js)
-        self.assertIn("documentElement.lang", js)
+        self.assertIn(
+            'var T={"de":{"h":"Hallo"}},LS=navigator.languages||[navigator.language||\'\'],t,lk,i;'
+            'for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();if(lk=="en")break;if(T[lk]){t=T[lk];break}}',
+            js,
+        )
+        self.assertIn("document.documentElement.lang=lk;document.title=t.t;", js)
 
     def test_the_base_language_stops_the_search(self):
         """A browser that prefers the base language must keep the page it was
         served. Without the break it would fall through to the next entry in
         navigator.languages and swap to a language the user ranked lower."""
         js = self._js(lang_dict='{"de":{"h":"Hallo"}}', base_lang="fr")
-        self.assertIn('if(lk=="fr")break', js)
+        self.assertIn(
+            'for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();if(lk=="fr")break;if(T[lk]){t=T[lk];break}}',
+            js,
+        )
 
     def test_severity_label_consults_the_selected_language(self):
         """The category script runs AFTER the language swap and re-sets .sev.
@@ -566,7 +685,12 @@ class TestEmittedRuntime(unittest.TestCase):
             has_category=True,
             lang_dict='{"de":{"s":{"warn":"Achtung"}}}',
         )
-        self.assertIn("t?t.s:", js, "severity must fall back to the base map only when no language matched")
+        self.assertIn(
+            "var v=document.querySelector('.sev');"
+            'if(v)v.textContent=(t?t.s:{"calm":"","warn":"Caution","crit":"Security risk"})[m[0]]||\'\';',
+            js,
+            "severity must fall back to the base map only when no language matched",
+        )
 
     def test_the_single_language_severity_line_never_references_t(self):
         """`t` is not declared when there is no dictionary, so the ternary form
@@ -581,12 +705,15 @@ class TestEmittedRuntime(unittest.TestCase):
             has_category=True,
             lang_dict='{"de":{"dg":"Standard","rg":"Risiko"}}',
         )
-        self.assertIn("d=t.dg", js)
-        self.assertIn("r=t.rg", js)
+        self.assertIn('var g=document.getElementById(\'gloss\'),m=M[k],d="d",r="r";if(t){d=t.dg;r=t.rg}', js)
+        self.assertIn("if(g)g.textContent=(t?t.c&&t.c[k]:m[1])||(m[0]=='calm'?d:r);}else if(g)g.textContent=d;", js)
 
     def test_the_timestamp_is_localised_only_in_multi_language_builds(self):
-        self.assertIn("toLocaleString();", self._js())
-        self.assertIn("toLocaleString(document.documentElement.lang||undefined)", self._js(lang_dict='{"de":{}}'))
+        self.assertIn(
+            "var t=document.getElementById('ts');if(t)t.textContent=new Date().toLocaleString();",
+            self._js(),
+        )
+        self.assertIn(self.TIMESTAMP, self._js(lang_dict='{"de":{}}'))
 
 
 class TestFactLabelCounts(unittest.TestCase):

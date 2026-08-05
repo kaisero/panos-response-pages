@@ -77,6 +77,66 @@ def portal_pages() -> dict[tuple[str, str], str]:
     return out
 
 
+# The language swap, in full, exactly as it is emitted.
+#
+# A golden string rather than a set of substring assertions, because the block
+# is JavaScript this suite cannot execute: there is no JS engine here, so the
+# only thing a test can check is the bytes that go out. Substrings barely check
+# those. Transposing S()'s arguments, indexing childNodes[1] instead of [2],
+# testing x.length instead of x.pop, deleting the dl dt loop outright -- every
+# one of those leaves a page that is visibly wrong in a browser and every one of
+# them survives a suite that asserts on fragments.
+#
+# ONE assertion is enough for the whole build because this block is
+# page-independent: it selects by DOM shape, never by page name, so all eleven
+# pages in all seven shells emit these same 1098 bytes. That is asserted
+# directly (test_the_language_block_is_the_same_bytes_on_every_page), so the
+# claim cannot quietly stop being true.
+#
+# `en` is the base language the fixtures use; the loop's break literal is the
+# one part of the block a different baseLanguage changes.
+#
+# WHEN THIS TEST FAILS: read the diff as a code review of the runtime, not as a
+# stale expectation. Update it only once you can say what the new bytes do in a
+# browser -- and check the byte cost, since every one of them ships on every
+# page of every theme.
+LANGUAGE_BLOCK = (
+    # Pick a language. The base language STOPS the search: a browser that ranks
+    # it above a compiled language must keep the page it was served.
+    "LS=navigator.languages||[navigator.language||''],t,lk,i;"
+    'for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();if(lk=="en")break;if(T[lk]){t=T[lk];break}}'
+    "if(t){"
+    "var Q=function(s){return document.querySelector(s)};"
+    # A sentence one child element splits into three nodes. `c` is passed only
+    # where the middle node is copy rather than a build-time anchor.
+    "var S=function(e,a,b,c){if(e&&e.childNodes.length>2){"
+    "e.childNodes[0].nodeValue=a;e.childNodes[2].nodeValue=b;"
+    "if(c!=null)e.childNodes[1].textContent=c;return 1}};"
+    "document.documentElement.lang=lk;document.title=t.t;"
+    "var H=Q('h1');if(H)H.textContent=t.h;"
+    "var G0=Q('#gloss');if(G0)G0.textContent=t.g;"
+    # Positional against `dl dt` in document order -- the same contract the
+    # numbered {{T_FACT*}} placeholders are built on.
+    "[].forEach.call(document.querySelectorAll('dl dt'),function(e,i){if(t.f[i])e.textContent=t.f[i]});"
+    # The report button first, then any a.btn: three pages carry a PAN-OS token
+    # the firewall expands into markup of its own before the report anchor.
+    "var B=Q('a.btn#rep')||Q('a.btn');if(B)B.textContent=t.a2||t.rl;"
+    "var R=Q('#rep');if(R){R.setAttribute('data-subject',t.rs);"
+    "R.setAttribute('data-intro',t.ri);R.setAttribute('data-prompt',t.rp)}"
+    "S(Q('.plain'),t.ca[0],t.ca[1]);"
+    # A list-valued `extra` goes to the callout when the callout is itself the
+    # split sentence (url-coach's <strong>), otherwise to the .note beneath it.
+    "var X=Q('.infobox span,.warnline span'),x=t.x||'';"
+    "if(x.pop){if(S(X,x[0],x[2],x[1]))X=0;else S(Q('.note'),x[1],x[2]);x=x[0]}"
+    "if(X&&x)X.textContent=x;"
+    # Only swapped when the pill says something: a calm page carries an empty
+    # one, and writing a label into it would invent a severity.
+    "var V=Q('.sev');if(V&&V.textContent)"
+    "V.textContent=t.s[document.documentElement.getAttribute('data-tone')]||V.textContent;"
+    "}"
+)
+
+
 def deploy_dir() -> pathlib.Path:
     return built()[0] / "deploy"
 

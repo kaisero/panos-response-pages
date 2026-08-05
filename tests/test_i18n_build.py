@@ -9,6 +9,7 @@ If this test fails, the change that broke it is wrong. Do NOT regenerate the
 snapshot to make it pass.
 """
 
+import functools
 import hashlib
 import json
 import pathlib
@@ -19,13 +20,14 @@ import unittest
 
 import pytest
 
-from _build import built, translated_strings
+from _build import LANGUAGE_BLOCK, built, translated_strings
 from _paths import DATA, ROOT
 from panos_response_pages.builder import build_all, load_themes
 from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
+from panos_response_pages.validate import PAGE_TOKENS
 
 pytestmark = pytest.mark.integration
 
@@ -60,17 +62,28 @@ def build(root: pathlib.Path) -> None:
     build_all(root, root / "out", preview=False, write=False)
 
 
-def multi_language_page(name: str) -> str:
+@functools.cache
+def language_root(base: str = "en") -> pathlib.Path:
+    """A data directory with English and German configured, built once.
+
+    Cached because broken_data_dir() copies the whole shipped tree, and the
+    page-independence sweep below asks for eleven pages of it.
+    """
+    return broken_data_dir(strings={"de": translated_strings()}, baseLanguage=base, languages=["en", "de"])
+
+
+@functools.cache
+def multi_language_page(name: str, base: str = "en", shell: int = 0) -> str:
     """One page built with a second language configured, as HTML.
 
     A real build_page, not the emitted script in isolation: the dictionary has
     to survive JSON encoding into a <script> body, and the selector has to be
     emitted before the category lookup that depends on it.
     """
-    root = broken_data_dir(strings={"de": translated_strings()}, languages=["en", "de"])
+    root = language_root(base)
     cfg = load_config("contoso", root / "config")
     palette = load_palette("cyber-orange", root / "palettes")
-    return build_page(name, load_themes(root)[0], cfg, palette, False, root / "templates")
+    return build_page(name, load_themes(root)[shell], cfg, palette, False, root / "templates")
 
 
 def runtime_code(html: str) -> str:
@@ -146,6 +159,19 @@ class TestABuildRunsTheLanguageValidators(unittest.TestCase):
         assert "de.json" in message
         assert "shared.nosuchkey" in message
 
+    def test_an_empty_string_fails_the_build(self):
+        """An empty fragment has the right key at the right index, so it passes
+        every other check in the file -- and renders no text node, which
+        collapses the sentence the runtime swaps and leaves it in the base
+        language. Silent in the output, so it has to be loud here."""
+        doc = translated_strings()
+        doc["pages"]["safe-search-block-page"]["extra"][0] = ""
+        with pytest.raises(BuildError) as err:
+            build(broken_data_dir(strings={"de": doc}, languages=["en", "de"]))
+        message = str(err.value)
+        assert "de.json" in message
+        assert "pages.safe-search-block-page.extra[0]" in message
+
 
 class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
     """A real built page, not the emitted string in isolation.
@@ -165,6 +191,26 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
         self.assertIn("navigator.languages", html)
         self.assertLess(html.index("navigator.languages"), html.index("getElementById('cat')"))
 
+    def test_the_language_block_is_the_same_bytes_on_every_page(self):
+        """The claim the golden string rests on.
+
+        The swap selects by DOM shape and never by page name, so every page
+        emits the identical block -- which is what makes one golden assertion
+        cover the whole build. Asserted rather than assumed: a page-conditional
+        branch added here would quietly halve the coverage of that assertion.
+        """
+        for page in sorted(PAGE_TOKENS):
+            with self.subTest(page=page):
+                self.assertIn("," + LANGUAGE_BLOCK, self._page(page), f"{page}: the emitted language block moved")
+
+    def test_the_language_block_is_the_same_bytes_in_every_shell(self):
+        """The other axis. The shells differ in markup, not in what the swap
+        looks for, so none of them may change a byte of it."""
+        for shell in range(len(load_themes(language_root()))):
+            with self.subTest(shell=shell):
+                html = multi_language_page("url-block-page", shell=shell)
+                self.assertIn("," + LANGUAGE_BLOCK, html, "the emitted language block is shell-dependent")
+
     def test_the_severity_pill_consults_the_selected_language(self):
         """BLOCKER. The category script re-sets .sev after the swap. Reading the
         baked-in base map there reverts the pill to English on exactly the two
@@ -172,7 +218,11 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
         for page in ("url-block-page", "url-coach-text"):
             with self.subTest(page=page):
                 html = self._page(page)
-                self.assertIn("(t?t.s:", html, f"{page}: .sev is re-set from the base map alone")
+                self.assertIn(
+                    "var v=document.querySelector('.sev');if(v)v.textContent=(t?t.s:",
+                    html,
+                    f"{page}: .sev is re-set from the base map alone",
+                )
                 # "Caution" may appear as the base-language fallback map and as
                 # the static pill, but never as the only source the runtime has.
                 self.assertIn('"warn":"de:Caution"', html, f"{page}: the German label never reached the page")
@@ -183,6 +233,21 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
         for page in ("credential-block-page", "url-coach-text"):
             with self.subTest(page=page):
                 self.assertNotIn("{{", self._page(page))
+
+    def test_a_per_language_categories_block_reaches_the_page_resolved(self):
+        """The optional block, end to end. en.json ships none, so no build from
+        the shipped tree touches this path -- and the value it carries is copy
+        like any other, free to contain {{COMPANY}}. Assigned raw it reached
+        assert_resolved and failed the build naming the page and nothing else;
+        the German reader would have been the one to find out what was wrong."""
+        doc = translated_strings()
+        doc["categories"] = {"malware": "Von {{COMPANY}} gesperrt."}
+        root = broken_data_dir(strings={"de": doc}, languages=["en", "de"])
+        cfg = load_config("contoso", root / "config")
+        palette = load_palette("cyber-orange", root / "palettes")
+        html = build_page("url-block-page", load_themes(root)[0], cfg, palette, False, root / "templates")
+        self.assertIn(f'"c":{{"malware":"Von {cfg["company"]} gesperrt."}}', html)
+        self.assertNotIn("{{", html)
 
     def test_the_base_language_is_not_shipped_twice(self):
         """It is already the markup. A dictionary carrying it would be the
@@ -207,6 +272,22 @@ class TestTheRuntimeHandlesTheSafeSearchShape(unittest.TestCase):
     """
 
     _page = staticmethod(multi_language_page)
+
+    # The three statements the page shapes below are distinguished by, whole.
+    # Asserted entire rather than by a fragment of themselves: `Q('a.btn')`
+    # appears in a correct line and in one that writes the report label into
+    # whatever control the firewall injected, and a test that cannot tell those
+    # apart is not testing the thing it names.
+    BUTTON = "var B=Q('a.btn#rep')||Q('a.btn');if(B)B.textContent=t.a2||t.rl;"
+    REPORT = (
+        "var R=Q('#rep');if(R){R.setAttribute('data-subject',t.rs);"
+        "R.setAttribute('data-intro',t.ri);R.setAttribute('data-prompt',t.rp)}"
+    )
+    EXTRA = (
+        "var X=Q('.infobox span,.warnline span'),x=t.x||'';"
+        "if(x.pop){if(S(X,x[0],x[2],x[1]))X=0;else S(Q('.note'),x[1],x[2]);x=x[0]}"
+        "if(X&&x)X.textContent=x;"
+    )
 
     def test_the_note_is_text_anchor_text(self):
         """The structural fact the childNodes[0] / childNodes[2] swap rests on.
@@ -234,7 +315,7 @@ class TestTheRuntimeHandlesTheSafeSearchShape(unittest.TestCase):
         self.assertIn('"x":["de:Set SafeSearch', html, "the dictionary lost the split extra")
         code = runtime_code(html)
         self.assertNotIn("textContent=t.x", code, "a list-valued extra is assigned straight to textContent")
-        self.assertIn("'.note'", code, "the .note fragments are never swapped")
+        self.assertIn(self.EXTRA, code, "the .note fragments are never swapped")
 
     def test_the_report_label_is_scoped_to_the_report_button(self):
         """`#rep` is the report button on ten pages and an inline contact
@@ -246,24 +327,46 @@ class TestTheRuntimeHandlesTheSafeSearchShape(unittest.TestCase):
         self.assertIn('<a id="rep"', html)
         code = runtime_code(html)
         self.assertNotIn("R.lastChild.nodeValue=t.rl", code, "the label is written into every #rep")
-        self.assertIn("Q('a.btn')", code, "nothing scopes the label to the report button")
+        self.assertIn(self.BUTTON, code, "nothing scopes the label to the report button")
         # The mail body IS copy and must still follow the language.
-        for field, key in (("data-subject", "t.rs"), ("data-intro", "t.ri"), ("data-prompt", "t.rp")):
-            self.assertIn(f"R.setAttribute('{field}',{key})", code, f"{field} stopped being swapped")
+        self.assertIn(self.REPORT, code, "the mail body fields stopped being swapped")
 
     def test_the_report_button_still_takes_the_label_on_every_other_page(self):
         """The other half of the scoping: ten pages DO want t.rl in their
         button, and there the button and `#rep` are the same element."""
         html = self._page("url-block-page")
         self.assertIn('<a class="btn" id="rep"', html)
-        self.assertIn("t.rl", runtime_code(html), "the report label is no longer swapped anywhere")
+        self.assertIn(self.BUTTON, runtime_code(html), "the report label is no longer swapped anywhere")
+
+    def test_the_label_prefers_the_report_button_over_injected_markup(self):
+        """querySelector returns the first match in DOCUMENT ORDER, and three
+        pages carry a PAN-OS token ahead of their report anchor: <pan_form/> on
+        both coach pages, <cookie/> on file-block-continue. The firewall expands
+        those at serve time into markup this repository never sees.
+
+        A bare Q('a.btn') therefore makes the label's destination depend on what
+        PAN-OS injects -- on the two pages the report feature is built around.
+        Whether its Continue control carries an a.btn cannot be established
+        here, which is the point: preferring #rep, which is ours and which the
+        firewall never injects, removes the question instead of betting on it.
+        """
+        for page, token in (
+            ("url-coach-text", "<pan_form/>"),
+            ("credential-coach-text", "<pan_form/>"),
+            ("file-block-continue-page", "<cookie/>"),
+        ):
+            with self.subTest(page=page):
+                html = self._page(page)
+                # The premise: the injected token really does precede the anchor.
+                self.assertLess(html.index(token), html.index('id="rep"'), f"{page}: {token} no longer leads")
+                self.assertIn(self.BUTTON, runtime_code(html), f"{page}: the label is not scoped to #rep first")
 
     def test_the_second_action_label_is_swapped(self):
         """`a2` is compiled for this page and nothing read it, so the settings
         button stayed in the base language on an otherwise-swapped page."""
         html = self._page("safe-search-block-page")
         self.assertIn('"a2":"de:Open search settings"', html)
-        self.assertIn("t.a2", runtime_code(html), "a2 is compiled into the dictionary and never read")
+        self.assertIn(self.BUTTON, runtime_code(html), "a2 is compiled into the dictionary and never read")
 
 
 class TestTheRuntimeHandlesInlineMarkupInACallout(unittest.TestCase):
@@ -297,7 +400,13 @@ class TestTheRuntimeHandlesInlineMarkupInACallout(unittest.TestCase):
         self.assertIn('"x":["de:Continuing grants access to ', html, "the dictionary lost the split extra")
         code = runtime_code(html)
         self.assertNotIn("textContent=t.x", code, "a list-valued extra is assigned straight to textContent")
-        self.assertIn("childNodes[1].textContent=c", code, "the emphasised phrase is never swapped")
+        self.assertIn(
+            "var S=function(e,a,b,c){if(e&&e.childNodes.length>2){"
+            "e.childNodes[0].nodeValue=a;e.childNodes[2].nodeValue=b;"
+            "if(c!=null)e.childNodes[1].textContent=c;return 1}};",
+            code,
+            "the emphasised phrase is never swapped",
+        )
 
     def test_no_dictionary_value_carries_a_tag(self):
         """The whole point of the split: what reaches textContent is text."""
@@ -311,9 +420,48 @@ class TestTheRuntimeHandlesInlineMarkupInACallout(unittest.TestCase):
         """One expression covers three containers, so the two that worked
         before have to keep working: safe-search's fragments still straddle its
         .note anchor, and a string-valued extra still fills the callout."""
-        safe = runtime_code(self._page("safe-search-block-page"))
-        self.assertIn("'.note'", safe, "the .note fragments are no longer swapped")
-        self.assertIn("if(X&&x)X.textContent=x", runtime_code(self._page("url-block-page")))
+        extra = TestTheRuntimeHandlesTheSafeSearchShape.EXTRA
+        self.assertIn(extra, runtime_code(self._page("safe-search-block-page")), "the .note fragments moved")
+        self.assertIn(extra, runtime_code(self._page("url-block-page")), "a string-valued extra moved")
+
+
+class TestTheDocumentDeclaresItsBaseLanguage(unittest.TestCase):
+    """`<html lang>` has to say what the markup actually is.
+
+    The markup IS the base language, and the selection loop breaks on the base
+    language WITHOUT assigning documentElement.lang -- so with a hardcoded
+    lang="en" a German-base page served to a German browser keeps `en`, and the
+    timestamp, which formats to `document.documentElement.lang||undefined`,
+    renders an en-US date on a German page. Nothing else on the page would
+    look wrong, which is why it needs a test rather than an eye.
+    """
+
+    def test_an_english_base_still_renders_lang_en(self):
+        """The byte-identity side of the substitution: every existing config
+        has an English base, and for those this must render the same bytes the
+        attribute was written with."""
+        self.assertIn('<html lang="en" data-tone=', multi_language_page("url-block-page"))
+
+    def test_a_german_base_renders_lang_de(self):
+        html = multi_language_page("url-block-page", base="de")
+        self.assertIn('<html lang="de" data-tone=', html)
+        self.assertNotIn('<html lang="en"', html)
+
+    def test_every_shell_declares_it(self):
+        """Seven shells, one attribute each, and a shell that kept the literal
+        would ship a German page claiming to be English in exactly one theme."""
+        for shell in sorted((DATA / "templates" / "shells").glob("*.html")):
+            with self.subTest(shell=shell.stem):
+                self.assertIn('<html lang="{{BASE_LANG}}" data-tone=', shell.read_text(encoding="utf-8"))
+
+    def test_the_declared_language_is_the_one_the_dictionary_omits(self):
+        """The two halves of the same fact. The base language is the markup, so
+        it is what `lang` declares AND the one language the runtime dictionary
+        does not carry -- if they ever disagreed the page would advertise a
+        language it also shipped a translation of."""
+        html = multi_language_page("url-block-page", base="de")
+        self.assertIn('var T={"en":{', html)
+        self.assertNotIn('"de":{', html)
 
 
 class TestSingleLanguageIsFree(unittest.TestCase):
