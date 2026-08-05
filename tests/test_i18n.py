@@ -3,6 +3,8 @@
 import json
 import pathlib
 import re
+import shutil
+import tempfile
 import unittest
 from typing import ClassVar
 
@@ -10,7 +12,11 @@ import pytest
 
 from _paths import DATA
 from panos_response_pages import i18n
+from panos_response_pages.builder import load_themes
+from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
+from panos_response_pages.page import build_page
+from panos_response_pages.palettes import load_palette
 from panos_response_pages.validate import PAGE_TOKENS
 
 pytestmark = pytest.mark.unit
@@ -264,6 +270,61 @@ class TestSeverityLabels(unittest.TestCase):
         import panos_response_pages.scripts as scripts
 
         self.assertFalse(hasattr(scripts, "SEV_LABEL"), "SEV_LABEL must not survive in scripts.py")
+
+
+@pytest.mark.integration
+class TestSeverityLabelsArePlaceholderResolved(unittest.TestCase):
+    """A severity label is `shared` copy and may carry {{COMPANY}} like any
+    other string in the file. Read straight off the loaded document it never
+    meets substitute(), and the label reaches the page twice -- as the static
+    {{SEVERITY}} pill and as JSON handed to textContent by the category script
+    -- so an unresolved placeholder is a user-visible pair of braces, not a
+    build error. Today's three labels contain none, which is precisely why this
+    asserts on a strings file that does."""
+
+    LABEL = "Caution for {{COMPANY}}"
+    CFG: ClassVar[dict] = load_config("contoso", DATA / "config")
+    RESOLVED = f"Caution for {CFG['company']}"
+
+    def _data_copy(self, tmp: pathlib.Path, **severity) -> pathlib.Path:
+        """The shipped templates and strings, with severity labels rewritten.
+
+        Copied rather than monkeypatched: build_page resolves the base language
+        relative to the template directory it is handed, so the strings file it
+        actually reads is the one that has to carry the placeholder."""
+        dest = tmp / "templates"
+        shutil.copytree(DATA / "templates" / "shells", dest / "shells")
+        shutil.copytree(DATA / "templates" / "pages", dest / "pages")
+        shutil.copytree(DATA / "strings", tmp / "strings")
+        doc = json.loads((tmp / "strings" / "en.json").read_text(encoding="utf-8"))
+        doc["shared"]["severity"].update(severity)
+        (tmp / "strings" / "en.json").write_text(json.dumps(doc), encoding="utf-8")
+        return dest
+
+    def _build(self, page: str, template_dir: pathlib.Path) -> str:
+        palette = load_palette("cyber-orange", DATA / "palettes")
+        return build_page(page, load_themes(DATA)[0], self.CFG, palette, False, template_dir)
+
+    def _assert_resolved(self, html: str, page: str) -> None:
+        """Asserted on membership rather than with assertIn: the container is a
+        whole response page, and a failure that prints it buries its own
+        message."""
+        self.assertTrue(self.RESOLVED in html, f"{page}: severity label was not resolved against COMPANY")
+        self.assertTrue("{{COMPANY}}" not in html, f"{page}: severity label shipped a literal {{{{COMPANY}}}}")
+
+    def test_the_static_pill_label_is_resolved(self):
+        """file-block-page declares TONE warn, so the label is written into the
+        markup as real text."""
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = self._data_copy(pathlib.Path(tmp_str), warn=self.LABEL)
+            self._assert_resolved(self._build("file-block-page", template_dir), "file-block-page")
+
+    def test_the_runtime_label_map_is_resolved(self):
+        """url-block-page carries the category script, which ships the whole
+        map as JSON and assigns from it to textContent in the browser."""
+        with tempfile.TemporaryDirectory() as tmp_str:
+            template_dir = self._data_copy(pathlib.Path(tmp_str), warn=self.LABEL)
+            self._assert_resolved(self._build("url-block-page", template_dir), "url-block-page")
 
 
 class TestTemplatesCarryNoCopy(unittest.TestCase):

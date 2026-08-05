@@ -167,6 +167,17 @@ def build_page(
     # be able to disagree about what the template declared.
     tone = parts.get("TONE", "calm")
 
+    # The severity labels are `shared` copy like every other string in the file,
+    # so they get the same treatment: resolved against the fully-populated
+    # `base`, once, and used resolved at both sites below. Skipping this would
+    # not fail loudly -- a label reaches the page as a {{SEVERITY}} replacement
+    # and as JSON handed to textContent, and re.sub does not rescan replacement
+    # text, so a `{{COMPANY}}` written into a severity label would ship to a
+    # user as literal braces with a clean build behind it. Today's three labels
+    # carry no placeholder, which is exactly why the asymmetry has to be closed
+    # here rather than relied upon to surface later.
+    severity = i18n.resolve(strings["shared"]["severity"], base)
+
     values = dict(base)
     values.update(
         {
@@ -177,7 +188,7 @@ def build_page(
             "ACTIONS": parts["ACTIONS"],
             "EXTRA": parts.get("EXTRA", ""),
             "TONE": tone,
-            "SEVERITY": strings["shared"]["severity"].get(tone, ""),
+            "SEVERITY": severity.get(tone, ""),
             "MARK": parts.get("MARK", cfg["marks"]["shield"]),
             "REDIRECT_CSS": redirect_css,
             "REDIRECT": redirect_html,
@@ -196,7 +207,7 @@ def build_page(
                 eff["defaultGloss"],
                 eff["riskGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1",
-                severity=strings["shared"]["severity"],
+                severity=severity,
                 has_category='id="cat"' in parts["FACTS"],
                 email_mode=contact.mode(cfg) == contact.EMAIL,
             )
