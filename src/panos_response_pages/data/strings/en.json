@@ -106,6 +106,18 @@
         "intro": "A certificate could not be verified on this connection.",
         "prompt": "What I was trying to reach:"
       }
+    },
+    "url-block-page": {
+      "title": "This site is blocked",
+      "headline": "This site is blocked",
+      "gloss": "This category is restricted by company policy.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": "If you believe this site is needed for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked site report",
+        "intro": "Please review this block.",
+        "prompt": "Why I need access:"
+      }
     }
   }
 }
