@@ -7,6 +7,7 @@ page took from the blocked site rather than from config, or a feature that is
 """
 
 import copy
+import functools
 import json
 import pathlib
 import re
@@ -15,6 +16,7 @@ import subprocess
 import tempfile
 import unittest
 
+from _build import translated_strings
 from _paths import DATA
 from panos_response_pages import redirect
 from panos_response_pages.builder import load_themes
@@ -53,6 +55,33 @@ def render(cfg, page="url-block-page", theme=None):
     return strip_output(build_page(page, theme or THEMES[0], cfg, PALETTE, False, TEMPLATES))
 
 
+@functools.lru_cache(maxsize=1)
+def german_data_dir() -> pathlib.Path:
+    """A copy of the shipped data directory with a second language in it.
+
+    A copy, never DATA itself: that tree is the installed package the rest of the
+    suite builds from, and a strings file written into it would decide the
+    outcome of tests that have nothing to do with languages.
+    """
+    root = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rx-lang-")) / "data"
+    shutil.copytree(DATA, root)
+    (root / "strings" / "de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
+    return root
+
+
+def german(translation, **over):
+    """`configured()` with German compiled in and the notice translated."""
+    cfg = configured(**over)
+    cfg["languages"] = ["en", "de"]
+    cfg["translations"] = {"de": {"redirect": translation}}
+    return cfg
+
+
+def render_german(cfg, theme=None):
+    root = german_data_dir()
+    return strip_output(build_page("url-block-page", theme or THEMES[0], cfg, PALETTE, False, root / "templates"))
+
+
 def script_of(html):
     """The redirect script only.
 
@@ -65,16 +94,26 @@ def script_of(html):
     HTML sanitizer to code scanning (it misses <SCRIPT>, attributes, comments),
     and the alert is noise on a helper that only ever sees markup this repo
     emitted itself.
+
+    `var R={` and not `var R=`: the language block declares a `var R=Q('#rep')`
+    of its own, so on a multi-language page the looser test returns the CATEGORY
+    script and every assertion below runs against the wrong one.
     """
     for block in html.split("<script>")[1:]:
         body = block.split("</script>")[0]
-        if "var R=" in body:
+        if "var R={" in body:
             return body
     return ""
 
 
 def map_of(html):
     return json.loads(re.search(r"var R=(\{.*?\});", script_of(html), re.S).group(1))
+
+
+def lang_table(html):
+    """The per-language notice table, or None when the build compiled one language."""
+    found = re.search(r"var X=(\{.*?\})\[document\.documentElement\.lang\]", script_of(html), re.S)
+    return json.loads(found.group(1)) if found else None
 
 
 class TestOffByDefault(unittest.TestCase):
@@ -121,7 +160,7 @@ class TestOnlyTheUrlBlockPage(unittest.TestCase):
 
     def test_emit_is_empty_for_every_other_page(self):
         for page in sorted(PAGE_TOKENS):
-            parts = redirect.emit(configured(), page, SUPPORTING[0])
+            parts = redirect.emit(configured(), page, SUPPORTING[0], data_dir=DATA)
             if page == redirect.PAGE:
                 self.assertTrue(all(parts))
             else:
@@ -529,6 +568,124 @@ class TestTheNoticeActuallyArms(unittest.TestCase):
             f"const RAW={json.dumps(category)};{self.HARNESS}"
             f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
             "console.log(JSON.stringify({hidden:els.rx.hidden}));"
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+            f.write(script)
+            path = pathlib.Path(f.name)
+        try:
+            r = subprocess.run(["node", str(path)], capture_output=True, text=True, check=False)  # noqa: S603,S607
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return json.loads(r.stdout.strip().splitlines()[-1])
+        finally:
+            path.unlink()
+
+
+class TestTheNoticeIsTranslated(unittest.TestCase):
+    """The notice is the last user-visible sentence no language path reached.
+
+    A customer who enables the redirect and configures German used to get a
+    German page with one English sentence in it: `redirect.message` is
+    customer-authored copy, and the translatable-key tuple was flat, so neither
+    it nor a per-category override could be named.
+
+    Every fallback here is to the TRANSLATED default, never to English. A
+    category whose override nobody translated is the case that matters: falling
+    back to its English override would put an English sentence in a German page
+    for exactly the categories a customer cared enough to write copy for.
+    """
+
+    DEFAULT_DE = "Weiterleitung zu {app} — die freigegebene Alternative."
+    VIDEO_DE = "Sieh es auf {app} an."
+
+    def test_a_single_language_build_carries_no_table(self):
+        """The byte-identity promise, where this feature would break it: one
+        language means the notice has nothing to select between."""
+        script = script_of(render(configured()))
+        self.assertIsNone(lang_table(render(configured())))
+        self.assertNotIn("var X=", script)
+        self.assertIn("m.textContent=(r[3]||D).split('{app}').join(n);", script)
+
+    def test_the_default_notice_is_translated(self):
+        table = lang_table(render_german(german({"message": self.DEFAULT_DE})))
+        self.assertEqual(table["de"]["m"], self.DEFAULT_DE)
+
+    def test_a_per_category_override_is_translated(self):
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        table = lang_table(render_german(cfg))
+        self.assertEqual(table["de"]["c"], {"streaming-media": self.VIDEO_DE})
+
+    def test_an_untranslated_category_takes_the_translated_default(self):
+        """Not the English one. `social-networking` carries an English override
+        here and no German one, so the German reader must get the German default
+        sentence rather than the English override the config happens to hold."""
+        cfg = german({"message": self.DEFAULT_DE})
+        cfg["redirect"]["categories"]["social-networking"]["message"] = "Head over to {app} instead."
+        html = render_german(cfg)
+        self.assertNotIn("c", lang_table(html)["de"], "nothing was translated per category")
+        self.assertIn("m.textContent=(X&&(X.c&&X.c[y]||X.m)||r[3]||D)", script_of(html))
+
+    def test_a_translation_for_an_unmapped_category_is_not_shipped(self):
+        """The table is keyed on `redirect.categories`, so a sentence for
+        anything else has nothing to key on and would be bytes no page can
+        reach -- on the one page already closest to the ceiling."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"nowhere": "Zu {app}."}})
+        self.assertNotIn("nowhere", script_of(render_german(cfg)))
+
+    def test_the_app_token_survives_translation(self):
+        """`{app}` is substituted by this module, not by substitute(), so it is a
+        different token syntax that resolve() and assert_resolved() both ignore.
+        A German sentence that lost it renders a notice naming no application,
+        and nothing in the build would say so."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        table = lang_table(render_german(cfg))
+        self.assertIn("{app}", table["de"]["m"])
+        self.assertIn("{app}", table["de"]["c"]["streaming-media"])
+
+    def test_the_german_text_is_not_escaped_into_six_bytes_a_character(self):
+        """This ships inside the one page that carries the notice, under the
+        same ceiling as everything else on it."""
+        self.assertIn("—", script_of(render_german(german({"message": self.DEFAULT_DE}))))
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_a_german_browser_reads_the_translated_notice_with_the_app_named(self):
+        """End to end, against a DOM: the language block picks German and sets
+        documentElement.lang, then the notice reads it. The `{app}` assertion
+        above proves the token reached the page; this proves it still resolves
+        to the application name once it has."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        html = render_german(cfg)
+        self.assertEqual(self._run(html, "streaming-media")["message"], "Sieh es auf Company Video an.")
+        self.assertEqual(
+            self._run(html, "social-networking")["message"],
+            "Weiterleitung zu Company Engage — die freigegebene Alternative.",
+            "an untranslated category fell back to English instead of to the translated default",
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_an_english_browser_still_reads_the_configured_notice(self):
+        """The other direction. The swap is keyed on documentElement.lang, which
+        the language block only assigns when it matched -- so a browser that
+        matched nothing must keep the sentence the page was served with."""
+        cfg = german({"message": self.DEFAULT_DE})
+        got = self._run(render_german(cfg), "social-networking", lang="en")["message"]
+        self.assertEqual(got, "Taking you to Company Engage — the approved alternative for this.")
+
+    def _run(self, html: str, category: str, lang: str = "de") -> dict:
+        blocks = re.findall(r"<script>\(function\(\)\{(.*?)\}\)\(\);</script>", html, re.S)
+        cat_js = next(b for b in blocks if "var M=" in b)
+        # `var R={`, for the reason script_of() gives: the language block has a
+        # `var R=Q('#rep')` of its own, and this page carries both scripts.
+        rx_js = next(b for b in blocks if "var R={" in b)
+        # defineProperty, not assignment: `navigator` is a read-only accessor on
+        # modern Node, so `global.navigator = {...}` fails SILENTLY and the page
+        # would be selected against the host's own locale instead of this one.
+        script = (
+            f"const RAW={json.dumps(category)};"
+            f"Object.defineProperty(global,'navigator',"
+            f"{{value:{{languages:[{json.dumps(lang)}]}},configurable:true,writable:true}});"
+            f"{TestTheNoticeActuallyArms.HARNESS}"
+            f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
+            "console.log(JSON.stringify({hidden:els.rx.hidden,message:els.rxm.textContent}));"
         )
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
             f.write(script)

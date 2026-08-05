@@ -502,6 +502,103 @@ class TestCustomerTranslations(unittest.TestCase):
         i18n.check({"baseLanguage": "en", "languages": ["en"], "translations": {"en": {"supportLabel": "x"}}}, DATA)
 
 
+class TestTheRedirectNoticeIsTranslatable(unittest.TestCase):
+    """The one NESTED translatable key.
+
+    `redirect.message` is the notice's default sentence and a per-category
+    entry may replace it, so neither can be named by a flat key -- and without
+    them a customer who enables the redirect and configures German gets a German
+    page with one English sentence in it.
+
+    ONE level of nesting, for ONE key. Not a general deep merge: there is a
+    single caller, and a recursive version would have to invent answers for
+    lists and for partially overridden leaves that nothing here would ever ask
+    it. A second nested key would be a second entry in the tuple, not a rewrite.
+    """
+
+    DOC: ClassVar = {"shared": {"defaultGloss": "shipped EN", "continueGrantText": "15 minutes"}}
+
+    def block(self, translation):
+        cfg = {} if translation is None else {"translations": {"de": {"redirect": translation}}}
+        return i18n.config_strings(cfg, self.DOC, "de").get("redirect")
+
+    def test_a_language_that_translates_nothing_carries_no_block(self):
+        """Absent, not empty. Everything downstream reads presence as "there is
+        a translation of the notice", and an empty block is one that says
+        nothing while claiming otherwise."""
+        self.assertIsNone(self.block(None))
+
+    def test_the_default_notice_is_translated(self):
+        self.assertEqual(self.block({"message": "Weiterleitung zu {app}."})["message"], "Weiterleitung zu {app}.")
+
+    def test_a_per_category_override_is_translated(self):
+        got = self.block({"categories": {"streaming-media": "Sieh es auf {app}."}})
+        self.assertEqual(got["categories"], {"streaming-media": "Sieh es auf {app}."})
+
+    def test_the_block_stays_a_block(self):
+        """The flat merge str()s every value it copies. Applied to this one it
+        would put the repr of a dict where a sentence belongs."""
+        self.assertIsInstance(self.block({"message": "x"}), dict)
+
+    def test_the_flat_keys_still_merge_beside_it(self):
+        cfg = {"translations": {"de": {"defaultGloss": "Kunden-DE", "redirect": {"message": "x"}}}}
+        got = i18n.config_strings(cfg, self.DOC, "de")
+        self.assertEqual(got["defaultGloss"], "Kunden-DE")
+        self.assertEqual(got["continueGrantText"], "15 minutes")
+        self.assertEqual(got["redirect"], {"message": "x"})
+
+    def test_the_app_token_survives_the_merge(self):
+        """`{app}` is substituted by redirect.py, in a syntax of its own.
+        resolve() and assert_resolved() both ignore it, so a merge that dropped
+        or mangled it would ship a notice naming no application, with a clean
+        build behind it."""
+        self.assertIn("{app}", self.block({"message": "Weiterleitung zu {app}."})["message"])
+
+    def test_a_nested_block_for_an_unconfigured_language_is_refused(self):
+        """The rule that refuses a flat block, reached through the nested shape.
+
+        The LANGUAGE is the key either way, so this is one rule and not two --
+        which is the point of asserting it: a second validation path written for
+        the nested shape could disagree with the first one.
+        """
+        cfg = {
+            "baseLanguage": "en",
+            "languages": ["en"],
+            "translations": {"fr": {"redirect": {"message": "Vers {app}."}}},
+        }
+        with self.assertRaises(BuildError) as ctx:
+            i18n.check(cfg, DATA)
+        self.assertIn("fr", str(ctx.exception))
+        self.assertIn("translations", str(ctx.exception))
+
+
+class TestRedirectStringsPerLanguage(unittest.TestCase):
+    """What reaches the redirect script: one entry per language that has one."""
+
+    CFG: ClassVar = {"baseLanguage": "en", "languages": ["en", "de"], "company": "Example Corp"}
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rx-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / "strings").mkdir()
+        shutil.copy(DATA / "strings/en.json", self.tmp / "strings/en.json")
+        (self.tmp / "strings/de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
+
+    def test_a_language_nobody_translated_is_absent(self):
+        self.assertEqual(i18n.redirect_strings(self.CFG, self.tmp), {})
+
+    def test_it_carries_the_translated_block(self):
+        cfg = dict(self.CFG, translations={"de": {"redirect": {"message": "Weiterleitung zu {app}."}}})
+        self.assertEqual(i18n.redirect_strings(cfg, self.tmp), {"de": {"message": "Weiterleitung zu {app}."}})
+
+    def test_the_base_language_is_not_shipped(self):
+        """The base language's notice is `redirect.message` itself -- the value
+        the build writes into the script as the default. Carrying a second copy
+        of it here is the waste runtime_dict already refuses."""
+        cfg = dict(self.CFG, translations={"en": {"redirect": {"message": "Off to {app}."}}})
+        self.assertEqual(i18n.redirect_strings(cfg, self.tmp), {})
+
+
 class TestShippedConfigCopyMatchesTheDefaults(unittest.TestCase):
     """The four customer-authored strings exist twice on purpose.
 

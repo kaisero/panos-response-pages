@@ -169,7 +169,7 @@ def build_page(
     # room for the notice, and a customer opted in -- so every other page, every
     # style without it, and every build with the feature off is byte-identical to
     # one from before it existed.
-    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, loop=demo)
+    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, data_dir=template_dir.parent, loop=demo)
 
     # One read, two uses: the static tone and the label derived from it must not
     # be able to disagree about what the template declared.

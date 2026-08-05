@@ -112,24 +112,81 @@ def load(lang: str, data_dir: pathlib.Path) -> dict[str, Any]:
 # customer has not translated falls back to.
 CONFIG_STRING_KEYS = ("defaultGloss", "riskGloss", "continueGrantText", "supportLabel")
 
+# The one customer-authored key whose copy is a BLOCK rather than a string, and
+# the only nesting this merge understands. The redirect notice has a default
+# sentence and a per-category sentence that replaces it, so no flat key can name
+# either -- and left untranslated they are the last user-visible copy a German
+# page renders in English. The translated block mirrors the config block by name:
+#
+#   "translations": {"de": {"redirect": {"message": "...",
+#                                        "categories": {"<category>": "..."}}}}
+#
+# `categories` maps a category straight to its sentence rather than repeating the
+# config's `{"app", "url", "message"}` entry: `app` and `url` are not copy, and a
+# translator handed a shape with them in it would be invited to change them.
+#
+# ONE level, for ONE key, deliberately. A general deep merge would have to answer
+# what a list means and what a partially overridden leaf means, and neither
+# question has a caller here. A second block key would be a second entry in this
+# tuple; it would not be a rewrite.
+CONFIG_STRING_BLOCKS = ("redirect",)
 
-def config_strings(cfg: Mapping[str, Any], doc: Mapping[str, Any], lang: str) -> dict[str, str]:
+
+def config_strings(cfg: Mapping[str, Any], doc: Mapping[str, Any], lang: str) -> dict[str, Any]:
     """Customer-authored strings for one language.
 
-    These four are the copy this project does NOT ship: a customer may rewrite
-    any of them in their own config, so a translation of the shipped wording
-    would be a translation of a sentence they no longer use. Their translations
-    therefore live in the customer's file too -- data directories resolve as a
-    whole tree, and putting a per-customer sentence in strings/<lang>.json would
-    force a customer to fork the entire tree to translate it.
+    These are the copy this project does NOT ship: a customer may rewrite any of
+    them in their own config, so a translation of the shipped wording would be a
+    translation of a sentence they no longer use. Their translations therefore
+    live in the customer's file too -- data directories resolve as a whole tree,
+    and putting a per-customer sentence in strings/<lang>.json would force a
+    customer to fork the entire tree to translate it.
 
     Precedence mirrors config-over-defaults: the customer's `translations` block
     wins over the shipped strings file, and a key they have not translated falls
     back to it rather than to the base language.
+
+    A block key merges one level down rather than wholesale, so a customer who
+    translates the notice's default sentence and none of its per-category
+    overrides keeps whatever the other half of the block held -- the alternative
+    makes translating one of the two silently discard the other.
     """
     shared = doc.get("shared", {})
-    out = {k: str(shared[k]) for k in CONFIG_STRING_KEYS if k in shared}
-    out.update({k: str(v) for k, v in cfg.get("translations", {}).get(lang, {}).items()})
+    written = cfg.get("translations", {}).get(lang, {})
+    out: dict[str, Any] = {k: str(shared[k]) for k in CONFIG_STRING_KEYS if k in shared}
+    # str() on every flat value, and on none of the block ones: the same call
+    # applied to a block would put the repr of a dict where a sentence belongs.
+    out.update({k: str(v) for k, v in written.items() if k not in CONFIG_STRING_BLOCKS})
+    for key in CONFIG_STRING_BLOCKS:
+        block = {**(shared.get(key) or {}), **(written.get(key) or {})}
+        # Absent rather than empty. Every reader treats presence as "this
+        # language has a translation of it", and an empty block is one that
+        # claims so while saying nothing.
+        if block:
+            out[key] = block
+    return out
+
+
+def redirect_strings(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> dict[str, dict[str, Any]]:
+    """The translated redirect notice, per language, base excluded.
+
+    Same shape and same reasoning as runtime_dict(): the base language's notice
+    is `redirect.message` itself -- the value the build writes into the script as
+    its default -- so shipping a translation of it here as well would be a second
+    copy of a sentence already on the page.
+
+    Each language is resolved against its OWN strings document, so a key the
+    customer has not translated falls back to that language's shipped wording
+    rather than to the base language's.
+    """
+    base = base_language(cfg)
+    out: dict[str, dict[str, Any]] = {}
+    for lang in languages(cfg):
+        if lang == base:
+            continue
+        block = config_strings(cfg, load(lang, data_dir), lang).get("redirect")
+        if block:
+            out[lang] = dict(block)
     return out
 
 
