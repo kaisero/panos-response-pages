@@ -25,7 +25,7 @@ import pytest
 
 from _build import DEFAULT_PALETTE, deploy_dir, preview_dir, translated_strings
 from _paths import DATA
-from panos_response_pages import datadir, i18n, scripts
+from panos_response_pages import datadir, i18n, logs, scripts
 from panos_response_pages.builder import load_themes
 from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
@@ -112,6 +112,36 @@ class TestPreviewableIsEveryShippedLanguage(unittest.TestCase):
         """The other half: the exclusion above is about the key set, not about
         the language being unconfigured."""
         self.assertIn("zz", i18n.previewable(self.CFG, data_copy(zz=translated_strings("zz:"))))
+
+    def test_dropping_one_is_said_out_loud(self):
+        """The file is in the tree, its author expects to find it in the
+        dropdown, and the only symptom of the exclusion is a language that is
+        not offered. A build warning names the file, names the base language it
+        is measured against, and names every key path -- the same comparison
+        check_complete() raises on, one severity down, because a gallery
+        convenience must not be able to stop a build."""
+        short = translated_strings("zz:")
+        del short["shared"]["reportLabel"]
+        short["shared"]["reportLabelTypo"] = "zz:Report"
+        with self.assertLogs(logs.get(), level="WARNING") as caught:
+            i18n.previewable(self.CFG, data_copy(zz=short))
+        said = "\n".join(caught.output)
+        self.assertIn("zz.json", said)
+        self.assertIn("en.json", said)
+        self.assertIn("shared.reportLabel", said)
+        self.assertIn("shared.reportLabelTypo", said)
+        self.assertIn("Language", said, "the warning never says what the reader will not see")
+
+    def test_a_tree_in_step_with_itself_says_nothing(self):
+        """The other half, and the one that keeps the warning worth reading: the
+        shipped tree must not print it on every build."""
+        logger = logs.get()
+        with self.assertLogs(logger, level="WARNING") as caught:
+            # assertLogs fails a block that logs nothing, so one record is
+            # emitted deliberately and the assertion is that it is the only one.
+            i18n.previewable(self.CFG, DATA)
+            logger.warning("nothing else was logged")
+        self.assertEqual(len(caught.output), 1, caught.output)
 
 
 class TestTheSwapIsPreviewOnly(unittest.TestCase):

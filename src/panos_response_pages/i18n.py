@@ -19,7 +19,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from panos_response_pages import contact
+from panos_response_pages import contact, logs
 from panos_response_pages.errors import BuildError
 from panos_response_pages.templates import substitute
 
@@ -114,11 +114,16 @@ def previewable(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> list[str]:
     the same reason, and like that toggle this is preview-only: build_page
     refuses the list on a deploy build.
 
-    A file whose key set is out of step with the base language is left out. It
-    would reach runtime_dict() as a KeyError naming a template key rather than
-    the file, and a half-written translation nobody has configured yet must not
-    be able to fail a build that is otherwise correct. Left out of this list it
-    is also left out of the dropdown, so there is no entry that selects nothing.
+    A file whose key set is out of step with the base language is left out, and
+    SAID SO. It would reach runtime_dict() as a KeyError naming a template key
+    rather than the file, and a half-written translation nobody has configured
+    yet must not be able to fail a build that is otherwise correct -- so this is
+    a warning and not a BuildError. But dropping it in silence is the shape of
+    failure this project exists to refuse: the file is in the tree, its author
+    expects to find it in the dropdown, and the only symptom is a language that
+    is not offered. check_complete() raises on exactly the same comparison for a
+    language the config turned on; this is that message, one severity down,
+    because a gallery convenience must not be able to stop a build.
     """
     base = base_language(cfg)
     out = [base]
@@ -127,9 +132,34 @@ def previewable(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> list[str]:
         lang = path.stem
         if lang == base or not LANG_RE.match(lang):
             continue
-        if flat_keys(load(lang, data_dir)) == want:
+        got = flat_keys(load(lang, data_dir))
+        if got == want:
             out.append(lang)
+            continue
+        _warn_out_of_step(lang, base, sorted(want - got), sorted(got - want))
     return out
+
+
+def _warn_out_of_step(lang: str, base: str, missing: Sequence[str], extra: Sequence[str]) -> None:
+    """Name the file, name what is out of step, and name the consequence.
+
+    Every key path, as check_complete() prints them: whoever fixes this has to
+    find the string in a file they may not read, and a count alone sends them
+    looking for it by eye.
+    """
+    parts = []
+    if missing:
+        parts.append(f"missing {len(missing)} key(s):\n  " + "\n  ".join(missing))
+    if extra:
+        parts.append(f"unknown {len(extra)} key(s):\n  " + "\n  ".join(extra))
+    logs.get().warning(
+        "%s.json is out of step with %s.json -- %s\nIt is left out of the preview gallery's Language "
+        "control, because a page built from it would be missing copy. Nothing else is affected: "
+        "`languages` in the config decides what a firewall serves.",
+        lang,
+        base,
+        "; ".join(parts),
+    )
 
 
 def check(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
