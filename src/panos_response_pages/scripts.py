@@ -39,6 +39,22 @@ LABEL_WORDS = {"ai": "AI", "dns": "DNS", "ip": "IP", "and": "and", "to": "to"}
 # redirect notice ships `hidden` and just never un-hides.
 CATEGORY_KEY_ATTR = "data-c"
 
+# Where a PREVIEW build parks the language swap so the gallery can call it.
+#
+# Language is not CSS. The gallery sets `data-force-scheme` on the iframe's
+# document after `load` and the page restyles, because a scheme is an attribute
+# a stylesheet selects on. By `load` the runtime has already picked a language
+# and rewritten the text, so no attribute can re-drive it -- the apply half has
+# to be reachable from outside the closure that ran it.
+#
+# Long and prefixed on purpose: this lands on `window` of a page whose markup
+# this project only half owns (PAN-OS injects <pan_form/> and <cookie/>), so the
+# name has to be one nothing else could plausibly have taken.
+#
+# PREVIEW ONLY. build_page refuses the preview language list on a deploy build,
+# which is what keeps this name off every page a firewall serves.
+PREVIEW_SWAP = "__panosResponsePagesSetLanguage"
+
 
 def category_js(
     categories: Mapping[str, Mapping[str, str]],
@@ -51,6 +67,7 @@ def category_js(
     email_mode: bool,
     lang_dict: str = "",
     base_lang: str = "en",
+    swap_global: str = "",
 ) -> str:
     """Compact category -> [tone, gloss] map plus the client-side selector.
 
@@ -88,6 +105,12 @@ def category_js(
     optimisation either: `t` is not declared at all without it, so every
     expression below that consults the selected language has to keep its
     pre-existing form or become a ReferenceError on every page.
+
+    swap_global names the window property a PREVIEW build parks the apply half
+    of the swap on, so the gallery can drive it from outside after `load`. Empty
+    on every deploy build, and the emitted bytes are then exactly what they were
+    before the gallery could ask -- which is what tests/_build.py's golden
+    LANGUAGE_BLOCK pins. See PREVIEW_SWAP.
     """
     for name, v in categories.items():
         if v["tone"] not in TONE_CSS:
@@ -193,12 +216,25 @@ def category_js(
     # The base language also STOPS the search. A browser that ranks it above a
     # compiled language must keep the page it was served, or a user who prefers
     # English with German second would be handed German.
-    lang = (
+    #
+    # Split into a SELECT half and an APPLY half. The split is what the preview
+    # gallery needs: it can only reach the page after `load`, by which time the
+    # select half has already run and settled on the served language, so the
+    # apply half has to be callable a second time with a different one. On a
+    # deploy build the two are concatenated back into the single `if(t){...}`
+    # they have always been, byte for byte.
+    select = (
         (
             "var T=" + lang_dict + ",LS=navigator.languages||[navigator.language||''],t,lk,i;"
             "for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();"
             "if(lk==" + json.dumps(base_lang) + ")break;if(T[lk]){t=T[lk];break}}"
-            "if(t){var Q=function(s){return document.querySelector(s)};"
+        )
+        if lang_dict
+        else ""
+    )
+    apply_lang = (
+        (
+            "var Q=function(s){return document.querySelector(s)};"
             # A sentence one child element splits in two: text, element, text.
             # The outer halves are always copy. The middle is copy only when the
             # caller passes `c`: .plain and .note wrap a build-time anchor
@@ -263,7 +299,39 @@ def category_js(
             # severity the page never declared. The category lookup re-sets this
             # from t.s as well, for the pages where a category can change it.
             "var V=Q('.sev');if(V&&V.textContent)"
-            "V.textContent=t.s[document.documentElement.getAttribute('data-tone')]||V.textContent;}"
+            "V.textContent=t.s[document.documentElement.getAttribute('data-tone')]||V.textContent;"
+        )
+        if lang_dict
+        else ""
+    )
+    # Deploy: the two halves, joined exactly as they always were.
+    #
+    # Preview: the apply half becomes a function the gallery can call again with
+    # a language the browser never asked for. `t` and `lk` are the same closure
+    # variables either way, so the second call goes through the identical code
+    # the first one did -- there is no preview-only copy of the swap to drift.
+    #
+    # The category gloss has to be resolved again, because the lookup that owns
+    # it ran at load and cannot run twice -- it destroys the raw category name it
+    # reads (see CATEGORY_KEY_ATTR). Without this the swap puts the page's own
+    # gloss back over the category's, and the preview shows a generic sentence
+    # where the served German page shows the tailored one: the exact difference a
+    # reviewer opened the gallery to judge.
+    #
+    # The same expression the lookup emits, with `t` known truthy. It reads
+    # `k`, `m` and `g`, which the lookup declares with `var` inside `if(e){...}`
+    # -- function-scoped, so they are in scope here and simply undefined on a
+    # page with no category row. Emitted only where the lookup declares them at
+    # all: a copy-locked page pins its gloss on purpose and has no `m` to read.
+    regloss = (
+        "if(g)g.textContent=m?((t.c&&t.c[k])||(m[0]=='calm'?t.dg:t.rg)):t.dg;" if has_category and not lock_copy else ""
+    )
+    lang = (
+        (
+            "var AP=function(){" + apply_lang + "};if(t)AP();"
+            "window." + swap_global + "=function(L){if(!T[L])return;t=T[L];lk=L;AP();" + regloss + "};"
+            if swap_global
+            else "if(t){" + apply_lang + "}"
         )
         if lang_dict
         else ""
@@ -281,6 +349,7 @@ def category_js(
     )
     return (
         "<script>(function(){"
+        + select
         + lang
         + ("var M=" + json.dumps(compact, separators=(",", ":")) + ";" if has_category and not lock_copy else "")
         + lookup

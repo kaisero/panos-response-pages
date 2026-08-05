@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import pathlib
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from panos_response_pages import contact, i18n, redirect
 from panos_response_pages.errors import BuildError
-from panos_response_pages.scripts import FRAME_BUSTER, category_js
+from panos_response_pages.scripts import FRAME_BUSTER, PREVIEW_SWAP, category_js
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
@@ -76,6 +76,7 @@ def build_page(
     preview: bool,
     template_dir: pathlib.Path,
     redirect_demo: bool = False,
+    preview_languages: Sequence[str] = (),
 ) -> str:
     shell = read(template_dir / "shells" / f"{theme['shell']}.html")
     # Kept whole for the gallery, dropped for the firewall. Either way the
@@ -160,6 +161,16 @@ def build_page(
     demo = redirect_demo and page == redirect.PAGE and redirect.supported(theme)
     if demo and not preview:
         raise BuildError("redirect_demo is a preview-only build; it must never reach deploy/")
+
+    # The gallery's Language control, which offers every language this data
+    # directory ships rather than the ones `languages` turned on -- the shipped
+    # default is `languages: ["en"]`, so a config-driven list would be empty and
+    # nobody could look at the German in this tree. Guarded exactly as
+    # redirect_demo is, and for the same reason: these are pages a firewall would
+    # serve, and a deploy build carrying a dictionary the config never asked for
+    # is a page whose language a customer cannot account for.
+    if preview_languages and not preview:
+        raise BuildError("preview_languages is a preview-only build; it must never reach deploy/")
     # Everything downstream reads the demo config, not just the redirect: the
     # category the notice keys on needs a tone and a gloss from the same map, or
     # the page renders a redirect for a category it cannot describe.
@@ -206,13 +217,20 @@ def build_page(
     #
     # ensure_ascii=False matters: "ä" costs two bytes where "ä" costs six,
     # and this dictionary ships on every page of every style.
+    #
+    # A preview build compiles `preview_languages` instead, but only where the
+    # style carries the feature at all: an opted-out style ships one language, and
+    # a preview that swapped anyway would show a page no firewall will ever serve.
+    # That is also what the gallery keys its Language control off, so the control
+    # disappears on exactly the styles whose frames would not answer it.
+    compiled = list(preview_languages) if preview_languages and i18n.enabled(theme) else i18n.shipped(cfg, theme)
     lang_dict = (
         json.dumps(
-            i18n.runtime_dict(cfg, page, template_dir.parent),
+            i18n.runtime_dict(cfg, page, template_dir.parent, langs=compiled),
             separators=(",", ":"),
             ensure_ascii=False,
         )
-        if len(i18n.shipped(cfg, theme)) > 1
+        if len(compiled) > 1
         else ""
     )
 
@@ -250,6 +268,9 @@ def build_page(
                 email_mode=contact.mode(cfg) == contact.EMAIL,
                 lang_dict=lang_dict,
                 base_lang=i18n.base_language(cfg),
+                # Only where a language was compiled that the browser will not
+                # ask for. Derived from `preview` so it cannot be set on its own.
+                swap_global=PREVIEW_SWAP if preview and preview_languages else "",
             )
             + redirect_js,
         }
