@@ -7,7 +7,14 @@
     "defaultGloss": "This category is restricted by company policy.",
     "riskGloss": "This site was blocked because it presents a security risk.",
     "continueGrantText": "15 minutes",
-    "supportLabel": "IT support"
+    "supportLabel": "IT support",
+    "redirect": {
+      "go": "Go now",
+      "stay": "Stay",
+      "cancelled": "Staying on this page.",
+      "cancelledAnnounce": "Cancelled. You are staying on this page.",
+      "announce": "You will be sent to {app} in {n} seconds. Choose Stay, or press Escape, to remain on this page."
+    }
   },
   "pages": {
     "application-block-page": {

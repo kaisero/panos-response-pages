@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from typing import ClassVar
 
 from _build import translated_strings
 from _paths import DATA
@@ -479,23 +480,41 @@ class TestPreviewDemo(unittest.TestCase):
                 self.assertNotIn('<div class="rx"', self.demo(theme=th))
 
 
-class TestStayLabelEscaping(unittest.TestCase):
-    """STAY_LABEL used to be concatenated straight into a single-quoted JS
-    literal. It is "Stay" today, so nothing breaks -- but pure copy editing
-    that gave it an apostrophe would emit syntactically broken JavaScript that
-    Python cannot catch and nothing asserted against. It is now wrapped with
-    json.dumps, as CANCELLED_ANNOUNCE already is a few lines above."""
+class TestNoticeCopyEscaping(unittest.TestCase):
+    """The announcement used to be concatenated into a single-quoted JS literal.
+
+    It is "Stay" and plain English today, so nothing breaks -- but this is COPY,
+    in a strings file a translator edits, and an apostrophe in it would emit
+    syntactically broken JavaScript that Python cannot catch. Every string
+    spliced into the script goes through json.dumps for that reason; this is
+    what says so. Written against the strings document rather than a Python
+    constant because that is where the words live now.
+    """
+
+    APOSTROPHES: ClassVar = {
+        "go": "Let's go",
+        "stay": "Don't go",
+        "cancelled": "You're staying here.",
+        "cancelledAnnounce": "Cancelled. You're staying here.",
+        "announce": "You'll be sent to {app} in {n} seconds. Choose Don't go to stay.",
+    }
+
+    def data_dir_with(self, notice):
+        root = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rx-copy-")) / "data"
+        shutil.copytree(DATA, root)
+        path = root / "strings" / "en.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["shared"]["redirect"] = notice
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return root
 
     @unittest.skipUnless(shutil.which("node"), "node not installed")
-    def test_an_apostrophe_in_stay_label_still_produces_parseable_js(self):
-        original = redirect.STAY_LABEL
-        redirect.STAY_LABEL = "Don't go"
-        try:
-            script = script_of(render(configured()))
-        finally:
-            redirect.STAY_LABEL = original
-
-        self.assertIn("Don't go", script)
+    def test_an_apostrophe_anywhere_in_the_notice_copy_still_parses(self):
+        root = self.data_dir_with(self.APOSTROPHES)
+        html = strip_output(build_page("url-block-page", THEMES[0], configured(), PALETTE, False, root / "templates"))
+        script = script_of(html)
+        self.assertIn("You'll be sent to", script)
+        self.assertIn("Don't go", html, "the base language's buttons are markup, not script")
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
             f.write(script)
             path = pathlib.Path(f.name)
@@ -671,31 +690,156 @@ class TestTheNoticeIsTranslated(unittest.TestCase):
         self.assertEqual(got, "Taking you to Company Engage — the approved alternative for this.")
 
     def _run(self, html: str, category: str, lang: str = "de") -> dict:
-        blocks = re.findall(r"<script>\(function\(\)\{(.*?)\}\)\(\);</script>", html, re.S)
-        cat_js = next(b for b in blocks if "var M=" in b)
-        # `var R={`, for the reason script_of() gives: the language block has a
-        # `var R=Q('#rep')` of its own, and this page carries both scripts.
-        rx_js = next(b for b in blocks if "var R={" in b)
-        # defineProperty, not assignment: `navigator` is a read-only accessor on
-        # modern Node, so `global.navigator = {...}` fails SILENTLY and the page
-        # would be selected against the host's own locale instead of this one.
-        script = (
-            f"const RAW={json.dumps(category)};"
-            f"Object.defineProperty(global,'navigator',"
-            f"{{value:{{languages:[{json.dumps(lang)}]}},configurable:true,writable:true}});"
-            f"{TestTheNoticeActuallyArms.HARNESS}"
-            f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
-            "console.log(JSON.stringify({hidden:els.rx.hidden,message:els.rxm.textContent}));"
+        return run_notice(self, html, category, lang)
+
+
+def run_notice(test: unittest.TestCase, html: str, category: str, lang: str = "de") -> dict:
+    """Run a built page's two scripts against the stub DOM and report the notice.
+
+    Module level because two classes need it: the sentence and the furniture
+    around it are swapped by the same script from the same table, and running
+    them under two different harnesses would let the two drift.
+    """
+    blocks = re.findall(r"<script>\(function\(\)\{(.*?)\}\)\(\);</script>", html, re.S)
+    cat_js = next(b for b in blocks if "var M=" in b)
+    # `var R={`, for the reason script_of() gives: the language block has a
+    # `var R=Q('#rep')` of its own, and this page carries both scripts.
+    rx_js = next(b for b in blocks if "var R={" in b)
+    # defineProperty, not assignment: `navigator` is a read-only accessor on
+    # modern Node, so `global.navigator = {...}` fails SILENTLY and the page
+    # would be selected against the host's own locale instead of this one.
+    script = (
+        f"const RAW={json.dumps(category)};"
+        f"Object.defineProperty(global,'navigator',"
+        f"{{value:{{languages:[{json.dumps(lang)}]}},configurable:true,writable:true}});"
+        f"{TestTheNoticeActuallyArms.HARNESS}"
+        f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
+        "console.log(JSON.stringify({hidden:els.rx.hidden,message:els.rxm.textContent,"
+        "go:els.rxg.textContent,stay:els.rxs.textContent,cancelled:els.rxo.textContent,"
+        "announce:els.rxl.textContent}));"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+        f.write(script)
+        path = pathlib.Path(f.name)
+    try:
+        r = subprocess.run(["node", str(path)], capture_output=True, text=True, check=False)  # noqa: S603,S607
+        test.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    finally:
+        path.unlink()
+
+
+class TestTheNoticeFurnitureIsTranslated(unittest.TestCase):
+    """The other half of the notice: its two buttons, its cancelled line, and the
+    two sentences a screen reader is read.
+
+    Task 8b translated the MESSAGE and stopped. A German build then read "Sie
+    werden zu Company Drive weitergeleitet" above buttons labelled "Go now" and
+    "Stay", and read the whole English announcement out to a screen reader --
+    half-translated output from a clean build, which is the failure this project
+    exists to refuse. They are shipped copy, so they live in the strings document
+    and ride the same table as the sentence.
+    """
+
+    DEFAULT_DE = "Weiterleitung zu {app} — die freigegebene Alternative."
+
+    def test_the_base_language_words_are_markup(self):
+        """The markup IS the base language, here as everywhere else: a browser
+        with no JavaScript, and every browser that matches nothing, reads them."""
+        html = render(configured())
+        for word in ("Go now", "Stay", "Staying on this page."):
+            self.assertIn(word, html, f"the notice lost its base-language {word!r}")
+
+    def test_every_language_carries_the_furniture_translated_or_not(self):
+        """Shipped copy, so it is there whether or not the customer wrote a
+        sentence of their own -- otherwise a customer who enabled the redirect
+        and translated nothing would get German copy under English buttons."""
+        table = lang_table(render_german(german({})))
+        self.assertEqual(table["de"]["g"], "de:Go now")
+        self.assertEqual(table["de"]["s"], "de:Stay")
+        self.assertEqual(table["de"]["o"], "de:Staying on this page.")
+        self.assertNotIn("m", table["de"], "nobody translated the sentence")
+
+    def test_a_single_language_build_carries_none_of_it(self):
+        """The byte-identity rule this whole feature is built under: one language
+        has nothing to select between, so it pays for no table and no swap."""
+        script = script_of(render(configured()))
+        self.assertNotIn("X.g", script)
+        self.assertNotIn("var X=", script)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_a_german_browser_gets_german_buttons_and_announcement(self):
+        html = render_german(german({"message": self.DEFAULT_DE}))
+        got = run_notice(self, html, "social-networking")
+        self.assertEqual(got["go"], "de:Go now")
+        self.assertEqual(got["stay"], "de:Stay")
+        self.assertEqual(got["cancelled"], "de:Staying on this page.")
+        # The announcement is a sentence with two tokens, not a concatenation:
+        # the app name and the countdown are values only the browser has, and a
+        # translation has to be free to put them where its grammar wants.
+        self.assertEqual(
+            got["announce"],
+            "de:You will be sent to Company Engage in 10 seconds. "
+            "Choose Stay, or press Escape, to remain on this page.",
         )
-        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
-            f.write(script)
-            path = pathlib.Path(f.name)
-        try:
-            r = subprocess.run(["node", str(path)], capture_output=True, text=True, check=False)  # noqa: S603,S607
-            self.assertEqual(r.returncode, 0, r.stderr)
-            return json.loads(r.stdout.strip().splitlines()[-1])
-        finally:
-            path.unlink()
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_an_unmatched_browser_is_announced_the_base_language_sentence(self):
+        """The other direction, and the token substitution with no table in play:
+        a browser that matched nothing keeps the page it was served."""
+        cfg = german({"message": self.DEFAULT_DE})
+        got = run_notice(self, render_german(cfg), "social-networking", lang="en")
+        self.assertEqual(
+            got["announce"],
+            "You will be sent to Company Engage in 10 seconds. Choose Stay, or press Escape, to remain on this page.",
+        )
+        self.assertEqual(got["go"], "", "the served markup was overwritten for a language nothing matched")
+
+
+class TestTheReportLabelPrefersItsOwnButton(unittest.TestCase):
+    """`Q('a.btn#rep')||Q('a.btn')`, pinned against the page that made it matter.
+
+    The language block writes the report label into the first `a.btn` it finds.
+    With the redirect on, the notice's "Go now" anchor is an `a.btn` and it comes
+    FIRST in document order -- so the bare selector writes "Report to IT" into
+    the Go button and leaves the real report button in the base language. This
+    was a long comment and no test; it is a live combination, not a theoretical
+    one, so it is asserted against a built page.
+    """
+
+    BTN_RE = re.compile(r"<a\b[^>]*\bclass=\"[^\"]*\bbtn\b[^\"]*\"[^>]*>")
+
+    def buttons(self, html):
+        """Every `a.btn` on the page, in document order -- what querySelector walks."""
+        return self.BTN_RE.findall(html)
+
+    def first(self, html, require_rep):
+        """querySelector's answer for `a.btn#rep` (require_rep) or for `a.btn`."""
+        for tag in self.buttons(html):
+            if not require_rep or 'id="rep"' in tag:
+                return tag
+        return ""
+
+    def html(self):
+        cfg = german({"message": TestTheNoticeFurnitureIsTranslated.DEFAULT_DE})
+        return render_german(cfg, theme=SUPPORTING[0])
+
+    def test_the_bare_selector_would_hit_the_redirect_button(self):
+        """The premise. If this ever fails because the notice moved below the
+        actions, the comment in scripts.py is what needs re-reading -- not this."""
+        html = self.html()
+        self.assertGreater(len(self.buttons(html)), 1, "the page carries only one a.btn; nothing is being pinned")
+        self.assertIn('id="rxg"', self.first(html, require_rep=False), "the redirect anchor is no longer first")
+
+    def test_the_pinned_selector_hits_the_report_button(self):
+        html = self.html()
+        self.assertIn('id="rep"', self.first(html, require_rep=True))
+
+    def test_the_page_emits_the_pinned_selector(self):
+        """The two halves together: the selector the page ships is the one that
+        picks the report button, and reverting it to `Q('a.btn')` would write the
+        report label into the Go button on this exact page."""
+        self.assertIn("var B=Q('a.btn#rep')||Q('a.btn');", self.html())
 
 
 class TestPreviewDemoIsNotShipped(unittest.TestCase):

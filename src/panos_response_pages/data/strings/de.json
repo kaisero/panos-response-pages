@@ -7,7 +7,14 @@
     "defaultGloss": "Diese Kategorie ist durch die Unternehmensrichtlinie eingeschränkt.",
     "riskGloss": "Diese Website wurde gesperrt, weil sie ein Sicherheitsrisiko darstellt.",
     "continueGrantText": "15 Minuten",
-    "supportLabel": "IT-Support"
+    "supportLabel": "IT-Support",
+    "redirect": {
+      "go": "Jetzt wechseln",
+      "stay": "Hier bleiben",
+      "cancelled": "Sie bleiben auf dieser Seite.",
+      "cancelledAnnounce": "Abgebrochen. Sie bleiben auf dieser Seite.",
+      "announce": "Sie werden in {n} Sekunden zu {app} weitergeleitet. Mit „Hier bleiben“ oder Escape bleiben Sie auf dieser Seite."
+    }
   },
   "pages": {
     "application-block-page": {
