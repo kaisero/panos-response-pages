@@ -2,6 +2,7 @@
 
 import json
 import pathlib
+import re
 import unittest
 from typing import ClassVar
 
@@ -10,6 +11,7 @@ import pytest
 from _paths import DATA
 from panos_response_pages import i18n
 from panos_response_pages.errors import BuildError
+from panos_response_pages.validate import PAGE_TOKENS
 
 pytestmark = pytest.mark.unit
 
@@ -240,3 +242,46 @@ class TestPlaceholderResolution(unittest.TestCase):
         v = i18n.page_values(doc, "p", self.VALUES)
         self.assertEqual(v["T_EXTRA"], "Ask Example Corp.")
         self.assertNotIn("{{", "".join(str(x) for x in v.values()))
+
+
+class TestEnglishCoversEveryPage(unittest.TestCase):
+    def test_every_registered_page_has_a_strings_block(self):
+        """PAGE_TOKENS is the source of truth for which pages exist. A page
+        template with no strings block fails at build time with a KeyError from
+        inside substitution; this says which page, before the build runs."""
+        doc = i18n.load("en", DATA)
+        self.assertEqual(sorted(doc["pages"]), sorted(PAGE_TOKENS))
+
+
+class TestTemplatesCarryNoCopy(unittest.TestCase):
+    def test_no_prose_left_in_page_slots(self):
+        """Copy lives in the strings files now. A slot with words in it is copy
+        that no language can override -- it would ship English into a German
+        page, silently."""
+        slots = ("TITLE", "HEADLINE", "GLOSS", "EXTRA")
+        for f in sorted((DATA / "templates/pages").glob("*.html")):
+            text = f.read_text(encoding="utf-8")
+            for name, body in re.findall(r"<!--@([A-Z_]+)-->(.*?)<!--/@\1-->", text, re.S):
+                if name not in slots:
+                    continue
+                stripped = re.sub(r"\{\{[A-Z_0-9]+\}\}|<[^>]+>", "", body).strip()
+                self.assertEqual(stripped, "", f"{f.stem} {name} still contains copy: {stripped!r}")
+
+
+class TestFactLabelCounts(unittest.TestCase):
+    def test_every_language_has_one_label_per_dt(self):
+        """Fact labels swap positionally against `dl dt` in document order. One
+        short and every label below it shifts up by one, silently.
+
+        check_complete compares the languages against each other, so a `facts`
+        array that is wrong in EVERY language -- which is what an en.json with
+        one label too many becomes as soon as it is translated -- passes it. The
+        template is the only thing that knows how many rows there are."""
+        for page in sorted(PAGE_TOKENS):
+            body = (DATA / "templates/pages" / f"{page}.html").read_text(encoding="utf-8")
+            facts = re.search(r"<!--@FACTS-->(.*?)<!--/@FACTS-->", body, re.S).group(1)
+            want = len(re.findall(r"<dt>", facts))
+            for f in sorted((DATA / "strings").glob("*.json")):
+                doc = i18n.load(f.stem, DATA)
+                got = len(doc["pages"][page]["facts"])
+                self.assertEqual(got, want, f"{f.stem}/{page}: {got} labels for {want} <dt> rows")
