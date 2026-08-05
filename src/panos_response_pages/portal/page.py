@@ -86,6 +86,7 @@ def build_portal_page(
     *,
     preview: bool = False,
     preview_languages: Sequence[str] = (),
+    preview_swap: bool = False,
 ) -> str:
     """Compose one portal import. `page` is "login" or "home".
 
@@ -103,6 +104,8 @@ def build_portal_page(
     """
     if preview_languages and not preview:
         raise BuildError("preview_languages is a preview-only build; it must never reach deploy/")
+    if preview_swap and not preview:
+        raise BuildError("preview_swap is a preview-only build; it must never reach deploy/")
     if page not in FRAMES:
         raise BuildError(f"unknown portal page {page!r} -- expected one of {', '.join(sorted(FRAMES))}")
 
@@ -130,8 +133,16 @@ def build_portal_page(
     # carries the feature at all. The opt-out is the same opt-out either way, so
     # the gallery's control hides itself on nyan rather than offering a language
     # nyan's frames cannot answer. Same shape as build_page's `compiled`.
+    #
+    # `preview_swap` is the gallery's form: the hook without a single language
+    # compiled behind it, because the gallery hands the dictionary in when a
+    # reader asks for that language rather than inlining thirteen of them into
+    # every frame it carries. The opt-out gates it here rather than inside
+    # _values(), which never sees a theme -- and it gates the LIST too, where it
+    # was previously left to `compiled` collapsing to one language.
     compiled = list(preview_languages) if preview_languages and i18n.enabled(theme) else i18n.shipped(cfg, theme)
-    values = _values(cfg, palette, page, template_dir.parent, compiled, swap=preview and bool(preview_languages))
+    swap = preview and (bool(preview_languages) or preview_swap) and i18n.enabled(theme)
+    values = _values(cfg, palette, page, template_dir.parent, compiled, swap=swap, external=swap and preview_swap)
     # Slot bodies carry {{COMPANY}}, {{PORTAL_NAME}} and the palette tokens, so
     # they are resolved BEFORE being placed in the frame -- re.sub does not
     # rescan replacement text.
@@ -143,6 +154,27 @@ def build_portal_page(
     # Last, so the bytes that are measured are the bytes that ship. It must not
     # run earlier: parse_sections() needs the <!--@SLOT--> markers intact.
     return strip_output(out)
+
+
+def preview_dicts(
+    cfg: Mapping[str, Any],
+    palette: Mapping[str, Any],
+    page: str,
+    template_dir: pathlib.Path,
+    langs: Sequence[str],
+) -> dict[str, Any]:
+    """The per-language dictionaries the gallery hands a preview import.
+
+    PREVIEW ONLY, and the reason this is here rather than in the builder: the
+    copy has to be resolved against the same values the import itself was
+    resolved against, or a swap would fill in a different {{COMPANY}} than the
+    page was built with -- which is a preview of a page nobody will be served.
+
+    Palette-independent and theme-independent in everything it reads, so the
+    builder computes it once for the whole gallery rather than per frame.
+    """
+    values = _values(cfg, palette, page, template_dir.parent, [i18n.base_language(cfg)])
+    return i18n.portal_dicts(cfg, page, template_dir.parent, values, langs=langs)
 
 
 # The published dictionary. A global rather than a closure variable because the
@@ -322,7 +354,11 @@ def _i18n_script(page: str, dict_json: str, base_lang: str, *, swap: bool = Fals
     written in, so those imports do not move by a byte. That is asserted; it is
     the whole reason the split is a split rather than a second runtime.
     """
-    if dict_json in ("", "{}"):
+    # An empty dictionary in a PREVIEW build is not nothing to select between: it
+    # is the gallery's form, where the words arrive from a sibling file at the
+    # moment a reader picks that language. `T` starts empty, every lookup misses,
+    # and the import renders the base language until the swap files one in.
+    if dict_json == "" or (dict_json == "{}" and not swap):
         return ""
     if swap:
         # `g` rather than the block pages' `L`: that name is already the browser's
@@ -337,7 +373,12 @@ def _i18n_script(page: str, dict_json: str, base_lang: str, *, swap: bool = Fals
             + "};\n"
             + _i18n_select(base_lang)
             + "AP(k);return true});\n"
-            + f"window.{PREVIEW_SWAP}=function(g){{if(!T[g])return;AP(g)}};\n"
+            # The dictionary as an argument, filed in `T` before it is read back
+            # out: the gallery compiles none into the import and hands one over
+            # when a reader asks for that language. Omitted, `T` answers as it
+            # always did -- which is what an import built with its languages
+            # compiled in still does.
+            + f"window.{PREVIEW_SWAP}=function(g,d){{if(d)T[g]=d;if(!T[g])return;AP(g)}};\n"
             + "})();"
         )
     else:
@@ -470,6 +511,7 @@ def _values(
     langs: Sequence[str],
     *,
     swap: bool = False,
+    external: bool = False,
 ) -> dict[str, str]:
     """Everything a portal slot may reference.
 
@@ -477,8 +519,12 @@ def _values(
     every language the tree ships on a preview one. `swap` publishes the preview
     hook; it is derived from the preview list rather than passed on its own, so
     it cannot be turned on for an import a firewall serves.
+
+    `external` is the gallery's form: no language is compiled, and the runtime is
+    emitted anyway so there is something to hand a dictionary to. It only ever
+    accompanies `swap`, so nothing a firewall serves can take this branch.
     """
-    multilingual = len(langs) > 1
+    multilingual = len(langs) > 1 or external
     contact.check(cfg)
     base = {
         "COMPANY": str(cfg["company"]),

@@ -511,19 +511,18 @@ def portal_values(doc: Mapping[str, Any], surface: str, values: Mapping[str, obj
     return out
 
 
-def portal_runtime(
+def portal_dicts(
     cfg: Mapping[str, Any],
     surface: str,
     data_dir: pathlib.Path,
     values: Mapping[str, object],
     langs: Sequence[str] | None = None,
-) -> str:
-    """The per-import language dictionary, as a JS object literal.
+) -> dict[str, Any]:
+    """The per-import language dictionary, one entry per non-base language.
 
-    '<' is escaped rather than left to json.dumps: portal/validate.py refuses a
-    raw '<' anywhere in an import, because the observed failure is not an error
-    on the firewall -- it is that <pan_form/> silently stops being substituted
-    and the login form is lost entirely.
+    Split out of portal_runtime() so the preview gallery can carry these
+    dictionaries beside the frames rather than inside them: it hands one back to
+    an import that was built with none, and needs the object, not the literal.
 
     Keys are spelled out rather than shortened to one letter as the block-page
     dictionary's are. That dictionary ships on eleven pages in seven styles
@@ -558,7 +557,25 @@ def portal_runtime(
             out[lang] = {"lm": messages}
         else:
             out[lang] = s
-    return json.dumps(out, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c")
+    return out
+
+
+def portal_runtime(
+    cfg: Mapping[str, Any],
+    surface: str,
+    data_dir: pathlib.Path,
+    values: Mapping[str, object],
+    langs: Sequence[str] | None = None,
+) -> str:
+    """portal_dicts(), as the JS object literal an import carries.
+
+    '<' is escaped rather than left to json.dumps: portal/validate.py refuses a
+    raw '<' anywhere in an import, because the observed failure is not an error
+    on the firewall -- it is that <pan_form/> silently stops being substituted
+    and the login form is lost entirely.
+    """
+    dicts = portal_dicts(cfg, surface, data_dir, values, langs)
+    return json.dumps(dicts, separators=(",", ":"), ensure_ascii=False).replace("<", "\\u003c")
 
 
 # Single-letter keys. This dictionary ships in every page of every style, so a

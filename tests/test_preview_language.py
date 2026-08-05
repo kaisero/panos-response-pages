@@ -220,7 +220,17 @@ class TestTheEmittedSwap(unittest.TestCase):
         self.assertNotIn("window.", self._js())
 
     def test_the_swap_refuses_a_language_it_does_not_carry(self):
-        self.assertIn("function(L){if(!T[L])return;", self._js(swap_global="X"))
+        self.assertIn("function(L,W){if(W)T[L]=W;if(!T[L])return;", self._js(swap_global="X"))
+
+    def test_the_swap_takes_the_dictionary_as_an_argument(self):
+        """The gallery compiles NO language into a frame -- one dictionary per
+        language inside every frame of every page is what took index.html to
+        2.9 MB at thirteen languages -- so the words arrive with the call and are
+        filed in `T` before they are read back out. A frame that does carry its
+        languages simply passes nothing, and takes the identical path."""
+        js = self._js(swap_global="X")
+        self.assertIn("if(W)T[L]=W;", js)
+        self.assertLess(js.index("if(W)T[L]=W;"), js.index("if(!T[L])return;"))
 
     def test_the_swap_re_resolves_the_category_gloss(self):
         """The lookup that owns the gloss destroys the raw category name it
@@ -412,8 +422,24 @@ class TestTheGalleryControl(unittest.TestCase):
         """fit() sizes the frame to its content, and the swap changes how much
         content there is."""
         squeezed = re.sub(r"\s+", "", self.index)
-        self.assertIn('if(S.lang!==BASELANG&&w&&typeofw[SWAP]==="function")w[SWAP](S.lang);', squeezed)
-        self.assertLess(squeezed.index("w[SWAP](S.lang)"), squeezed.index("fit(i);"))
+        self.assertIn('if(S.lang!==BASELANG&&w&&typeofw[SWAP]==="function")w[SWAP](S.lang,dict());', squeezed)
+        self.assertLess(squeezed.index("w[SWAP](S.lang,dict())"), squeezed.index("fit(i);"))
+
+    def test_no_frame_in_the_gallery_compiles_a_translation(self):
+        """The frames the gallery carries are built in the base language alone.
+        Their words arrive from lang-<code>.js when a reader picks that language,
+        which is what stops this document growing by every language the tree
+        ships -- thirteen of them measured 2.9 MB against a 2.5 MB limit."""
+        german = i18n.load("de", DATA)["shared"]["reportLabel"]
+        self.assertNotIn(german, self.index)
+        self.assertIn(german, (preview_dir() / "lang-de.js").read_text(encoding="utf-8"))
+
+    def test_the_standalone_preview_files_still_compile_them(self):
+        """The other half, and it is not the same file. `out/preview/<style>/`
+        is opened directly with --accept-lang, with no gallery to hand anything
+        in, so those pages keep every language compiled into them."""
+        page = preview_dir() / "assist" / DEFAULT_PALETTE / "url-block-page.html"
+        self.assertIn(i18n.load("de", DATA)["pages"]["url-block-page"]["title"], page.read_text(encoding="utf-8"))
 
     def test_langok_names_exactly_the_styles_that_compiled_the_languages(self):
         """A style that declares `"i18n": false` renders the base language and

@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
-from collections.abc import Container, Mapping
+from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -22,7 +22,7 @@ from panos_response_pages.gallery import build_gallery
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.palettes import select as palettes_select
-from panos_response_pages.portal.page import FRAMES, build_portal_page
+from panos_response_pages.portal.page import FRAMES, build_portal_page, preview_dicts
 from panos_response_pages.portal.splice import LOGIN_PREVIEWS, splice_home, splice_login
 from panos_response_pages.portal.validate import MAX_ENCODED, SOFT_MAX, encoded_size, validate_portal
 from panos_response_pages.templates import read
@@ -34,10 +34,17 @@ from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS, validate
 # there are.
 PORTAL_PAGES = tuple(FRAMES)
 
-# What a preview of the portal family consists of. The four login states are one
-# import rendered four ways -- PAN-OS decides which by what it writes into
-# loadPage() -- and getsoftware is that same import with the other form in it.
-PORTAL_PREVIEWS = (*LOGIN_PREVIEWS, "getsoftware", "logout")
+# What a preview of the portal family consists of, and which import each one is a
+# rendering of. The four login states are one import rendered four ways -- PAN-OS
+# decides which by what it writes into loadPage() -- and getsoftware is that same
+# import with the other form in it.
+#
+# Stated as a map because the gallery's Language control needs the second half:
+# a frame's translations are the surface's, and `portal:login-error` has to be
+# able to say that it is a login. _splice() below builds exactly these names from
+# exactly these imports, so the two cannot say different things for long.
+PREVIEW_SURFACE = {**dict.fromkeys(LOGIN_PREVIEWS, "login"), "getsoftware": "login", "logout": "home"}
+PORTAL_PREVIEWS = tuple(PREVIEW_SURFACE)
 
 # Where the captured asset tree is written, relative to the preview root, and
 # how to reach it from each of the two places a preview renders.
@@ -288,11 +295,20 @@ def build_all(
                 emit(deploy_dir / f"{page}.html", deployable)
 
                 if preview:
+                    # Twice, and they are not the same page. The file on disk is
+                    # opened directly -- `--accept-lang` and the browser's own
+                    # negotiation is the documented way to look at a language --
+                    # so it compiles every one of them. The gallery's frame
+                    # compiles NONE: its dictionary arrives from a sibling file
+                    # when a reader picks a language, which is what stops
+                    # index.html growing by every language the tree ships.
                     pv = strip_output(
                         build_page(page, th, cfg, th_palette, True, template_dir, preview_languages=preview_langs)
                     )
-                    blobs[th["name"], pname, page] = pv
                     emit(prev_dir / f"{page}.html", pv)
+                    blobs[th["name"], pname, page] = strip_output(
+                        build_page(page, th, cfg, th_palette, True, template_dir, preview_swap=True)
+                    )
 
                     # The second url-block blob the gallery's Redirect toggle switches
                     # to. Built unconditionally so the toggle can demonstrate the
@@ -316,8 +332,19 @@ def build_all(
                                 preview_languages=preview_langs,
                             )
                         )
-                        blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
                         emit(prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html", demo)
+                        blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = strip_output(
+                            build_page(
+                                page,
+                                th,
+                                cfg,
+                                th_palette,
+                                True,
+                                template_dir,
+                                redirect_demo=True,
+                                preview_swap=True,
+                            )
+                        )
 
                 results.append(PageResult(th["name"], page, size, errors, warnings, pname))
 
@@ -329,6 +356,9 @@ def build_all(
             # reach it from here is a preview construct one refactor away from a
             # customer's firewall.
             preview_imports: dict[str, str] = {}
+            # The gallery's own copy, with no language compiled into it -- the
+            # same split the block pages take, and for the same reason.
+            gallery_imports: dict[str, str] = {}
             for page in PORTAL_PAGES:
                 # build_portal_page strips on the way out, so these are already the
                 # bytes the firewall receives; nothing may touch them afterwards.
@@ -342,6 +372,15 @@ def build_all(
                         portal_templates,
                         preview=True,
                         preview_languages=preview_langs,
+                    )
+                    gallery_imports[page] = build_portal_page(
+                        page,
+                        th,
+                        cfg,
+                        th_palette,
+                        portal_templates,
+                        preview=True,
+                        preview_swap=True,
                     )
                 # The same argument, for the same reason, as the block-page call
                 # above: what the IMPORT carries, not what the config asked for.
@@ -363,7 +402,7 @@ def build_all(
                 portal_blobs.update(
                     {
                         (th["name"], pname, name): text
-                        for name, text in _splice(preview_imports, ASSETS_FROM_GALLERY, fixtures).items()
+                        for name, text in _splice(gallery_imports, ASSETS_FROM_GALLERY, fixtures).items()
                     }
                 )
                 if write:
@@ -391,6 +430,7 @@ def build_all(
             # cannot ship without one -- see i18n.NAME_KEY.
             languages=[(code, i18n.display_name(code, data_dir)) for code in preview_langs],
             base_language=i18n.base_language(cfg),
+            language_blobs=_language_blobs(cfg, data_dir, pages, portal_templates, palette, preview_langs),
         )
         (out_dir / "preview" / "index.html").write_bytes(gallery.encode("utf-8"))
         for name, text in sidecars.items():
@@ -403,6 +443,48 @@ def build_all(
         i18n.languages(cfg),
         {th["name"]: i18n.shipped(cfg, th) for th in themes},
     )
+
+
+def _language_blobs(
+    cfg: Mapping[str, Any],
+    data_dir: pathlib.Path,
+    pages: Sequence[str],
+    portal_templates: pathlib.Path,
+    palette: Mapping[str, Any],
+    langs: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+    """The gallery's translations: {language: {frame key: dictionary}}.
+
+    PREVIEW ONLY. The gallery's frames compile no language at all, so this is
+    where the words are -- one file per language, fetched when a reader picks it.
+    Keyed exactly as the gallery keys a frame, which is why the redirect demo and
+    the portal previews appear here under their own names rather than their
+    pages'.
+
+    Neither the style nor the palette reaches any of it: the block-page
+    dictionary is a function of the page and the config, and the portal one of
+    the surface and the config. So this is computed once for the whole gallery
+    rather than once per frame, which is the difference between eleven documents
+    and eleven documents times seven styles times four palettes.
+    """
+    base = i18n.base_language(cfg)
+    out: dict[str, dict[str, Any]] = {}
+    for lang in langs:
+        if lang == base:
+            continue
+        pair = [base, lang]
+        frames: dict[str, Any] = {p: i18n.runtime_dict(cfg, p, data_dir, langs=pair)[lang] for p in pages}
+        # The redirect demo is the URL block page with the notice forced on. Its
+        # copy is the page's own -- runtime_dict() reads the configured strings,
+        # not the demo config -- so it takes the same dictionary under its own key.
+        frames[f"{redirect.PAGE}{redirect.PREVIEW_SUFFIX}"] = frames[redirect.PAGE]
+        surfaces = {
+            surface: preview_dicts(cfg, palette, surface, portal_templates, pair)[lang]
+            for surface in set(PREVIEW_SURFACE.values())
+        }
+        frames.update({f"portal:{name}": surfaces[surface] for name, surface in PREVIEW_SURFACE.items()})
+        out[lang] = frames
+    return out
 
 
 def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> dict[str, str]:

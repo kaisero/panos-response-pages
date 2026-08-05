@@ -326,10 +326,18 @@ def category_js(
     regloss = (
         "if(g)g.textContent=m?((t.c&&t.c[k])||(m[0]=='calm'?t.dg:t.rg)):t.dg;" if has_category and not lock_copy else ""
     )
+    # The swap takes the dictionary as its second argument, and files it in `T`
+    # before reading it back out. The gallery compiles no language into a preview
+    # frame -- one dictionary per language inlined into every frame of every page
+    # is what took index.html to 2.9 MB at thirteen languages -- so the words
+    # arrive from a sibling file at the moment they are asked for. Omitted, `T`
+    # answers exactly as it always did, which is what a frame built with its
+    # languages compiled in still does.
     lang = (
         (
             "var AP=function(){" + apply_lang + "};if(t)AP();"
-            "window." + swap_global + "=function(L){if(!T[L])return;t=T[L];lk=L;AP();" + regloss + "};"
+            "window." + swap_global + "=function(L,W){if(W)T[L]=W;if(!T[L])return;"
+            "t=T[L];lk=L;AP();" + regloss + "};"
             if swap_global
             else "if(t){" + apply_lang + "}"
         )

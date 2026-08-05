@@ -77,6 +77,7 @@ def build_page(
     template_dir: pathlib.Path,
     redirect_demo: bool = False,
     preview_languages: Sequence[str] = (),
+    preview_swap: bool = False,
 ) -> str:
     shell = read(template_dir / "shells" / f"{theme['shell']}.html")
     # Kept whole for the gallery, dropped for the firewall. Either way the
@@ -171,6 +172,8 @@ def build_page(
     # is a page whose language a customer cannot account for.
     if preview_languages and not preview:
         raise BuildError("preview_languages is a preview-only build; it must never reach deploy/")
+    if preview_swap and not preview:
+        raise BuildError("preview_swap is a preview-only build; it must never reach deploy/")
     # Everything downstream reads the demo config, not just the redirect: the
     # category the notice keys on needs a tone and a gloss from the same map, or
     # the page renders a redirect for a category it cannot describe.
@@ -223,7 +226,17 @@ def build_page(
     # a preview that swapped anyway would show a page no firewall will ever serve.
     # That is also what the gallery keys its Language control off, so the control
     # disappears on exactly the styles whose frames would not answer it.
+    #
+    # `preview_swap` is the gallery's own form and compiles NO language at all:
+    # the dictionary arrives as an argument to the swap, out of a sibling file
+    # the gallery fetches when a reader asks for that language. The page still
+    # carries the selector and the apply half -- an empty `T` simply never
+    # matches, so the frame renders the base language until it is handed one --
+    # and that is what keeps index.html the same size however many languages the
+    # tree ships. It follows the same opt-out as the list: a style that declares
+    # `"i18n": false` gets no hook, because the gallery hides the control for it.
     compiled = list(preview_languages) if preview_languages and i18n.enabled(theme) else i18n.shipped(cfg, theme)
+    external = preview_swap and i18n.enabled(theme)
     lang_dict = (
         json.dumps(
             i18n.runtime_dict(cfg, page, template_dir.parent, langs=compiled),
@@ -231,7 +244,7 @@ def build_page(
             ensure_ascii=False,
         )
         if len(compiled) > 1
-        else ""
+        else ("{}" if external else "")
     )
 
     values = dict(base)
@@ -270,7 +283,7 @@ def build_page(
                 base_lang=i18n.base_language(cfg),
                 # Only where a language was compiled that the browser will not
                 # ask for. Derived from `preview` so it cannot be set on its own.
-                swap_global=PREVIEW_SWAP if preview and preview_languages else "",
+                swap_global=PREVIEW_SWAP if preview and (preview_languages or preview_swap) else "",
             )
             + redirect_js,
         }
