@@ -322,10 +322,27 @@ def build_all(
                 results.append(PageResult(th["name"], page, size, errors, warnings, pname))
 
             imports: dict[str, str] = {}
+            # The same two imports built with the gallery's language set and its
+            # swap hook. A SECOND build rather than a doctored copy of the first,
+            # for the reason the block pages build twice: the deploy import is
+            # what is measured, validated and written, and anything that could
+            # reach it from here is a preview construct one refactor away from a
+            # customer's firewall.
+            preview_imports: dict[str, str] = {}
             for page in PORTAL_PAGES:
                 # build_portal_page strips on the way out, so these are already the
                 # bytes the firewall receives; nothing may touch them afterwards.
                 imports[page] = build_portal_page(page, th, cfg, th_palette, portal_templates)
+                if preview:
+                    preview_imports[page] = build_portal_page(
+                        page,
+                        th,
+                        cfg,
+                        th_palette,
+                        portal_templates,
+                        preview=True,
+                        preview_languages=preview_langs,
+                    )
                 # The same argument, for the same reason, as the block-page call
                 # above: what the IMPORT carries, not what the config asked for.
                 size, errors, warnings = validate_portal(imports[page], languages=i18n.shipped(cfg, th))
@@ -346,12 +363,12 @@ def build_all(
                 portal_blobs.update(
                     {
                         (th["name"], pname, name): text
-                        for name, text in _splice(imports, ASSETS_FROM_GALLERY, fixtures).items()
+                        for name, text in _splice(preview_imports, ASSETS_FROM_GALLERY, fixtures).items()
                     }
                 )
                 if write:
                     (prev_dir / "portal").mkdir(parents=True, exist_ok=True)
-                    for name, text in _splice(imports, ASSETS_FROM_PAGE, fixtures).items():
+                    for name, text in _splice(preview_imports, ASSETS_FROM_PAGE, fixtures).items():
                         emit(prev_dir / "portal" / f"{name}.html", text)
 
     if preview and write:

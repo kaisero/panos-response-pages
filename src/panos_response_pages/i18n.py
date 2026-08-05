@@ -486,6 +486,7 @@ def portal_runtime(
     surface: str,
     data_dir: pathlib.Path,
     values: Mapping[str, object],
+    langs: Sequence[str] | None = None,
 ) -> str:
     """The per-import language dictionary, as a JS object literal.
 
@@ -498,10 +499,16 @@ def portal_runtime(
     dictionary's are. That dictionary ships on eleven pages in seven styles
     across every palette; this one ships twice per style, so the same saving is
     two orders of magnitude smaller and not worth an unreadable emitted script.
+
+    `langs` overrides which languages are compiled, exactly as runtime_dict's
+    does and for the same reason: absent -- every deploy build -- it is
+    `languages(cfg)`, the only honest answer for an import a firewall serves,
+    and the preview gallery passes previewable() so a reviewer can look at a
+    language the config has not turned on yet.
     """
     base = base_language(cfg)
     out: dict[str, Any] = {}
-    for lang in languages(cfg):
+    for lang in languages(cfg) if langs is None else langs:
         if lang == base:
             continue
         doc = load(lang, data_dir)

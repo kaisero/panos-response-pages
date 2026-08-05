@@ -24,13 +24,14 @@ login import, leaving under a kilobyte of headroom against the 16,170 B ceiling
 from __future__ import annotations
 
 import pathlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import quote
 
 from panos_response_pages import contact, i18n
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
+from panos_response_pages.scripts import PREVIEW_SWAP
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 
 # Slot order is document order. Nothing here is optional: a missing slot is a
@@ -82,14 +83,26 @@ def build_portal_page(
     cfg: Mapping[str, Any],
     palette: Mapping[str, Any],
     template_dir: pathlib.Path,
+    *,
+    preview: bool = False,
+    preview_languages: Sequence[str] = (),
 ) -> str:
     """Compose one portal import. `page` is "login" or "home".
 
-    There is deliberately no `preview` parameter, unlike build_page: neither
-    import changes shape for preview. Preview is produced by splicing the
-    captured PAN-OS prefix around this output, which is a separate stage -- so
-    these bytes are always the bytes the firewall receives.
+    `preview` changes ONE thing and only ever adds to it: the import compiles
+    `preview_languages` rather than the configured set, and parks the apply half
+    of its language selector on `window` so the gallery's Language control can
+    call it. Everything else -- the file shape, the slots, the frame -- is what
+    the firewall receives, because a preview of a different page is not a
+    preview. Nothing is spliced here; that is a separate stage.
+
+    Guarded exactly as build_page's list is, and for the same reason: the swap
+    global lands on `window` of a page whose markup PAN-OS half owns, and a
+    preview construct reaching an import a customer uploads is precisely the
+    silent failure this family exists to refuse.
     """
+    if preview_languages and not preview:
+        raise BuildError("preview_languages is a preview-only build; it must never reach deploy/")
     if page not in FRAMES:
         raise BuildError(f"unknown portal page {page!r} -- expected one of {', '.join(sorted(FRAMES))}")
 
@@ -111,7 +124,14 @@ def build_portal_page(
     # one that is consistently English. nyan's login import has 3562 B of
     # headroom and would fit German comfortably; it is a novelty style, and this
     # costs it nothing real.
-    values = _values(cfg, palette, page, template_dir.parent, len(i18n.shipped(cfg, theme)) > 1)
+    #
+    # A preview build compiles `preview_languages` instead -- every language the
+    # tree ships, whatever `languages` turned on -- but only where the style
+    # carries the feature at all. The opt-out is the same opt-out either way, so
+    # the gallery's control hides itself on nyan rather than offering a language
+    # nyan's frames cannot answer. Same shape as build_page's `compiled`.
+    compiled = list(preview_languages) if preview_languages and i18n.enabled(theme) else i18n.shipped(cfg, theme)
+    values = _values(cfg, palette, page, template_dir.parent, compiled, swap=preview and bool(preview_languages))
     # Slot bodies carry {{COMPANY}}, {{PORTAL_NAME}} and the palette tokens, so
     # they are resolved BEFORE being placed in the frame -- re.sub does not
     # rescan replacement text.
@@ -144,10 +164,20 @@ PORTAL_LANG_GLOBAL = "window.__gpT"
 #   * Nothing in the LOGIN import may contain the string `logout_text_array`.
 #     portal/validate.py tells the two imports apart by looking for it, and a
 #     login file carrying it would be checked against the home rules.
-def _i18n_pick(dict_json: str, base_lang: str) -> str:
-    """Open the closure and choose a language, or fall through to the markup."""
+def _i18n_open(dict_json: str) -> str:
+    """Open the closure over the dictionary and the browser's language list."""
+    return "(function(){var T=" + dict_json + ",L=navigator.languages||[navigator.language||''];\n"
+
+
+def _i18n_select(base_lang: str) -> str:
+    """Choose a language, or fall through to the markup.
+
+    Split from the apply half below so a PREVIEW build can put that half behind
+    a callable and this half in front of it. The two are concatenated back in
+    the order they were always in for a deploy build, which is what keeps those
+    imports byte-identical -- see _i18n_script.
+    """
     return (
-        "(function(){var T=" + dict_json + ",L=navigator.languages||[navigator.language||''];\n"
         "L.some(function(x){var k=x.slice(0,2).toLowerCase();\n"
         # The base language STOPS the search: a browser that ranks it above a
         # compiled language must keep the import it was served, which is already
@@ -155,6 +185,12 @@ def _i18n_pick(dict_json: str, base_lang: str) -> str:
         "if(k=='" + base_lang + "'){return true}\n"
         "if(!T[k]){return false}\n"
     )
+
+
+# What closes the selection loop and the closure around it, once the apply half
+# has run. A deploy build ends with exactly this; a preview build calls the apply
+# half by name instead and closes the closure after publishing it.
+_I18N_TAIL = "return true})})();"
 
 
 # The home import is script-only and PAN-OS writes that body itself, so the one
@@ -167,7 +203,7 @@ def _i18n_pick(dict_json: str, base_lang: str) -> str:
 # seven the firewall picked is baked into the generated file, so the German
 # array has to be the same seven entries in the same order -- the page has no
 # way to know which index it will be handed.
-_I18N_HOME = "var t=T[k];logout_text_array=t.lm;document.documentElement.lang=k;return true})})();"
+_I18N_HOME = "var t=T[k];logout_text_array=t.lm;document.documentElement.lang=k;"
 
 # The login import. This runs at the START of <!--@FOOT_SCRIPT--> because it
 # needs both the parsed body and the form PAN-OS substituted into it -- in
@@ -218,22 +254,95 @@ _I18N_LOGIN = (
     "P('#new_passwd',t.formNewPassword);P('#confirm_new_passwd',t.formConfirmPassword);\n"
     "var b=Q('#submit');if(b&&t.formSubmit){b.value=t.formSubmit}};\n"
     "F();window.addEventListener('load',F);\n"
-    "return true})})();"
 )
 
 _I18N = {"login": _I18N_LOGIN, "home": _I18N_HOME}
 
 
-def _i18n_script(page: str, dict_json: str, base_lang: str) -> str:
+# PREVIEW ONLY, and appended INSIDE the apply half rather than to the swap that
+# calls it -- `t` and `D` are declared there with `var`, so nothing outside can
+# read them. Both blocks are no-ops on the load-time call, which is what lets
+# them sit there: the login one is gated on an attribute the download widget
+# sets in a LATER <script>, and the home one on an element that is not parsed
+# yet when this runs in <head>.
+#
+# They exist for the same reason the block pages' gloss is re-resolved on a
+# swap: a preview that agrees with the served page everywhere except the one
+# element a reviewer opened it to judge is worse than no preview.
+#
+# login -- the download button's text is COMPUTED from the user agent, in a
+# widget that moves PAN-OS' own anchors into a menu and therefore cannot be run
+# twice. Its six strings are JS literals read out of the published dictionary at
+# widget time, when nothing has been swapped yet, so a swap has to re-derive
+# them. The hrefs the widget left behind carry everything needed: the platform,
+# the bit-ness, and -- on #dlmain -- which of them was picked.
+#
+# home -- the seven logout messages reach the page through PAN-OS' own ready
+# handler, which has already written one of them into #logout by the time a swap
+# arrives. WHICH one is decided by the firewall at request time, so the index is
+# found by looking the rendered text up in the array the page still holds,
+# BEFORE the apply half replaces it. A re-captured fixture that shows a
+# different message stays correct.
+_PREVIEW_BEFORE = {
+    "login": "",
+    "home": "var e0=document.getElementById('logout'),i0=(window.logout_text_array||[]).indexOf(e0&&e0.textContent);\n",
+}
+_PREVIEW_AFTER = {
+    "login": (
+        "var dm=D.getElementById('dlmenu');\n"
+        "if(dm&&D.documentElement.getAttribute('data-dl')=='on'){\n"
+        "var H=function(e){return e.getAttribute('href')||''};\n"
+        "var A=[].slice.call(dm.querySelectorAll('a'));\n"
+        "A.forEach(function(e){var u=H(e);\n"
+        "if(u.indexOf('platform=mac')!==-1){e.textContent=t.macos}\n"
+        "else if(u.indexOf('platform=windows')!==-1){"
+        "e.textContent=t.windows+(u.indexOf('version=64')!==-1?t.bit64:t.bit32)}});\n"
+        "var mn=D.getElementById('dlmain'),lb=D.getElementById('dllab'),p=null;\n"
+        "if(mn){A.forEach(function(e){if(H(e)===H(mn))p=e})}\n"
+        "if(lb){lb.textContent=p?t.downloadFor+p.textContent:t.chooseDownload}\n"
+        "}\n"
+    ),
+    "home": "if(e0&&i0!==-1&&t.lm[i0]){e0.textContent=t.lm[i0]}\n",
+}
+
+
+def _i18n_script(page: str, dict_json: str, base_lang: str, *, swap: bool = False) -> str:
     """The language selector for one import, or nothing to select between.
 
     An empty dictionary is not merely a saving: `T` would be `{}`, every lookup
     would miss, and the import would carry ~700 B of script that can never do
     anything.
+
+    `swap` is the PREVIEW form. The apply half becomes `AP(k)`, the selection
+    calls it, and the gallery gets the same function on `window` under the name
+    the block pages already use -- one convention, so the control's load handler
+    needs to know nothing about which family a frame belongs to.
+
+    The deploy form is the two halves concatenated in the order they were always
+    written in, so those imports do not move by a byte. That is asserted; it is
+    the whole reason the split is a split rather than a second runtime.
     """
     if dict_json in ("", "{}"):
         return ""
-    return "<script>\n" + _i18n_pick(dict_json, base_lang) + _I18N[page] + "\n</script>"
+    if swap:
+        # `g` rather than the block pages' `L`: that name is already the browser's
+        # language list in this closure, and a parameter shadowing it reads as a
+        # bug even where it is not one.
+        body = (
+            _i18n_open(dict_json)
+            + "var AP=function(k){"
+            + _PREVIEW_BEFORE[page]
+            + _I18N[page]
+            + _PREVIEW_AFTER[page]
+            + "};\n"
+            + _i18n_select(base_lang)
+            + "AP(k);return true});\n"
+            + f"window.{PREVIEW_SWAP}=function(g){{if(!T[g])return;AP(g)}};\n"
+            + "})();"
+        )
+    else:
+        body = _i18n_open(dict_json) + _i18n_select(base_lang) + _I18N[page] + _I18N_TAIL
+    return "<script>\n" + body + "\n</script>"
 
 
 # The six strings the download widget writes. They are the only copy in this
@@ -358,9 +467,18 @@ def _values(
     palette: Mapping[str, Any],
     page: str,
     data_dir: pathlib.Path,
-    multilingual: bool,
+    langs: Sequence[str],
+    *,
+    swap: bool = False,
 ) -> dict[str, str]:
-    """Everything a portal slot may reference."""
+    """Everything a portal slot may reference.
+
+    `langs` is what this import COMPILES -- the configured set on a deploy build,
+    every language the tree ships on a preview one. `swap` publishes the preview
+    hook; it is derived from the preview list rather than passed on its own, so
+    it cannot be turned on for an import a firewall serves.
+    """
+    multilingual = len(langs) > 1
     contact.check(cfg)
     base = {
         "COMPANY": str(cfg["company"]),
@@ -402,7 +520,12 @@ def _values(
     # byte-identical to imports from before this existed. `strip_output` drops
     # the blank line the empty value leaves behind.
     values["PORTAL_I18N"] = (
-        _i18n_script(page, i18n.portal_runtime(cfg, page, data_dir, values), i18n.base_language(cfg))
+        _i18n_script(
+            page,
+            i18n.portal_runtime(cfg, page, data_dir, values, langs=langs),
+            i18n.base_language(cfg),
+            swap=swap,
+        )
         if multilingual
         else ""
     )
