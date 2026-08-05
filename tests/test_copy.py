@@ -21,6 +21,7 @@ from panos_response_pages.validate import BANNED_COPY
 
 PAGES = sorted((DATA / "templates/pages").glob("*.html"))
 CONFIG = DATA / "config/_defaults.json"
+STRINGS = DATA / "strings"
 
 BANNED = BANNED_COPY
 
@@ -90,15 +91,21 @@ class TestCopy(unittest.TestCase):
 
     def test_continue_grant_duration_comes_from_config(self):
         """The Continue timeout is admin-configurable; hardcoding it asserts a
-        fact the page cannot know."""
+        fact the page cannot know.
+
+        Read out of the strings files as well as the templates: the sentence
+        carrying the duration is copy now, so that is where it would be
+        hardcoded -- and where the placeholder has to survive translation."""
         cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
         self.assertIn("continueGrantText", cfg)
-        for name, body in self._sources():
+        strings = [(p.name, p.read_text(encoding="utf-8")) for p in sorted(STRINGS.glob("*.json"))]
+        for name, body in self._sources() + strings:
             if name == CONFIG.name:
                 continue
             self.assertNotIn("15 minutes", body, f"{name} hardcodes the Continue grant duration")
-        coach = (DATA / "templates/pages/url-coach-text.html").read_text(encoding="utf-8")
-        self.assertIn("{{CONTINUE_GRANT}}", coach, "url-coach-text should render the duration from config")
+        for name, body in strings:
+            coach = json.loads(body)["pages"]["url-coach-text"]
+            self.assertIn("{{CONTINUE_GRANT}}", coach["extra"], f"{name}: url-coach-text drops the configured duration")
 
 
 if __name__ == "__main__":

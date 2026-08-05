@@ -118,6 +118,18 @@
         "intro": "Please review this block.",
         "prompt": "Why I need access:"
       }
+    },
+    "url-coach-text": {
+      "title": "Continue to this site?",
+      "headline": "Continue to this site?",
+      "gloss": "This category is restricted by company policy.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": "Continuing grants access to <strong>every site in this category</strong> for {{CONTINUE_GRANT}}.",
+      "report": {
+        "subject": "Category warning - continue page",
+        "intro": "I was warned before continuing.",
+        "prompt": "Why I think the category is wrong:"
+      }
     }
   }
 }
