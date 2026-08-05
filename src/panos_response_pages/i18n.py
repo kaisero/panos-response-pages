@@ -139,7 +139,6 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
         "T_TITLE": p["title"],
         "T_HEADLINE": p["headline"],
         "T_GLOSS": p["gloss"],
-        "T_EXTRA": p.get("extra", ""),
         "T_REPORT_LABEL": shared["reportLabel"],
         "T_REPORT_SUBJECT": p["report"]["subject"],
         "T_REPORT_INTRO": p["report"]["intro"],
@@ -149,6 +148,23 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
     }
     for i, label in enumerate(p["facts"], start=1):
         out[f"T_FACT{i}"] = label
+    # A string when the slot is one run of prose, an array when the template
+    # interrupts it with markup only the build can produce -- safe-search wraps
+    # the contact anchor, whose href and data-* attributes are decided at build
+    # time, in the middle of a sentence. Numbered like the fact labels and for
+    # the same reason: the order IS the contract, and naming the fragments would
+    # invent a second one that could disagree with it.
+    extra = p.get("extra", "")
+    if isinstance(extra, list):
+        for i, part in enumerate(extra, start=1):
+            out[f"T_EXTRA{i}"] = part
+    else:
+        out["T_EXTRA"] = extra
+    # The report action is every page's first button and comes from `shared`.
+    # A page that offers a second one -- safe-search sends the user to the search
+    # engine's own settings -- names it here, because only that page has one.
+    if "action2" in p:
+        out["T_ACTION2_LABEL"] = p["action2"]
     return out
 
 

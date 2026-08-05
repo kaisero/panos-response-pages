@@ -140,6 +140,49 @@ class TestPageValues(unittest.TestCase):
         self.assertEqual(v["T_CONTACT_ALT1"], "Or email ")
         self.assertEqual(v["T_REPORT_SUBJECT"], "Blocked application report")
 
+    def test_an_array_extra_becomes_numbered_fragments(self):
+        """safe-search interrupts its own sentence with the contact anchor, and
+        the anchor is the build's rather than the translator's -- its href and
+        data-* attributes are decided at build time. The slot arrives as an
+        array and each fragment gets its own numbered placeholder, so a
+        translation can move the words around the markup it cannot carry."""
+        doc = {
+            "shared": {"reportLabel": "R", "contactAlt": ["a", "b"]},
+            "pages": {
+                "safe-search-block-page": {
+                    "title": "t",
+                    "headline": "h",
+                    "gloss": "g",
+                    "facts": ["User", "Time"],
+                    "action2": "Open search settings",
+                    "extra": ["first para", "Contact ", " and IT will look."],
+                    "report": {"subject": "s", "intro": "i", "prompt": "p"},
+                }
+            },
+        }
+        v = i18n.page_values(doc, "safe-search-block-page", {})
+        self.assertEqual(v["T_EXTRA1"], "first para")
+        self.assertEqual(v["T_EXTRA2"], "Contact ")
+        self.assertEqual(v["T_EXTRA3"], " and IT will look.")
+        self.assertNotIn("T_EXTRA", v, "a split slot has no single-string form to fall back on")
+        self.assertEqual(v["T_ACTION2_LABEL"], "Open search settings")
+
+    def test_a_second_action_label_is_only_emitted_where_a_page_declares_one(self):
+        doc = {
+            "shared": {"reportLabel": "R", "contactAlt": ["a", "b"]},
+            "pages": {
+                "url-block-page": {
+                    "title": "t",
+                    "headline": "h",
+                    "gloss": "g",
+                    "facts": ["User"],
+                    "extra": "e",
+                    "report": {"subject": "s", "intro": "i", "prompt": "p"},
+                }
+            },
+        }
+        self.assertNotIn("T_ACTION2_LABEL", i18n.page_values(doc, "url-block-page", {}))
+
     def test_names_the_page_when_it_is_absent(self):
         with self.assertRaises(BuildError) as ctx:
             i18n.page_values({"shared": {}, "pages": {}}, "url-block-page", {})

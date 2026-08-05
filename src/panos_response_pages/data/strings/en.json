@@ -77,6 +77,23 @@
         "intro": "A file transfer was blocked by policy.",
         "prompt": "Why I need this file:"
       }
+    },
+    "safe-search-block-page": {
+      "title": "Turn on SafeSearch to continue",
+      "headline": "Turn on SafeSearch to continue",
+      "gloss": "Your search was blocked because SafeSearch is not switched on. Company policy requires SafeSearch on the search engines it covers.",
+      "facts": ["User", "Time"],
+      "action2": "Open search settings",
+      "extra": [
+        "Set SafeSearch to its strictest option, then run your search again. If you are signed in to the search engine, lock the setting as well.",
+        "Still blocked after turning SafeSearch on? Contact ",
+        " and IT will take a look."
+      ],
+      "report": {
+        "subject": "SafeSearch still blocked",
+        "intro": "SafeSearch is enabled but my search is still blocked.",
+        "prompt": "What I searched for:"
+      }
     }
   }
 }
