@@ -1,21 +1,32 @@
-"""Copy rules for the page templates.
+"""Copy rules for the words this project ships.
 
 Two classes of statement are forbidden because the response page has no way to
 substantiate either: claims about whether data was transmitted, and claims that a
 policy applies to all users. PAN-OS exposes no variable for either fact.
 
-This lints the *templates*. build.py:audit_copy lints the *rendered output* using
-the same phrase list. Duplicating the *pass* is deliberate — it catches a
-violation introduced in config/_defaults.json, which never appears in a
-template. Duplicating the *phrase list* would not be: a phrase added to
-BANNED_COPY would then never be linted against the templates, silently. So the
-list is imported, and only the pass is written twice.
+This lints the *authored copy*: `data/strings/*.json`, which is where every word
+a user reads now lives, plus `config/_defaults.json`, whose customer-facing
+sentences never pass through a strings file. Every shipped language is linted,
+not just the base one -- globbed rather than listed, so a language is covered the
+day its file lands. build.py:audit_copy lints the *rendered output* using the
+same phrase list. Duplicating the *pass* is deliberate: this one names the file
+and runs without a build, and it reaches copy that a single-language build never
+renders at all. Duplicating the *phrase list* would not be -- a phrase added to
+BANNED_COPY would then never be linted here, silently. So the list is imported,
+and only the pass is written twice.
+
+The structural guards below assert on BUILT pages rather than on templates. The
+templates carry {{T_*}} placeholders now, so a template is no longer a place a
+sentence can be found; the built page is the first artefact where the words and
+the markup are in the same file, which is what these rules are about.
 """
 
+import functools
 import json
 import re
 import unittest
 
+from _build import deploy_dir
 from _paths import DATA
 from panos_response_pages.validate import BANNED_COPY
 
@@ -35,17 +46,55 @@ REPORT_PAGES = [
 ]
 
 
+@functools.lru_cache(maxsize=1)
+def built_pages():
+    """Every built response page, as (path, html). Portal pages excluded --
+    they are not response pages and carry none of this structure.
+
+    Cached: a build is 364 files and half the assertions below walk all of
+    them."""
+    return tuple(
+        (f, f.read_text(encoding="utf-8")) for f in sorted(deploy_dir().rglob("*.html")) if "portal" not in f.parts
+    )
+
+
+def page_dirs():
+    """The (style, palette) directories a build produces.
+
+    The counters below multiply by this rather than hardcoding a number: a new
+    style or palette should widen the coverage, not silently invalidate a count.
+    """
+    return {f.parent for f, _ in built_pages()}
+
+
 class TestCopy(unittest.TestCase):
     # Only slot content reaches the user. A page template's leading <!-- --> block
     # is developer documentation and may legitimately discuss the banned phrases.
     SECTION_RE = re.compile(r"<!--@([A-Z_]+)-->(.*?)<!--/@\1-->", re.S)
 
     def _sources(self):
+        """The authored copy, by file.
+
+        Whole files rather than extracted values: a strings document is copy
+        from `{` to `}`, and slicing it to the keys this test knows about would
+        stop linting the next key someone adds.
+        """
+        out = [(p.name, p.read_text(encoding="utf-8")) for p in sorted(STRINGS.glob("*.json"))]
+        out.append((CONFIG.name, CONFIG.read_text(encoding="utf-8")))
+        return out
+
+    def _template_slots(self):
+        """The page templates' slot bodies.
+
+        Almost all copy has left these, but a template can still be given words
+        directly -- and copy hardcoded here is copy no language can override.
+        Kept for the rules that are about the MARKUP carrying a fact, which is
+        the one thing a strings file cannot express.
+        """
         out = []
         for p in PAGES:
             slots = self.SECTION_RE.findall(p.read_text(encoding="utf-8"))
             out.append((p.name, "\n".join(body for _name, body in slots)))
-        out.append((CONFIG.name, CONFIG.read_text(encoding="utf-8")))
         return out
 
     def test_no_unsubstantiated_claims(self):
@@ -57,37 +106,15 @@ class TestCopy(unittest.TestCase):
                     hits.append(f"{name} '{phrase}' — {why}")
         self.assertEqual(hits, [], "unsubstantiated claims:\n  " + "\n  ".join(hits))
 
-    @unittest.expectedFailure
-    def test_user_field_row(self):
-        """MIGRATING (Task 4-10): copy has left the templates, so this string is
-        no longer there to match. The guard moves to the built output in Task 10,
-        which removes this decorator -- and unittest reports an unexpected
-        success if that happens before every page has migrated."""
-        for p in PAGES:
-            text = p.read_text(encoding="utf-8")
-            self.assertNotIn("Signed in as", text, f"{p.name} still uses 'Signed in as'")
-            self.assertIn("<dt>User</dt><dd><user/></dd>", text, f"{p.name} missing the User fact row")
-
-    @unittest.expectedFailure
-    def test_report_button_wording(self):
-        """MIGRATING (Task 5-10): the report label is one shared string now, so
-        the template carries {{T_REPORT_LABEL}} and not the words. The guard
-        moves to the built output in Task 10, which removes this decorator."""
-        for p in PAGES:
-            text = p.read_text(encoding="utf-8")
-            for old in ("Report this block to IT", "Report this to IT Security", "Report this instead"):
-                self.assertNotIn(old, text, f"{p.name} still uses '{old}'")
-            if p.stem in REPORT_PAGES:
-                self.assertIn(">Report to IT</a>", text, f"{p.stem} is missing its 'Report to IT' action")
-
-    @unittest.expectedFailure
-    def test_credential_block_headline(self):
-        """MIGRATING (Task 5-10): the title and headline live in en.json, so the
-        template slots hold placeholders. The guard moves to the built output in
-        Task 10, which removes this decorator."""
-        text = (DATA / "templates/pages/credential-block-page.html").read_text(encoding="utf-8")
-        self.assertIn("<!--@TITLE-->Credential submission blocked<!--/@TITLE-->", text)
-        self.assertIn("<!--@HEADLINE-->Credential submission blocked<!--/@HEADLINE-->", text)
+    def test_every_shipped_language_is_linted(self):
+        """The pass above is a loop over a glob, so it reports success on an
+        empty one. This is what makes "every language" a claim rather than an
+        accident of which files happened to exist."""
+        linted = {name for name, _ in self._sources()}
+        self.assertIn("en.json", linted, "the base language is not linted")
+        self.assertIn(CONFIG.name, linted, "the customer-facing defaults are not linted")
+        for path in sorted(STRINGS.glob("*.json")):
+            self.assertIn(path.name, linted, f"{path.name} ships copy that nothing lints")
 
     def test_continue_grant_duration_comes_from_config(self):
         """The Continue timeout is admin-configurable; hardcoding it asserts a
@@ -106,16 +133,92 @@ class TestCopy(unittest.TestCase):
         self.assertIn("continueGrantText", cfg)
         strings = [(p.name, json.loads(p.read_text(encoding="utf-8"))) for p in sorted(STRINGS.glob("*.json"))]
         copy = [(name, json.dumps(doc["pages"], ensure_ascii=False)) for name, doc in strings]
-        for name, body in self._sources() + copy:
-            if name == CONFIG.name:
-                continue
+        for name, body in self._template_slots() + copy:
             self.assertNotIn("15 minutes", body, f"{name} hardcodes the Continue grant duration")
         for name, doc in strings:
             # The slot is split into fragments around its <strong>, so the
             # placeholder is asserted against the reassembled sentence. "".join
             # is a no-op on the single-string shape, so this reads either.
-            extra = "".join(doc["pages"]["url-coach-text"]["extra"])
+            raw = doc["pages"]["url-coach-text"]["extra"]
+            extra = "".join(raw) if isinstance(raw, list) else raw
             self.assertIn("{{CONTINUE_GRANT}}", extra, f"{name}: url-coach-text drops the configured duration")
+
+
+class TestBuiltPagesIdentifyTheUser(unittest.TestCase):
+    """Who was blocked is the one fact every page states.
+
+    Asserted on the built page rather than the template because the label is
+    translated now: the template carries {{T_FACTn}} and the strings file
+    carries "User", and neither file on its own says that the two ended up in
+    the same row. The built page is where they meet.
+    """
+
+    def test_every_built_page_carries_a_user_row(self):
+        """The assertion is on the TOKEN and its row, not on the word 'User' --
+        a German page says "Benutzer" and is just as correct."""
+        found = 0
+        for f, text in built_pages():
+            found += 1
+            self.assertRegex(text, r"<dt>[^<]+</dt><dd><user/></dd>", f"{f} has no user fact row")
+        self.assertGreater(found, 0, "no built pages were examined")
+
+    def test_no_page_reverted_to_the_prose_form(self):
+        """`Signed in as <user/>` was the shape this replaced. It reads as a
+        greeting rather than as a recorded fact, and it does not fit the fact
+        table the report mail is rebuilt from."""
+        for f, text in built_pages():
+            self.assertNotIn("Signed in as", text, f"{f} still uses 'Signed in as'")
+
+
+class TestBuiltPagesUseTheAgreedReportWording(unittest.TestCase):
+    """One label, shared by every page that offers the action.
+
+    It lives in `shared.reportLabel` now, so the retired wordings could only
+    come back through a template hardcoding them -- which is exactly the failure
+    this keeps watching for, and which only the built page can show.
+    """
+
+    RETIRED = ("Report this block to IT", "Report this to IT Security", "Report this instead")
+
+    def test_report_button_wording(self):
+        found = 0
+        for f, text in built_pages():
+            for old in self.RETIRED:
+                self.assertNotIn(old, text, f"{f} still uses '{old}'")
+            if f.stem in REPORT_PAGES:
+                found += 1
+                self.assertIn(">Report to IT</a>", text, f"{f} is missing its 'Report to IT' action")
+        self.assertEqual(
+            found,
+            len(REPORT_PAGES) * len(page_dirs()),
+            "not every build of every reporting page was examined",
+        )
+
+
+class TestBuiltCredentialBlockPage(unittest.TestCase):
+    """The highest-stakes page in the set, pinned by its words.
+
+    Its title and headline are the same sentence deliberately -- the tab and the
+    page agree about what happened -- and the two used to drift apart. Asserted
+    against en.json AND the built page: the strings file is where the wording is
+    authored, the built page is proof it reached the markup.
+    """
+
+    HEADLINE = "Credential submission blocked"
+
+    def test_credential_block_headline(self):
+        doc = json.loads((STRINGS / "en.json").read_text(encoding="utf-8"))
+        page = doc["pages"]["credential-block-page"]
+        self.assertEqual(page["title"], self.HEADLINE)
+        self.assertEqual(page["headline"], self.HEADLINE)
+        found = 0
+        for f, text in built_pages():
+            if f.stem != "credential-block-page":
+                continue
+            found += 1
+            self.assertIn(f"<title>{self.HEADLINE}</title>", text, f"{f} lost its title")
+            self.assertIn(f"<h1>{self.HEADLINE}</h1>", text, f"{f} lost its headline")
+        self.assertEqual(found, len(page_dirs()), "not every build of credential-block-page was examined")
 
 
 if __name__ == "__main__":

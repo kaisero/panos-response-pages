@@ -96,6 +96,17 @@ def external_refs(text: str) -> Iterator[tuple[str, str]]:
 # into whether data actually left the browser, and no visibility into which policy
 # matched -- different users can match different rules. Neither class of statement
 # can be made truthfully, so both fail the build rather than reaching a user.
+#
+# Every phrase is written in lower case: audit_copy() lowers the text it scans
+# and compares against these verbatim, so a capitalised entry would never match.
+# That matters more for the German entries than the English ones, where the
+# banned wording can open a sentence and arrive capitalised.
+#
+# The `codespell:ignore` markers below are on the lines carrying German. An
+# English misspelling dictionary reads ordinary German function words as typos
+# for English ones, and the alternative -- listing them in ignore-words-list --
+# would switch the same corrections off for every file in the tree. Same
+# reasoning as the de.json skip in pyproject.toml, at line granularity.
 BANNED_COPY = [
     ("nothing you typed", "asserts data was not transmitted"),
     ("was not sent", "asserts data was not transmitted"),
@@ -103,6 +114,25 @@ BANNED_COPY = [
     ("for everyone", "asserts the policy applies to all users"),
     ("everybody", "asserts the policy applies to all users"),
     ("not just you", "asserts the policy applies to all users"),
+    # German. The rules are about what the page can substantiate, not about
+    # English -- a German sentence asserts an unknowable just as easily, and
+    # while this list was English-only a violation in de.json shipped silently.
+    #
+    # "wurde nicht ..." rather than the bare participle: the claim is that the
+    # transfer did not happen, and the auxiliary is what makes it one. Without
+    # it "nicht gesendet" also matches ordinary guidance about what NOT to send.
+    ("wurde nicht übermittelt", "asserts data was not transmitted"),
+    ("wurde nicht gesendet", "asserts data was not transmitted"),
+    ("hat ihr gerät nicht verlassen", "asserts data was not transmitted"),
+    # Deliberately not narrowed by a following noun: the claim is made just as
+    # well without one. Checked against the shipped German first -- the two
+    # sentences that come closest are safe-search's clause about the search
+    # engines a policy covers and url-coach's about every site in a category,
+    # and both are claims about SITES rather than users. Neither contains this
+    # phrase contiguously, so the wider form costs nothing here.
+    ("für alle", "asserts the policy applies to all users"),  # codespell:ignore
+    ("für jeden", "asserts the policy applies to all users"),
+    ("nicht nur bei ihnen", "asserts the policy applies to all users"),
 ]
 
 

@@ -212,6 +212,42 @@ def resolve(value: Any, values: Mapping[str, object]) -> Any:
     return value
 
 
+# The two fragments the CONTACT_ALT slot wraps its mailto anchor in. Named
+# rather than written as `2` at both call sites: the number IS the template's
+# shape, and a slot that grew a third fragment would have to change here.
+CONTACT_ALT_PARTS = 2
+
+
+def _contact_alt(page_block: Mapping[str, Any], shared: Mapping[str, Any], where: str) -> list[str]:
+    """The pair of fragments either side of the contact address, for one page.
+
+    Most pages offer the same fallback ("... with the details above"), so it
+    lives in `shared` and is written once per language. The two pages that want
+    the user moving now -- a live credential submission, a malware hit -- say
+    "straight away" instead, and carry their own pair. Overriding beats a second
+    shared key: the alternative names the variant rather than the page, and a
+    translator then has to work out which pages use which.
+
+    Every other failure in this module raises BuildError naming the page. This
+    one used to raise a bare KeyError from the `shared` lookup, or -- worse -- a
+    bare IndexError from the caller when an override carried one fragment
+    instead of two, which names no file, no language and no page. The arity is
+    checked here because a one-fragment override is not a missing key: it passes
+    check_complete (the key exists), it passes empty_leaves (nothing is empty),
+    and it is only wrong against the template, which this is the closest code
+    to.
+    """
+    got = page_block.get("contactAlt") or shared.get("contactAlt")
+    if not got:
+        raise BuildError(f"strings document has no `contactAlt` for page '{where}', and none in `shared`")
+    if len(got) != CONTACT_ALT_PARTS:
+        raise BuildError(
+            f"`contactAlt` for page '{where}' has {len(got)} fragment(s); "
+            f"the template wraps its address in exactly {CONTACT_ALT_PARTS}"
+        )
+    return [str(x) for x in got]
+
+
 def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object]) -> dict[str, str]:
     """The {{T_*}} values one page needs, flattened from the strings document.
 
@@ -225,13 +261,7 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
         raise BuildError(f"strings document has no entry for page '{page}'")
     p = resolve(pages[page], values)
     shared = resolve(doc.get("shared", {}), values)
-    # Most pages offer the same fallback ("... with the details above"), so it
-    # lives in `shared` and is written once per language. The two pages that
-    # want the user moving now -- a live credential submission, a malware hit --
-    # say "straight away" instead, and carry their own pair. Overriding beats a
-    # second shared key: the alternative names the variant rather than the page,
-    # and a translator then has to work out which pages use which.
-    contact_alt = p.get("contactAlt", shared["contactAlt"])
+    contact_alt = _contact_alt(p, shared, page)
     out: dict[str, str] = {
         "T_TITLE": p["title"],
         "T_HEADLINE": p["headline"],
@@ -334,8 +364,10 @@ def runtime_dict(cfg: Mapping[str, Any], page: str, data_dir: pathlib.Path) -> d
             # Mirrors page_values(): the two pages that want the user moving now
             # carry their own pair, and a page override has to win here too or
             # the swap would quietly replace "straight away" with the shared
-            # wording the moment a language was selected.
-            "ca": list(p.get("contactAlt", shared["contactAlt"])),
+            # wording the moment a language was selected. Same helper, so a
+            # German file with a one-fragment override fails naming the page
+            # rather than shipping a sentence the runtime cannot swap.
+            "ca": _contact_alt(p, shared, f"{lang}/{page}"),
             "s": shared["severity"],
             "dg": conf["defaultGloss"],
             "rg": conf["riskGloss"],

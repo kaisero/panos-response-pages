@@ -386,6 +386,45 @@ class TestNoCopyCarriesMarkup(unittest.TestCase):
         )
 
 
+class TestContactAltArity(unittest.TestCase):
+    """`contactAlt` is one sentence split around the address the template
+    renders, so the number of fragments IS the template's shape.
+
+    "Or email " appears three times in en.json -- once in `shared` and once in
+    each of the two page overrides -- and editing the shared prefix leaves the
+    overrides behind. Nothing in check_complete notices: an override is a legal
+    key with legal values, and a one-fragment one has legal keys too. It reaches
+    a page as an IndexError at build time, or, if it is longer rather than
+    shorter, as a fragment silently dropped on the floor.
+    """
+
+    def test_every_page_override_has_the_shared_arity(self):
+        found = 0
+        for path in sorted((DATA / "strings").glob("*.json")):
+            doc = i18n.load(path.stem, DATA)
+            want = len(doc["shared"]["contactAlt"])
+            self.assertEqual(want, i18n.CONTACT_ALT_PARTS, f"{path.name}: shared.contactAlt is not the slot's shape")
+            for page, block in sorted(doc["pages"].items()):
+                if "contactAlt" not in block:
+                    continue
+                found += 1
+                got = len(block["contactAlt"])
+                self.assertEqual(got, want, f"{path.name}/{page}: {got} fragment(s) against {want} in shared")
+        self.assertGreater(found, 0, "no page override was examined; the rule has lost its subject")
+
+    def test_a_short_override_is_refused_by_name(self):
+        """The failure mode, in the code that would hit it. A bare IndexError
+        from the caller names no page, no language and no key."""
+        doc = {
+            "shared": {"reportLabel": "R", "contactAlt": ["a", "b"]},
+            "pages": {"url-block-page": {"contactAlt": ["only one"]}},
+        }
+        with self.assertRaises(BuildError) as ctx:
+            i18n.page_values(doc, "url-block-page", {})
+        self.assertIn("url-block-page", str(ctx.exception))
+        self.assertIn("contactAlt", str(ctx.exception))
+
+
 class TestSeverityLabels(unittest.TestCase):
     def test_severity_labels_come_from_the_strings_file(self):
         """The third home of English copy. It cannot stay in Python once the
@@ -453,18 +492,53 @@ class TestSeverityLabelsArePlaceholderResolved(unittest.TestCase):
 
 
 class TestTemplatesCarryNoCopy(unittest.TestCase):
+    """Every place in a template where a word can hide.
+
+    Four slots are whole-body: nothing in TITLE, HEADLINE, GLOSS or EXTRA is
+    anything but copy. Two are not, and both were open holes -- a `<dt>` label
+    hardcoded inside FACTS or a button label hardcoded inside ACTIONS is English
+    that no language can override, and neither slot can be emptied wholesale
+    because both legitimately carry markup and PAN-OS tokens.
+
+    The fact-count guard does NOT close the FACTS hole: TestFactLabelCounts
+    counts `<dt>` rows against `facts` entries, and a hardcoded label is still
+    one row -- the count stays right and the German page still says "User".
+    """
+
+    # Slots whose entire body is copy.
+    WHOLE = ("TITLE", "HEADLINE", "GLOSS", "EXTRA", "CONTACT_ALT")
+
+    # Slots that carry markup, and the part of them that is copy. FACTS is the
+    # <dt> bodies rather than the block: its <dd>s hold PAN-OS tokens and ids.
+    # ACTIONS is the anchor TEXT: `[^<>]` and not `[^<]`, because safe-search
+    # puts a PAN-OS token inside an href -- `href="<ssurl/>"` -- so the first
+    # '>' before the label is not the end of the opening tag.
+    PARTS: ClassVar = {"FACTS": re.compile(r"<dt>(.*?)</dt>", re.S), "ACTIONS": re.compile(r">([^<>]*)</a>", re.S)}
+
+    def _copy_parts(self, name, body):
+        """The stretches of one slot body that are supposed to hold no words."""
+        if name in self.WHOLE:
+            return [body]
+        if name in self.PARTS:
+            return self.PARTS[name].findall(body)
+        return []
+
     def test_no_prose_left_in_page_slots(self):
         """Copy lives in the strings files now. A slot with words in it is copy
         that no language can override -- it would ship English into a German
         page, silently."""
-        slots = ("TITLE", "HEADLINE", "GLOSS", "EXTRA")
+        seen = set()
         for f in sorted((DATA / "templates/pages").glob("*.html")):
             text = f.read_text(encoding="utf-8")
             for name, body in re.findall(r"<!--@([A-Z_]+)-->(.*?)<!--/@\1-->", text, re.S):
-                if name not in slots:
-                    continue
-                stripped = re.sub(r"\{\{[A-Z_0-9]+\}\}|<[^>]+>", "", body).strip()
-                self.assertEqual(stripped, "", f"{f.stem} {name} still contains copy: {stripped!r}")
+                for part in self._copy_parts(name, body):
+                    seen.add(name)
+                    stripped = re.sub(r"\{\{[A-Z_0-9]+\}\}|<[^>]+>", "", part).strip()
+                    self.assertEqual(stripped, "", f"{f.stem} {name} still contains copy: {stripped!r}")
+        # The loop above is a filter, so a slot that stopped matching would drop
+        # out of it in silence -- which is how the FACTS and ACTIONS holes would
+        # reopen without a single assertion changing.
+        self.assertEqual(seen, set(self.WHOLE) | set(self.PARTS), "a slot this rule covers was never examined")
 
 
 class TestCustomerTranslations(unittest.TestCase):
