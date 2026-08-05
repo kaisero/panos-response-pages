@@ -93,6 +93,7 @@ def external_refs(text: str) -> Iterator[tuple[str, str]]:
         yield text[m.start() : m.end("scheme")], m.group("scheme") + m.group("rest")
 
 
+# Claims a response page cannot substantiate. PAN-OS gives the page no visibility
 # into whether data actually left the browser, and no visibility into which policy
 # matched -- different users can match different rules. Neither class of statement
 # can be made truthfully, so both fail the build rather than reaching a user.
