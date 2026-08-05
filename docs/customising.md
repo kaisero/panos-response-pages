@@ -105,7 +105,7 @@ Those three attributes are the seam for ticket-system support: a ServiceNow or
 Jira Service Management adapter reads them and builds a pre-filled URL —
 `short_description` from `data-subject`, `description` from `data-intro` plus the
 page's fact table. That adapter does not exist yet; the attributes are already
-there so that adding it does not mean editing all ten page templates again.
+there so that adding it does not mean editing all eleven page templates again.
 
 ### Also affected
 

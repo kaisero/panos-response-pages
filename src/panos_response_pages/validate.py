@@ -27,13 +27,17 @@ PAGE_TOKENS = {
     "file-block-page": {"user", "fname"},
     "file-block-continue-page": {"user", "fname", "cookie"},
     "data-filter-block-page": {"user", "fname", "appname", "direction"},
+    "ssl-cert-status-page": {"user", "url", "category", "certname", "issuer", "status", "reason"},
 }
 
-# <direction/> is provided only on data-filter-block-page. It has to be listed
-# here as well as in PAGE_TOKENS: the legality loop below iterates this regex, so
-# a token missing from it is never scanned, never checked against the page's
-# allowed set, and ships as inert markup that renders nothing.
-TOKEN_RE = re.compile(r"<(user|url|category|ssurl|pan_form|fname|cookie|appname|direction)\s*/>")
+# Every token any page provides has to be listed here as well as in PAGE_TOKENS:
+# the legality loop below iterates this regex, so a token missing from it is
+# never scanned, never checked against the page's allowed set, and ships as inert
+# markup that renders nothing. <direction/> is data-filter-block-page's alone;
+# <certname/> <issuer/> <status/> <reason/> are ssl-cert-status-page's.
+TOKEN_RE = re.compile(
+    r"<(user|url|category|ssurl|pan_form|fname|cookie|appname|direction|certname|issuer|status|reason)\s*/>"
+)
 
 # The contact anchor, and only it, may link off the page. Matched rather than
 # substring-tested: `'id="rep"' in tag` also accepts an attribute whose NAME
@@ -77,7 +81,7 @@ def external_refs(text: str) -> Iterator[tuple[str, str]]:
     that the user trusts what it says; a cleartext link out of it is not that.
 
     rfind("<") walks back to the opening of the tag the match sits in. Verified
-    against all 7 styles x 10 pages in both contact modes: no false positives,
+    against all 7 styles x 11 pages in both contact modes: no false positives,
     including the multi-line anchor and safe-search's inline one.
     """
     for m in _EXTERNAL_REF.finditer(text):

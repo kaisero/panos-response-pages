@@ -19,6 +19,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   capitalised `Upload`/`Download`, so the page uses it only as a fact-row value,
   where either casing reads correctly. Confirm it on live hardware before
   relying on it in prose.
+- **An eleventh page type, `ssl-cert-status-page`** — the certificate error a
+  user meets on a decrypted session. It is the first page whose subject is the
+  *server* rather than the organisation: it explains that a certificate could
+  not be verified, and its advice is to not sign in, rather than to ask for the
+  site to be allowed. Tone is `warn` rather than `crit` deliberately — an expired
+  certificate and an active interception arrive here identically, and rendering
+  every one as a security risk teaches people to click through the ones that
+  matter.
+- Four more tokens: `<certname/>`, `<issuer/>`, `<status/>` and `<reason/>`, all
+  provided on the certificate page alone. They appear in the shipped PAN-OS
+  default and are corroborated as a group by the community variable list; no
+  official source documents them, and nothing documents what `<status/>` and
+  `<reason/>` contain. `<badcert/>` is named in that same community list but does
+  *not* appear in the vendor default, so it is deliberately left unregistered.
+- `<url/>` is documented as rendering the **destination IP** on the decryption
+  path, which is what it does on the certificate page — the vendor default labels
+  that row `IP:`. The page labels it `Server` so it reads correctly whether an
+  address or a hostname arrives, and the preview gallery now substitutes an
+  address there rather than the shared long-URL sample — `SAMPLE` is keyed by
+  token, so a new `PAGE_SAMPLE` map carries the per-page exceptions.
 
 ## [0.1.1]
 

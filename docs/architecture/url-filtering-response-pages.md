@@ -3,9 +3,9 @@
 **Location:** Device → Response Pages
 **Serves:** dataplane injection into user traffic
 
-The ten page types this project generates. They share one file shape and one set of
+The eleven page types this project generates. They share one file shape and one set of
 constraints, differing only in which substitution tokens PAN-OS provides — so they are
-documented together rather than in ten near-identical files.
+documented together rather than in eleven near-identical files.
 
 These are a **different page class** from the
 [GlobalProtect portal pages](general.md#pages). Do not carry constraints between them:
@@ -35,18 +35,60 @@ page's set renders as inert markup — it shows nothing, silently.
 | `file-block-page` | `<user/>` `<fname/>` |
 | `file-block-continue-page` | `<user/>` `<fname/>` `<cookie/>` |
 | `data-filter-block-page` | `<user/>` `<fname/>` `<appname/>` `<direction/>` |
+| `ssl-cert-status-page` | `<user/>` `<url/>` `<category/>` `<certname/>` `<issuer/>` `<status/>` `<reason/>` |
 
 Token meanings: `user` the identified user; `url` the blocked address; `category` the
 URL category; `ssurl` the safe-search URL; `appname` the application; `fname` the
 filename; `cookie` the continue-grant control; `pan_form` the continue form;
-`direction` the transfer direction.
+`direction` the transfer direction; `certname` the presented certificate's name;
+`issuer` its issuing authority; `status` and `reason` PAN-OS's verdict on it.
 
-`<direction/>` is **[unverified]**: it appears in the shipped `data-filter-block-page`
-default and nowhere in the published variable lists, so its rendered value and casing
-are inferred rather than documented. The default uses it sentence-initially —
+`<url/>` is **the destination IP, not a URL, on the decryption path.** The
+`ssl-cert-status-page` default labels its `<url/>` row `IP:`, and the official
+description of the variable says as much — "requested URL, or destination IP when
+decrypting". A row labelled "URL" there promises a scheme and path that will not
+arrive; this project labels it **Server**. **[documented]**
+
+The four certificate tokens are **[unverified]** in the same sense as
+`<direction/>`: they appear in the shipped `ssl-cert-status-page` default and are
+corroborated as a group by the LIVEcommunity variable list, but no official source
+documents them, and nothing documents what `<status/>` and `<reason/>` actually
+contain. `<badcert/>` appears in that community list and **not** in the vendor
+default, so it is deliberately not registered — the evidence runs the wrong way,
+and an unsupported token renders blank.
+
+`<direction/>` is **[unverified]**, and deliberately kept so after a search that came
+back empty. It appears in the shipped `data-filter-block-page` default — which is the
+primary source this table is built from — and in **none** of the published variable
+lists: not the URL-filtering variable table, not the "Customize Your Response Pages"
+LIVEcommunity blog (the fullest list that exists anywhere), and not the two community
+threads that specifically asked for the complete set. Its rendered value and casing are
+therefore inferred, not documented. The default uses it sentence-initially —
 `<direction/> of the file <fname/> has been blocked` — which implies a capitalised
-`Upload`/`Download`. The template therefore uses it only as a fact-row value, where
-either casing reads correctly, and carries a live-verification note.
+`Upload`/`Download`. The template uses it only as a fact-row value, where either casing
+reads correctly, and carries a live-verification note.
+
+The vendor's own default page is trusted over the absence, because the absence is what
+the published lists look like generally: they are URL-filtering-scoped and do not
+attempt per-page coverage for the file, application or data filtering pages either.
+Note also that a `Direction` (upload / download / both) field exists on the Data
+Filtering *profile*, so the token has an obvious thing to render.
+
+### The published API category list is stale **[verified]**
+
+The PAN-OS XML API "Import/Export Files" reference lists a PAN-OS 6-era set of
+`category=` values. It omits `data-filter-block-page` — and also `safe-search-block-page`,
+`credential-block-page`, `credential-coach-text` and `mfa-login-page`, all of which
+plainly exist. **Do not read that omission as evidence a category is wrong.**
+`data-filter-block-page` is corroborated by two Palo Alto-authored sources: the
+vendor-maintained [`pan-os-ansible`](https://paloaltonetworks.github.io/pan-os-ansible/modules/panos_export_module.html)
+collection, which lists it in the `category` choices of both `panos_import` and
+`panos_export`, and the PAN-OS 11.0 CLI command tree, where `scp import
+data-filter-block-page` mirrors the API keyword exactly.
+
+The UI row is **"Data Filtering Block Page"**, described as *"Content was matched
+against a data filtering profile and blocked because sensitive information was
+detected."* — [Device > Response Pages](https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-help/device/device-response-pages). **[documented]**
 
 The two `*-coach-text` pages and `file-block-continue-page` inject **form controls you
 do not author** — style `input[type=submit]` and `button` so those controls match the

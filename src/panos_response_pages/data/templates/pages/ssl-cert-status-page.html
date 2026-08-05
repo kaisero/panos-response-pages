@@ -1,0 +1,68 @@
+<!--
+  SSL Certificate Status Page
+  API category: ssl-cert-status-page
+  Tokens available: <user/> <url/> <category/> <certname/> <issuer/> <status/> <reason/>
+
+  <url/> IS THE DESTINATION IP HERE, not a URL. This is the decryption path; the
+  shipped PAN-OS default labels the row "IP:". The row is labelled "Server" so it
+  reads correctly whichever arrives.
+
+  id="cat" AND COPY_LOCK together, deliberately. COPY_LOCK stops the category map
+  repainting the tone and overwriting the gloss -- the reason for this page is the
+  certificate, not the category -- while id="cat" still rewrites the raw slug into
+  a friendly label. category_js emits the ~1.7 KB map only when has_category and
+  NOT lock_copy, so the pair is also the cheapest of the three options.
+
+  Tone is warn, not crit: an expired certificate and an active interception reach
+  this page identically, and rendering every one as "Security risk" teaches users
+  to click through the ones that matter.
+
+  This is the only page whose subject is the SERVER rather than the organisation.
+  It is not a policy block, so the copy does not say "your organisation stopped
+  this" and the useful advice is not "ask IT to allow it".
+
+  <badcert/> appears in the community variable list but NOT in this default, so it
+  is not registered. An unsupported token renders blank, silently.
+
+  VERIFY ON A LIVE FIREWALL: that all seven render, and specifically what
+  <status/> and <reason/> contain -- no published source documents their values,
+  and the fact rows are sized on a guess at their length.
+-->
+
+<!--@TITLE-->Certificate problem<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h4"/><path d="M13 2.5 18.5 8v3"/><path d="M8 9h4"/><path d="M8 12.5h3"/><circle cx="17" cy="16.5" r="3"/><path d="M15 18.6 14.4 22l2.6-1.4 2.6 1.4-.6-3.4"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->This site's certificate could not be verified<!--/@HEADLINE-->
+
+<!--@GLOSS-->The server presented a certificate that could not be checked, so the connection was stopped.<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>Server</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>Certificate</dt><dd class="mono"><certname/></dd></div>
+<div class="f"><dt>Issuer</dt><dd class="mono"><issuer/></dd></div>
+<div class="f"><dt>Status</dt><dd><status/></dd></div>
+<div class="f"><dt>Reason</dt><dd><reason/></dd></div>
+<div class="f"><dt>Category</dt><dd id="cat"><category/></dd></div>
+<div class="f"><dt>User</dt><dd><user/></dd></div>
+<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Certificate error"
+   data-intro="A certificate could not be verified on this connection." data-prompt="What I was trying to reach:"
+   href="{{CONTACT_HREF}}">Report to IT</a>
+{{CONTACT_ALT}}
+<!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
+
+<!--@EXTRA-->
+<p class="warnline">{{WARN_MARK}}<span>Do not sign in or enter personal details on this site until IT has looked at it.</span></p>
+<!--/@EXTRA-->

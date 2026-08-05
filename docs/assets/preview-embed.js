@@ -27,6 +27,7 @@
       "file-block-continue-page",
       "file-block-page",
       "safe-search-block-page",
+      "ssl-cert-status-page",
       "url-block-page",
       "url-coach-text",
       "virus-block-page"

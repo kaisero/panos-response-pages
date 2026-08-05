@@ -43,6 +43,27 @@ SAMPLE = {
     # shipped PAN-OS default uses it sentence-initially, so a capitalised word is
     # expected -- unverified on a live firewall.
     "direction": "Upload",
+    # The SSL certificate status page. Shaped like real PAN-OS output: certname
+    # and issuer are DNs, status and reason are its own short verdicts. The
+    # issuer is deliberately long -- it is the value most likely to overflow a
+    # fact cell, and the preview is where that has to show.
+    "certname": "*.example.com",
+    "issuer": "CN=Example Intermediate CA, O=Example Corp, C=US",
+    "status": "untrusted-issuer",
+    "reason": "The issuing certificate authority is not in the trusted store",
+}
+
+# Sample overrides for pages where a token does not render what it renders
+# elsewhere. Preview-only, like SAMPLE itself.
+#
+# <url/> is the case this exists for: it is one token, but on the decryption path
+# PAN-OS substitutes the destination IP rather than a URL -- which is why the
+# shipped ssl-cert-status-page default labels that row "IP:". Left on the shared
+# sample, the gallery would show a long URL in a row that will hold an address,
+# and the gallery's whole job is judging whether a row fits. RFC 5737
+# documentation address, so the preview never points at a real host.
+PAGE_SAMPLE = {
+    "ssl-cert-status-page": {"url": "192.0.2.24"},
 }
 
 
@@ -199,14 +220,14 @@ def build_page(
         raise BuildError(f"{page} contains a mailto: link in URL mode; its template is out of date with cfg")
 
     if preview:
-        sample = SAMPLE
+        sample = {**SAMPLE, **PAGE_SAMPLE.get(page, {})}
         if demo:
             # The sample category is command-and-control, which is critical, and
             # the redirect refuses a category that is not calm. Standing in the
             # mapped one is what arms the notice -- and it is honest about it:
             # this is the page a user hitting that category actually gets, gloss
             # and tone included, not the usual sample with a banner bolted on.
-            sample = {**SAMPLE, "category": redirect.demo_category(eff)}
+            sample["category"] = redirect.demo_category(eff)
         out = TOKEN_RE.sub(lambda m: sample[m.group(1)], out)
 
     return out

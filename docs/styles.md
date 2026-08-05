@@ -1,7 +1,7 @@
 # Styles
 
 Seven styles ship. `assist` is the default and the most conservative; the rest
-are the same ten pages under different layouts. Six of them wear any of the
+are the same eleven pages under different layouts. Six of them wear any of the
 three brand palettes; `nyan` pins a palette of its own. All support both colour
 schemes.
 
