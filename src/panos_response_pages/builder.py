@@ -193,6 +193,13 @@ def build_all(
     # instead surfaces as a KeyError from inside substitution, or not at all.
     i18n.check(cfg, data_dir)
     i18n.check_complete(cfg, data_dir)
+    # Every language this tree ships, which is what the gallery's Language
+    # control offers -- see i18n.previewable. Resolved once per build rather than
+    # per page: it reads every strings file in the directory, and the answer
+    # cannot differ between two pages of the same build.
+    #
+    # Empty on a deploy-only build, so build_page's guard has nothing to refuse.
+    preview_langs = tuple(i18n.previewable(cfg, data_dir)) if preview else ()
     chosen = customer_keys(customer, data_dir / "config")
     palette_dir = data_dir / "palettes"
 
@@ -281,7 +288,9 @@ def build_all(
                 emit(deploy_dir / f"{page}.html", deployable)
 
                 if preview:
-                    pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
+                    pv = strip_output(
+                        build_page(page, th, cfg, th_palette, True, template_dir, preview_languages=preview_langs)
+                    )
                     blobs[th["name"], pname, page] = pv
                     emit(prev_dir / f"{page}.html", pv)
 
@@ -296,7 +305,16 @@ def build_all(
                     # own colour must demonstrate the notice in the colour it wears.
                     if page == redirect.PAGE and redirect.supported(th):
                         demo = strip_output(
-                            build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True)
+                            build_page(
+                                page,
+                                th,
+                                cfg,
+                                th_palette,
+                                True,
+                                template_dir,
+                                redirect_demo=True,
+                                preview_languages=preview_langs,
+                            )
                         )
                         blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
                         emit(prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html", demo)
@@ -343,7 +361,19 @@ def build_all(
         shutil.copytree(fixtures / "portal", out_dir / "preview" / PREVIEW_ASSETS, dirs_exist_ok=True)
         result_palettes = [loaded[n] for n in palette_names]
         gallery, sidecars = build_gallery(
-            themes, pages, blobs, cfg, palette, result_palettes, portal_blobs, PORTAL_PREVIEWS
+            themes,
+            pages,
+            blobs,
+            cfg,
+            palette,
+            result_palettes,
+            portal_blobs,
+            PORTAL_PREVIEWS,
+            # Friendly names, never codes: the control says "German", not "de".
+            # They come out of the strings documents themselves, so a language
+            # cannot ship without one -- see i18n.NAME_KEY.
+            languages=[(code, i18n.display_name(code, data_dir)) for code in preview_langs],
+            base_language=i18n.base_language(cfg),
         )
         (out_dir / "preview" / "index.html").write_bytes(gallery.encode("utf-8"))
         for name, text in sidecars.items():

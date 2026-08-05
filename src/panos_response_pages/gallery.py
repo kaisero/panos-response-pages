@@ -21,8 +21,9 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from panos_response_pages import redirect
+from panos_response_pages import i18n, redirect
 from panos_response_pages.errors import BuildError
+from panos_response_pages.scripts import PREVIEW_SWAP
 
 GALLERY_CSS = """
 *{box-sizing:border-box}
@@ -74,6 +75,10 @@ box-shadow:0 1px 2px rgba(10,20,30,.05),0 10px 30px rgba(10,20,30,.08)}
 .dev.mobile iframe{border-radius:1.1rem}
 iframe{border:0;display:block;width:100%;background:var(--srf)}
 .seg[hidden]{display:none}
+/* The listbox controls hide themselves too now -- Language goes away on a style
+   that compiles none. `hidden` alone cannot do it: the UA rule it sets is
+   display:none, and .ctl's own inline-flex beats it on specificity. */
+.ctl[hidden]{display:none}
 .foot{margin:0 auto;padding:0 1.5rem 3rem;max-width:52rem;text-align:center;
 color:var(--mut);font-size:.78rem;line-height:1.6}
 .foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}
@@ -244,6 +249,8 @@ def build_gallery(
     palettes: Sequence[Mapping[str, Any]],
     portal_blobs: Mapping[tuple[str, str, str], str] | None = None,
     portal_previews: Sequence[str] = (),
+    languages: Sequence[tuple[str, str]] = (),
+    base_language: str = "",
 ) -> tuple[str, dict[str, str]]:
     """Self-contained preview: every page inlined via iframe srcdoc.
 
@@ -255,6 +262,11 @@ def build_gallery(
     visitor sees, and they are the only frames in this gallery that load
     anything from disk -- the prefixes pull jQuery from `portal/` beside this
     file, and srcdoc resolves that relative to this document.
+
+    `languages` is (code, friendly name) pairs with the base language first --
+    every language the data directory ships, not the ones `languages` in the
+    config turned on. `base_language` is the code the frames are served in, so
+    selecting it means calling nothing.
     """
 
     def seg(
@@ -322,6 +334,17 @@ def build_gallery(
         if surfaces
         else ""
     )
+
+    # Only when there is a choice, like Palette: a data directory that predates
+    # the strings tree ships exactly one language, and a dropdown with one entry
+    # is a label pretending to be a control.
+    lang_ctl = _listbox("lang", "Language", [(None, list(languages))], base_language) if len(languages) > 1 else ""
+    # Which styles compiled the extra languages. A style that declares
+    # `"i18n": false` renders the base language and nothing else -- the same
+    # thing the size report prints as "base only" -- so selecting it must take
+    # the control away rather than leave a dropdown whose frames cannot answer
+    # it. Exactly what RXOK does for the Redirect toggle.
+    lang_ok = json.dumps({t["name"]: 1 for t in themes if i18n.enabled(t)})
 
     # Same shape as the login states: one page rendered two ways, so it composes
     # into the key rather than becoming an entry in the page list. Always built,
@@ -396,6 +419,7 @@ def build_gallery(
   {theme_ctl}
   {page_ctl}
   {palette_ctl}
+  {lang_ctl}
   {state_seg}
   {redirect_seg}
   {view_seg}
@@ -407,11 +431,13 @@ def build_gallery(
    prefixes to show the whole served page — <strong>preview only, never importable</strong>.
    <strong>Redirect: On</strong> shows the sanctioned-app handoff on a calm category, and its countdown
    <strong>restarts</strong> so the motion stays visible — the served page hands over once and does not
-   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.</p>
+   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.
+   <strong>Language</strong> offers every translation this data directory ships, whatever <code>languages</code>
+   lists, and overrides whatever the browser would have negotiated.</p>
 <script>
 var D={payload},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
 palette:"{palette["name"]}",view:"both",scheme:"light",
-state:"{states[0] if states else ""}",redirect:"off"}};
+state:"{states[0] if states else ""}",redirect:"off",lang:"{base_language}"}};
 LOADED[S.palette]=1;
 document.documentElement.setAttribute("data-pal",S.palette);
 // Each palette but the opening one arrives as a sibling classic script that
@@ -449,6 +475,16 @@ function need(pal,done){{
 // 15558 B before a flat 3347 B notice, against a 17999 B ceiling -- so selecting
 // it must take the control away rather than offer an On with nothing behind it.
 var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}",RXOK={rx_ok};
+// The Language control. Colour scheme is CSS, so setting an attribute on the
+// loaded document restyles it; language is not -- the frame's runtime picked a
+// language and rewrote the text before `load` fired. So the preview build parks
+// the apply half of that swap on the frame's own window and this calls it. Same
+// closure, same code path, one language later.
+//
+// BASELANG is what the frames are SERVED in, and draw() rebuilds them on every
+// control change, so selecting it means calling nothing at all rather than
+// swapping back.
+var BASELANG="{base_language}",LANGOK={lang_ok},SWAP="{PREVIEW_SWAP}";
 // The login surface is one import in four server-driven states, and the url
 // block page is one page built with and without the sanctioned-app handoff. Both
 // controls compose into the key rather than selecting a page of their own.
@@ -498,6 +534,15 @@ function frame(kind){{
     // Set the scheme on the loaded document rather than rewriting the markup:
     // string surgery here has to survive heredoc, Python and f-string quoting.
     try{{i.contentDocument.documentElement.setAttribute("data-force-scheme",S.scheme);}}catch(e){{}}
+    // Before fit(), never after: the swap changes how much text the frame holds,
+    // and measuring first would size it to the language it is about to stop
+    // showing. Guarded on the function's existence rather than on LANGOK, so a
+    // portal frame -- which carries no block-page runtime at all -- is simply a
+    // frame that does not answer.
+    try{{
+      var w=i.contentWindow;
+      if(S.lang!==BASELANG&&w&&typeof w[SWAP]==="function") w[SWAP](S.lang);
+    }}catch(e){{}}
     fit(i);
   }});
   d.appendChild(i); f.appendChild(d);
@@ -510,6 +555,8 @@ function draw(){{
   if(g) g.hidden = S.page!=="portal:login";
   var r=document.getElementById("rxgrp");
   if(r) r.hidden = S.page!==RXPAGE||!RXOK[S.theme];
+  var L=document.getElementById("langgrp");
+  if(L) L.hidden = !LANGOK[S.theme];
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
@@ -616,6 +663,7 @@ function mkListbox(idPrefix,prop){{
 mkListbox("theme","theme");
 mkListbox("page","page");
 mkListbox("pal","palette");
+mkListbox("lang","lang");
 render();
 </script>
 </body></html>
