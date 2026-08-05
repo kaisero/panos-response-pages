@@ -83,6 +83,8 @@ Put your own settings in `config/<customer>.json`. It is deep-merged over
   "supportUrl": "https://servicedesk.example.com/new-ticket",
   "supportEmail": "",
   "supportLabel": "the Service Desk",
+  "baseLanguage": "en",
+  "languages": ["en", "de"],
   "redirect": {
     "enabled": true,
     "categories": {
@@ -105,13 +107,10 @@ Put your own settings in `config/<customer>.json`. It is deep-merged over
   the other, or the build stops. `supportLabel` names the queue for the places
   that print the contact inline — in email mode those print the address itself,
   so it applies to `supportUrl` mode only.
+- **`languages`** compiles each listed language into every page, and the browser
+  picks one at load. `["en"]`is the default. See [Languages](#languages).
 - **`redirect`** hands a user over to a sanctioned app after a countdown when the
   blocked category has an approved equivalent. It applies to the URL block page
-  only. A category needs no entry in `categories` to redirect — that map lists
-  only the ones whose tone or wording differs, and anything absent from it is
-  calm — but a category listed there as `warn` or `critical` is refused, because
-  a user must never be forwarded off a security block. Make sure your security
-  policy actually permits the target, or the redirect lands on another block page.
 
 Then build against it:
 
