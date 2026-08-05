@@ -1,0 +1,194 @@
+{
+  "lang": "da",
+  "name": "Danish",
+  "shared": {
+    "reportLabel": "Meld til IT",
+    "contactAlt": ["Eller skriv til ", " med oplysningerne ovenfor."],
+    "severity": { "calm": "", "warn": "Advarsel", "crit": "Sikkerhedsrisiko" },
+    "defaultGloss": "Virksomhedens politik begrænser denne kategori.",
+    "riskGloss": "Denne side er blokeret, fordi den udgør en sikkerhedsrisiko.",
+    "continueGrantText": "15 minutter",
+    "supportLabel": "IT-support",
+    "redirect": {
+      "go": "Gå nu",
+      "stay": "Bliv her",
+      "cancelled": "Du bliver på denne side.",
+      "cancelledAnnounce": "Annulleret. Du bliver på denne side.",
+      "announce": "Du sendes til {app} om {n} sekunder. Vælg Bliv her, eller tryk på Escape, for at blive på denne side."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Program blokeret",
+      "headline": "Dette program er blokeret",
+      "gloss": "Virksomhedens politik begrænser dette program på netværket.",
+      "facts": ["Program", "Bruger", "Tidspunkt"],
+      "extra": "Har du brug for dette program i dit arbejde? Send rapporten ovenfor, så kigger IT på det.",
+      "report": {
+        "subject": "Rapport: blokeret program",
+        "intro": "Se venligst på denne blokering af et program.",
+        "prompt": "Derfor har jeg brug for dette program:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Afsendelse af login blokeret",
+      "headline": "Afsendelse af login blokeret",
+      "gloss": "Du forsøgte lige at sende dit brugernavn og din adgangskode fra arbejdet til denne side. Vi kender ikke siden som betroet.",
+      "facts": ["Adresse", "Kategori", "Bruger", "Tidspunkt"],
+      "contactAlt": ["Eller skriv med det samme til ", "."],
+      "extra": "{{COMPANY}} beder dig aldrig om din adgangskode på en side som denne. Hvis en side beder dig logge ind, og noget virker forkert, så luk fanen og gå direkte til tjenesten fra dine bogmærker.",
+      "report": {
+        "subject": "Mulig phishingside - afsendelse af login blokeret",
+        "intro": "En afsendelse af loginoplysninger blev blokeret.",
+        "prompt": "Det, jeg var i gang med:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Er dette virkelig virksomhedens loginside?",
+      "headline": "Er dette virkelig virksomhedens loginside?",
+      "gloss": "Du er ved at sende dit brugernavn og din adgangskode fra arbejdet til denne side. Vi kender ikke siden som en af vores.",
+      "facts": ["Adresse", "Kategori", "Bruger", "Tidspunkt"],
+      "extra": "Tjek adressen ovenfor grundigt — se efter små stavefejl i et navn, du kender. Hvis du fortsætter, sendes dine loginoplysninger, og det bliver registreret i dit navn.",
+      "report": {
+        "subject": "Mulig phishingside - anmodning om login",
+        "intro": "Jeg blev advaret, før jeg sendte mine loginoplysninger.",
+        "prompt": "Det, jeg var i gang med:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Dataoverførsel blokeret",
+      "headline": "Dataoverførsel blokeret",
+      "gloss": "Virksomhedens politik begrænser overførsel af dette indhold. Overførslen blev derfor stoppet.",
+      "facts": ["Retning", "Fil", "Program", "Bruger", "Tidspunkt"],
+      "extra": "Har du brug for at sende dette i dit arbejde? Send rapporten ovenfor, så kigger IT på det.",
+      "report": {
+        "subject": "Blokeret dataoverførsel",
+        "intro": "En dataoverførsel blev blokeret af politikken.",
+        "prompt": "Derfor har jeg brug for at sende dette:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Vil du fortsætte med denne download?",
+      "headline": "Vil du fortsætte med denne download?",
+      "gloss": "Virksomhedens politik begrænser download af denne filtype. Du kan fortsætte, hvis du har brug for filen i dit arbejde.",
+      "facts": ["Fil", "Bruger", "Tidspunkt"],
+      "extra": "Fortsæt kun, hvis du ved, hvad filen er, og hvor den kommer fra.",
+      "report": {
+        "subject": "Advarsel ved download",
+        "intro": "Jeg blev advaret, før jeg hentede en begrænset filtype.",
+        "prompt": "Det, jeg var i gang med:"
+      }
+    },
+    "file-block-page": {
+      "title": "Denne filtype er blokeret",
+      "headline": "Denne filtype er blokeret",
+      "gloss": "Virksomhedens politik begrænser overførsel af denne filtype. Overførslen blev derfor stoppet.",
+      "facts": ["Fil", "Bruger", "Tidspunkt"],
+      "extra": "Har du brug for denne fil i dit arbejde? Send rapporten ovenfor, så kigger IT på det.",
+      "report": {
+        "subject": "Blokeret filoverførsel",
+        "intro": "En filoverførsel blev blokeret af politikken.",
+        "prompt": "Derfor har jeg brug for denne fil:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Slå SafeSearch til for at fortsætte",
+      "headline": "Slå SafeSearch til for at fortsætte",
+      "gloss": "Din søgning blev blokeret, fordi SafeSearch ikke er slået til. Virksomhedens politik kræver SafeSearch på de søgemaskiner, den dækker.",
+      "facts": ["Bruger", "Tidspunkt"],
+      "action2": "Åbn søgeindstillinger",
+      "extra": [
+        "Sæt SafeSearch til den strengeste indstilling, og kør din søgning igen. Er du logget ind på søgemaskinen, så lås også indstillingen.",
+        "Stadig blokeret, efter du har slået SafeSearch til? Kontakt ",
+        ", så kigger IT på det."
+      ],
+      "report": {
+        "subject": "SafeSearch slået til, søgning stadig blokeret",
+        "intro": "SafeSearch er slået til, men min søgning bliver stadig blokeret.",
+        "prompt": "Det, jeg søgte efter:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Certifikatproblem",
+      "headline": "Sidens certifikat kunne ikke bekræftes",
+      "gloss": "Serveren viste et certifikat, der ikke kunne kontrolleres. Forbindelsen blev derfor stoppet.",
+      "facts": ["Server", "Certifikat", "Udsteder", "Status", "Årsag", "Kategori", "Bruger", "Tidspunkt"],
+      "extra": "Log ikke ind, og indtast ikke personlige oplysninger på denne side, før IT har set på den.",
+      "report": {
+        "subject": "Certifikatfejl",
+        "intro": "Et certifikat kunne ikke bekræftes på denne forbindelse.",
+        "prompt": "Den side, jeg ville åbne:"
+      }
+    },
+    "url-block-page": {
+      "title": "Denne side er blokeret",
+      "headline": "Denne side er blokeret",
+      "gloss": "Virksomhedens politik begrænser denne kategori.",
+      "facts": ["Adresse", "Kategori", "Bruger", "Tidspunkt"],
+      "extra": "Mener du, at du har brug for denne side i dit arbejde? Send rapporten ovenfor, så kigger IT på det.",
+      "report": {
+        "subject": "Rapport: blokeret side",
+        "intro": "Se venligst på denne blokering.",
+        "prompt": "Derfor har jeg brug for adgang:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Vil du fortsætte til denne side?",
+      "headline": "Vil du fortsætte til denne side?",
+      "gloss": "Virksomhedens politik begrænser denne kategori.",
+      "facts": ["Adresse", "Kategori", "Bruger", "Tidspunkt"],
+      "extra": ["Hvis du fortsætter, får du adgang til ", "alle sider i denne kategori", " i {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Kategoriadvarsel - side med fortsæt-valg",
+        "intro": "Jeg blev advaret, før jeg fortsatte.",
+        "prompt": "Derfor mener jeg, at kategorien er forkert:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Download blokeret",
+      "headline": "Download blokeret",
+      "gloss": "Virusscanningen fandt malware i denne fil. Downloaden blev derfor stoppet.",
+      "facts": ["Fil", "Bruger", "Tidspunkt"],
+      "contactAlt": ["Eller skriv med det samme til ", "."],
+      "extra": "Har du åbnet en kopi af denne fil fra et andet sted? Sig det til IT — den kan allerede være på din enhed.",
+      "report": {
+        "subject": "Malware fundet i en download",
+        "intro": "En download blev blokeret af virusscanningen.",
+        "prompt": "Det, jeg var i gang med:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Log ind",
+      "getSoftware": "Hent agentsoftware",
+      "glossSignIn": "Log ind med din firmakonto.",
+      "glossSoftware": "Hent agenten til dit styresystem, og log derefter ind i appen.",
+      "download": "Hent",
+      "otherPlatforms": "Andre platforme",
+      "note": ["Brug for hjælp? Kontakt ", "."],
+      "downloadFor": "Hent til ",
+      "chooseDownload": "Vælg din download",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bit",
+      "bit32": "32-bit",
+      "formUser": "Brugernavn",
+      "formPassword": "Adgangskode",
+      "formNewPassword": "Ny adgangskode",
+      "formConfirmPassword": "bekræft ny adgangskode",
+      "formSubmit": "Log ind"
+    },
+    "home": {
+      "logoutMessages": [
+        "Du er nu logget ud af GlobalProtect-portalen.",
+        "GlobalProtect-portalen har ingen licens. Køb eller aktivér licensen til dit GlobalProtect-abonnement.",
+        "Brugeren er ikke godkendt til GlobalProtect-portalen.",
+        "Systemfejl. Kontakt {{CONTACT_REACHABLE}}.",
+        "Systemfejl: brugersessionen kunne ikke slettes. Kontakt {{CONTACT_REACHABLE}}.",
+        "Kan ikke oprette brugersession: den maksimale kapacitet er nået. Kontakt {{CONTACT_REACHABLE}}.",
+        "Din session er udløbet, og du er logget ud af sikkerhedsmæssige årsager. Log ind igen, hvis du vil fortsætte."
+      ]
+    }
+  }
+}
