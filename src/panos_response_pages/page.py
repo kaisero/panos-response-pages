@@ -103,6 +103,13 @@ def build_page(
     strings = i18n.load(i18n.base_language(cfg), template_dir.parent)
     base = {
         "COMPANY": cfg["company"],
+        # <html lang>. The markup IS the base language, so this is the only
+        # honest value for it -- and the runtime depends on that being true:
+        # the selection loop breaks on the base language WITHOUT assigning
+        # documentElement.lang, so a German-base page served to a German browser
+        # would keep whatever the shell hardcoded and format its timestamp to
+        # that locale instead. Renders "en" for every existing config.
+        "BASE_LANG": i18n.base_language(cfg),
         # Empty in URL mode. The token still has to resolve: it appears in
         # sections URL mode discards, and substitute() raises on an unknown key
         # whether or not the text survives.
