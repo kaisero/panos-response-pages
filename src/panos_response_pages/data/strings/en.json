@@ -65,6 +65,18 @@
         "intro": "I was warned before downloading a restricted file type.",
         "prompt": "What I was doing:"
       }
+    },
+    "file-block-page": {
+      "title": "This file type is blocked",
+      "headline": "This file type is blocked",
+      "gloss": "Transferring files of this type is restricted by company policy, so the transfer was stopped.",
+      "facts": ["File", "User", "Time"],
+      "extra": "If you need this file for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked file transfer",
+        "intro": "A file transfer was blocked by policy.",
+        "prompt": "Why I need this file:"
+      }
     }
   }
 }
