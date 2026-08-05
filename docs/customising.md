@@ -319,7 +319,11 @@ map of PAN-OS categories, not your copy.
 
 1. Copy `strings/en.json` to `strings/<code>.json` in your `init`-ed data tree.
 2. Translate every value. Leave every key exactly where it is.
-3. Add the code to `languages`.
+3. Set `lang` to the code, and `name` to the language's **English** name —
+   `"French"`, not `"Français"`. It is the only value in the file that is not
+   translated: it labels the language in the preview gallery's dropdown, for a
+   reviewer who does not read it.
+4. Add the code to `languages`.
 
 **Key parity is exact, in both directions.** A missing key fails the build naming
 every path that is missing; an *extra* key fails too, because it is a typo or a
@@ -353,6 +357,30 @@ never translated and never duplicated: severity, colour and the severity pill va
 per category identically in every language, and only the sentence changes. Category
 *labels* are never translated either — they are title-cased from the PAN-OS slug, and
 a user reading one back to IT should be reading what PAN-OS calls it.
+
+### Seeing a language before you switch it on
+
+The preview gallery carries a **Language** dropdown listing every
+`strings/<code>.json` in your data tree by its friendly name — *English*,
+*German*. Picking one re-renders the frames in it.
+
+It ignores `languages` on purpose, for the same reason the Redirect control
+ignores `redirect.enabled`: the shipped default is `languages: ["en"]`, so a
+config-driven dropdown would be empty and the German that ships in the tree
+unreachable. What a firewall serves is still governed entirely by `languages`;
+only the gallery looks past it. The extra dictionary exists in `out/preview/`
+alone and cannot reach `out/deploy/` — the build refuses it there.
+
+Two things about a swapped frame differ from what the firewall serves. The
+timestamp keeps the format the frame loaded with, because the page has already
+formatted it; and a style that declares `"i18n": false` compiles no languages at
+all, so selecting it takes the control away rather than offering a choice its
+pages cannot answer.
+
+The control also overrides what your browser would have negotiated, which is the
+point of it — `navigator.languages` decides what a real user gets, and this is
+how you look at the other ones. A language whose file is out of step with the
+base language's key set is left out of the list rather than offered and broken.
 
 ### What a translator must not change
 

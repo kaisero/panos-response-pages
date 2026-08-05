@@ -57,7 +57,7 @@ Output lands in two places:
 |---|---|
 | `out/deploy/<style>/<palette>/` | Deployable pages, PAN-OS tokens intact |
 | `out/preview/<style>/<palette>/` | The same pages with sample data, for visual review |
-| `out/preview/index.html` | Clickthrough gallery — style, palette, page, viewport, colour scheme |
+| `out/preview/index.html` | Clickthrough gallery — style, palette, page, language, viewport, colour scheme |
 
 Import from `out/deploy/`. The preview build substitutes sample values for the
 PAN-OS tokens so the pages render in a browser; it is **not** deployable.
