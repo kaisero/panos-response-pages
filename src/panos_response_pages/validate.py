@@ -9,10 +9,30 @@ that will ever exist.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 MAX_BYTES = 17999  # PAN-OS 8.1.3+ hard ceiling. Oversize fails SILENTLY.
 WARN_BYTES = 16000  # headroom for serve-time <url/> expansion
+
+# What dropping the one optional per-language block buys back, per language, on
+# the two pages that carry the category map. Quoted in the size messages because
+# it is the first thing a customer over the ceiling should try: the block is
+# per-category glosses, and without it a language falls back to the translated
+# generic sentence for the category's TONE -- still translated, still varying by
+# severity and colour, just less specific. Losing that beats losing the page.
+#
+# An ORDER OF MAGNITUDE, and the message says so, because the true figure is a
+# function of how many categories the translator wrote. Measured on the shipped
+# tree: the German block translates three of the 32 mapped categories and is
+# worth 332 B; a block covering all 32 at the same sentence length is ~3900 B.
+# 1800 is the middle of that range and the figure a reader should plan against.
+# Quoting one of the extremes instead would either read as not worth doing or
+# promise headroom that is not there.
+#
+# Restated here rather than imported from i18n, which documents the same block:
+# this module is deliberately dependency-free, because the CLI runs it over
+# already-built files where no config and no strings document is in hand.
+CATEGORIES_BLOCK_BYTES = 1800
 
 # Page type -> substitution tokens PAN-OS actually provides on that page.
 # Using a token outside this set renders it as inert markup: it shows nothing.
@@ -143,16 +163,57 @@ def audit_copy(html_text: str) -> list[str]:
     return [f'copy claim "{phrase}" -- {why}' for phrase, why in BANNED_COPY if phrase in low]
 
 
-def validate(page: str, html_text: str) -> tuple[int, list[str], list[str]]:
-    """Every check here maps to a documented PAN-OS failure mode."""
+def _built_with(languages: Sequence[str]) -> str:
+    """The language set that produced a size, for the two size messages.
+
+    Empty for a single-language page, and for the CLI's pass over already-built
+    files -- there is no config in hand there, and inventing one would put a
+    confident wrong answer on the one line the reader is going to act on.
+
+    Size is the only failure this names languages for. Every other check in this
+    module is about the SHAPE of the markup, which no language changes.
+    """
+    if len(languages) < 2:
+        return ""
+    return f" built with {len(languages)} languages ({', '.join(languages)});"
+
+
+def validate(page: str, html_text: str, languages: Sequence[str] = ()) -> tuple[int, list[str], list[str]]:
+    """Every check here maps to a documented PAN-OS failure mode.
+
+    `languages` is what the page was BUILT with -- which on a style declaring
+    `"i18n": false` is not what the config lists. It only ever appears in the two
+    size messages, and only to answer the question those messages otherwise
+    leave the reader holding: the page is too big, so what is in it that could
+    come out. Optional because the CLI also runs this over already-built files
+    handed to it on the command line, where no config is in hand.
+    """
     errors: list[str] = []
     warnings: list[str] = []
     size = len(html_text.encode("utf-8"))
+    built_with = _built_with(languages)
+    # Named on both, not just the error. The warn line exists because <url/>
+    # expands at SERVE time -- the margin it protects is what a long blocked URL
+    # consumes -- so a page that entered the warn band by gaining a language has
+    # spent that margin on something the reader can still get back.
+    recovery = (
+        f" Try dropping the optional per-language `categories` block first: ~{CATEGORIES_BLOCK_BYTES} B "
+        "per extra language, more where every category is translated. "
+        'A style with no room for any of it declares "i18n": false and ships the base language alone.'
+        if built_with
+        else ""
+    )
 
     if size > MAX_BYTES:
-        errors.append(f"{size} B exceeds the {MAX_BYTES} B ceiling -- PAN-OS would silently serve the default page")
+        errors.append(
+            f"{size} B exceeds the {MAX_BYTES} B ceiling by {size - MAX_BYTES} B --"
+            f"{built_with} PAN-OS would silently serve the default page.{recovery}"
+        )
     elif size > WARN_BYTES:
-        warnings.append(f"{size} B is within {MAX_BYTES - size} B of the ceiling; <url/> expands at serve time")
+        warnings.append(
+            f"{size} B is within {MAX_BYTES - size} B of the ceiling;"
+            f"{built_with} <url/> expands at serve time.{recovery}"
+        )
 
     if not html_text.lstrip().startswith("<!DOCTYPE html>"):
         errors.append("missing <!DOCTYPE html> -- browsers fall back to quirks mode")

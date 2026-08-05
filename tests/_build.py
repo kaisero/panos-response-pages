@@ -9,6 +9,7 @@ suite was thorough and the coverage number said 31%.
 import functools
 import json
 import pathlib
+import shutil
 import tempfile
 
 from _paths import DATA
@@ -57,6 +58,43 @@ def built() -> tuple[pathlib.Path, BuildResult]:
     """
     out = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-tests-"))
     return out, build_all(DATA, out, preview=True)
+
+
+@functools.lru_cache(maxsize=4)
+def built_with_languages(languages: tuple[str, ...], base: str = "en") -> tuple[pathlib.Path, BuildResult]:
+    """A build with a language set, against a COPY of the packaged data.
+
+    The data directory is copied rather than written to: DATA is the installed
+    package, `built()` memoises a build against it, and a config written in
+    place would change what every other test in the session sees.
+
+    Keyed on the language tuple so each set is built once, and passed a TUPLE
+    for that reason -- lru_cache hashes its arguments, and a list raises
+    TypeError. Cached separately from built(), whose single slot must keep
+    holding the default build.
+
+    A language with no strings/<lang>.json in the packaged tree gets the
+    prefixed stand-in translated_strings() builds, written into the COPY.
+    check_complete() refuses a configured language whose file is missing, so
+    without this the helper would only work for languages that happen to have
+    shipped yet -- and a test about theme opt-out would start failing for a
+    reason that has nothing to do with theme opt-out.
+    """
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-i18n-data-"))
+    data = tmp / "data"
+    shutil.copytree(DATA, data)
+    for lang in languages:
+        path = data / "strings" / f"{lang}.json"
+        if not path.exists():
+            path.write_text(json.dumps(translated_strings(f"{lang}:")), encoding="utf-8")
+    cfg_path = data / "config" / "_defaults.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    cfg["languages"] = list(languages)
+    cfg["baseLanguage"] = base
+    cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+    out = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-i18n-out-"))
+    return out, build_all(data, out, preview=True)
 
 
 @functools.lru_cache(maxsize=1)

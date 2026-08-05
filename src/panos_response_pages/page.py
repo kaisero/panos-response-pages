@@ -193,6 +193,17 @@ def build_page(
     # selector, and its pages are byte-identical to pages from before this
     # existed.
     #
+    # A style that declares `"i18n": false` takes the same branch on any config.
+    # Not a preference: the dictionary and its runtime are ~1200 B plus ~750 B a
+    # language, and nyan's URL block page is 15108 B against a 17999 B ceiling
+    # that PAN-OS enforces by SILENTLY serving its own default page instead.
+    # Refusing the whole build there would punish the customer for a style they
+    # may not use; shipping it and overflowing would look, from the outside,
+    # exactly like the page had never been imported. The third answer is this
+    # one -- that style renders `baseLanguage` and nothing else -- and it is the
+    # only one of the three that is both safe and visible, because
+    # `format_report` prints the shortfall on that style's rows.
+    #
     # ensure_ascii=False matters: "ä" costs two bytes where "ä" costs six,
     # and this dictionary ships on every page of every style.
     lang_dict = (
@@ -201,7 +212,7 @@ def build_page(
             separators=(",", ":"),
             ensure_ascii=False,
         )
-        if len(i18n.languages(cfg)) > 1
+        if len(i18n.shipped(cfg, theme)) > 1
         else ""
     )
 

@@ -20,9 +20,10 @@ import unittest
 
 import pytest
 
-from _build import LANGUAGE_BLOCK, built, translated_strings
+from _build import LANGUAGE_BLOCK, built, built_with_languages, translated_strings
 from _paths import DATA, ROOT
-from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages import i18n, redirect
+from panos_response_pages.builder import build_all, format_report, load_themes
 from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
 from panos_response_pages.page import build_page
@@ -60,6 +61,17 @@ def broken_data_dir(strings=None, **over) -> pathlib.Path:
 def build(root: pathlib.Path) -> None:
     """Build `root` for its verdict only -- nothing is written and nothing kept."""
     build_all(root, root / "out", preview=False, write=False)
+
+
+def stand_in_strings(*langs: str) -> dict:
+    """Documents for the languages the packaged tree does not ship.
+
+    A language the tree DOES ship is left alone, so a test that wants German
+    weight gets real German. The rest get the prefixed stand-in, because
+    check_complete() refuses a configured language with no file and a test about
+    the byte ceiling would otherwise fail for a reason that is not the ceiling.
+    """
+    return {lang: translated_strings(f"{lang}:") for lang in langs if not (DATA / "strings" / f"{lang}.json").exists()}
 
 
 @functools.cache
@@ -203,13 +215,27 @@ class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
             with self.subTest(page=page):
                 self.assertIn("," + LANGUAGE_BLOCK, self._page(page), f"{page}: the emitted language block moved")
 
-    def test_the_language_block_is_the_same_bytes_in_every_shell(self):
+    def test_the_language_block_is_the_same_bytes_in_every_shell_that_carries_it(self):
         """The other axis. The shells differ in markup, not in what the swap
-        looks for, so none of them may change a byte of it."""
-        for shell in range(len(load_themes(language_root()))):
-            with self.subTest(shell=shell):
+        looks for, so none of them may change a byte of it.
+
+        A style declaring `"i18n": false` carries no swap at all, which is not a
+        counterexample to that claim -- it is the absence of the thing the claim
+        is about. Skipped by reading the flag rather than by naming nyan, and
+        counted, because a skip that silently emptied this sweep would leave the
+        golden block asserted against nothing.
+        """
+        themes = load_themes(language_root())
+        checked = 0
+        for shell, theme in enumerate(themes):
+            if not i18n.enabled(theme):
+                continue
+            with self.subTest(shell=shell, theme=theme["name"]):
                 html = multi_language_page("url-block-page", shell=shell)
                 self.assertIn("," + LANGUAGE_BLOCK, html, "the emitted language block is shell-dependent")
+                checked += 1
+        self.assertEqual(checked, sum(1 for t in themes if i18n.enabled(t)))
+        self.assertGreater(checked, 1, "the sweep is asserting the golden block against one shell or none")
 
     def test_the_severity_pill_consults_the_selected_language(self):
         """BLOCKER. The category script re-sets .sev after the swap. Reading the
@@ -462,6 +488,240 @@ class TestTheDocumentDeclaresItsBaseLanguage(unittest.TestCase):
         html = multi_language_page("url-block-page", base="de")
         self.assertIn('var T={"en":{', html)
         self.assertNotIn('"de":{', html)
+
+
+class TestThemeOptOut(unittest.TestCase):
+    """A style with no room for a second language says so, in its own file.
+
+    nyan's URL block page is 15108 B in English against a 17999 B ceiling: 2891
+    B of headroom, and one language costs it 2262 B. Its star field and its
+    sprite artwork are half the file, so capping the design around a dictionary
+    would be the tail wagging the dog -- it is a novelty style. The flag is what
+    lets the other six carry as many languages as they fit while nyan carries
+    none.
+    """
+
+    def test_nyan_declares_no_i18n(self):
+        theme = json.loads((DATA / "themes/nyan.json").read_text(encoding="utf-8"))
+        self.assertFalse(theme.get("i18n", True))
+
+    def test_opted_out_theme_ships_base_language_only(self):
+        """Both halves. `nyan` carrying no runtime is only correct if the same
+        build gives every other style one -- otherwise this passes on a build
+        that compiled no languages at all."""
+        out, _result = built_with_languages(("en", "de"))
+        nyan = (out / "deploy/nyan/prisma-blue/url-block-page.html").read_text(encoding="utf-8")
+        glass = (out / "deploy/glass/prisma-blue/url-block-page.html").read_text(encoding="utf-8")
+        self.assertNotIn("navigator.languages", nyan, "nyan must not carry the language runtime")
+        self.assertIn("navigator.languages", glass)
+
+    def test_the_opted_out_theme_carries_no_dictionary_either(self):
+        """The runtime is the smaller half. A style that emitted the selector's
+        absence but kept the JSON would pay the whole cost for nothing."""
+        out, _result = built_with_languages(("en", "de"))
+        nyan = (out / "deploy/nyan/prisma-blue/url-block-page.html").read_text(encoding="utf-8")
+        self.assertNotIn("var T={", nyan)
+
+    def test_the_opt_out_is_what_keeps_nyan_under_the_ceiling(self):
+        """The number the flag exists for, measured rather than asserted from a
+        comment. If nyan ever fits a second language this test says so, and the
+        flag can go."""
+        _out, result = built_with_languages(("en", "de"))
+        sizes = {r.theme: max(x.size for x in result.results if x.theme == r.theme) for r in result.results}
+        self.assertEqual(sizes["nyan"], max(x.size for x in built()[1].results if x.theme == "nyan"))
+        self.assertGreater(sizes["glass"], max(x.size for x in built()[1].results if x.theme == "glass"))
+
+    def test_every_other_theme_ships_every_language(self):
+        """The opt-out is one style's decision, not a licence for any style to
+        quietly ship less than the config asked for."""
+        _out, result = built_with_languages(("en", "de"))
+        for theme in load_themes(DATA):
+            with self.subTest(theme=theme["name"]):
+                want = ["en"] if theme["name"] == "nyan" else ["en", "de"]
+                self.assertEqual(result.theme_languages[theme["name"]], want)
+
+
+class TestTheReportNamesTheLanguages(unittest.TestCase):
+    """A style shipping fewer languages than the config lists is exactly the
+    invisible failure this project refuses. It has to be on the row."""
+
+    def test_the_table_names_the_language_set(self):
+        _out, result = built_with_languages(("en", "de"))
+        text = format_report(result)
+        row = next(ln for ln in text.splitlines() if ln.split()[:2] == ["glass", "prisma-blue"])
+        self.assertIn("en,de", row)
+
+    def test_the_opted_out_row_says_so(self):
+        _out, result = built_with_languages(("en", "de"))
+        text = format_report(result)
+        row = next(ln for ln in text.splitlines() if ln.split()[:2] == ["nyan", "prisma-blue"])
+        self.assertIn("i18n:false", row)
+        self.assertNotIn("en,de", row)
+
+    def test_a_single_language_build_claims_no_opt_out(self):
+        """Nothing is dropped when there is nothing to drop, so nyan's row must
+        not carry a marker that would read as a missing language."""
+        text = format_report(built()[1])
+        self.assertNotIn("i18n:false", text)
+
+
+class TestTheCeilingErrorNamesTheLanguageSet(unittest.TestCase):
+    """An overflow that actually happens, so the message on it is one somebody
+    has read.
+
+    PAN-OS does not refuse an oversize response page -- it serves its own
+    default instead, with the import still reporting success. This error is the
+    entire feedback loop, so it has to say what made the page big and what the
+    reader can take out. Twelve languages is well past anything sensible; that
+    is the point. It is the shape of the config that walks into this, and the
+    message has to be useful the first time it appears.
+
+    Twelve rather than the ten it takes to break the first style, because at
+    twelve every style that compiles languages is over -- which is what makes
+    the survivor below mean something.
+    """
+
+    LANGS = ("en", "de", "fr", "it", "es", "nl", "pt", "pl", "cs", "sv", "da", "fi")
+
+    @classmethod
+    def setUpClass(cls):
+        root = broken_data_dir(
+            # Every language, German included, so the sizes here do not depend
+            # on which real translations happen to have shipped.
+            strings={lang: translated_strings(f"{lang}:") for lang in cls.LANGS[1:]},
+            baseLanguage="en",
+            languages=list(cls.LANGS),
+        )
+        cls.result = build_all(root, root / "out", preview=False, write=False)
+        cls.errors = [e for r in cls.result.results for e in r.errors]
+
+    def test_the_build_fails(self):
+        self.assertTrue(self.result.failed, "ten languages fit under the ceiling; the fixture no longer overflows")
+        self.assertTrue(self.errors)
+
+    def test_the_error_states_the_overshoot(self):
+        worst = max(self.result.results, key=lambda r: r.size)
+        self.assertGreater(worst.size, 17999)
+        self.assertTrue(
+            any(f"by {worst.size - 17999} B" in e for e in self.errors),
+            f"no error quotes the overshoot: {self.errors[:1]}",
+        )
+
+    def test_the_error_names_every_language_that_produced_the_size(self):
+        """ "Too big" is not actionable on its own. The language set is the one
+        thing about an oversize page the reader can change in a single line."""
+        for error in self.errors:
+            with self.subTest(error=error[:60]):
+                self.assertIn(f"built with {len(self.LANGS)} languages", error)
+                for lang in self.LANGS:
+                    self.assertIn(lang, error)
+
+    def test_the_error_offers_the_two_ways_out(self):
+        """The optional block first, because it costs the least to give up, and
+        the style-level opt-out second, for a style with no room for any of it."""
+        for error in self.errors:
+            with self.subTest(error=error[:60]):
+                self.assertIn("`categories` block", error)
+                self.assertIn('"i18n": false', error)
+
+    def test_the_report_names_the_style_and_the_page(self):
+        """The message says what is in the page; the row it hangs under says
+        which page. Neither is any use without the other."""
+        text = format_report(self.result)
+        worst = max(self.result.results, key=lambda r: r.size)
+        self.assertIn(f"{worst.theme}/{worst.palette}/{worst.page}", text)
+        self.assertIn("exceeds the 17999 B ceiling", text)
+
+    def test_the_opted_out_style_is_the_one_that_survives(self):
+        """nyan is the largest style in the tree and the only one still under
+        the ceiling, because it compiled none of these languages. This is what
+        the flag buys, measured rather than argued."""
+        failed = {r.theme for r in self.result.results if r.errors}
+        self.assertNotIn("nyan", failed)
+        self.assertEqual(failed, {t["name"] for t in load_themes(DATA) if t["name"] != "nyan"})
+
+
+class TestTheRedirectAndASecondLanguageShareTheMargin(unittest.TestCase):
+    """Both features spend the same headroom, and nothing refuses the pair.
+
+    The redirect notice is a flat 3347 B and German is ~2260 B on the page they
+    both land on, so together they put `beacon`, `glass` and `mesh` into the warn
+    band -- inside 2000 B of a ceiling PAN-OS enforces silently. No style
+    breaches it.
+
+    THE DECISION, recorded here because this is where it is checkable: the
+    combination stays ALLOWED and stays a warning.
+
+    * Refusing it would punish a correct, opt-in configuration for a property of
+      a style the customer may not even deploy -- which is the reasoning
+      `redirect.supported` already gives for being a declared flag rather than a
+      measured one. Inverting it here would make the module contradict itself.
+    * Making `supported()` language-aware would drop the notice from three
+      styles the moment a second language was configured, for every user of
+      them, to protect a margin the English page never approaches -- and the
+      customer would see a feature disappear because they turned on German.
+      That is a silent failure with a config key for a cause, which is the exact
+      class of thing this project exists to refuse.
+    * What the warn band protects is serve-time `<url/>` expansion, and 1350 B
+      -- the tightest case -- is still a longer URL than the fact row can show.
+
+    So it warns, the warning names the language set that spent the margin, and
+    this test fails the day the pair stops fitting.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = broken_data_dir(
+            strings=stand_in_strings("de"),
+            baseLanguage="en",
+            languages=["en", "de"],
+            redirect={
+                "enabled": True,
+                "seconds": 10,
+                "message": "Taking you to {app} -- the approved alternative for this.",
+                "categories": {
+                    "online-storage-and-backup": {"app": "Company Drive", "url": "https://drive.example.com/"}
+                },
+            },
+        )
+        cls.result = build_all(cls.root, cls.root / "out", preview=False, write=False)
+
+    def test_the_pair_is_allowed(self):
+        """`redirect.supported` takes a theme and nothing else. It has no notion
+        of language and this test says that is deliberate."""
+        self.assertTrue(self.result.results)
+        self.assertFalse(self.result.failed, "the redirect and a second language no longer fit together")
+
+    def test_nothing_breaches_the_ceiling(self):
+        for r in self.result.results:
+            with self.subTest(theme=r.theme, page=r.page):
+                self.assertLessEqual(r.size, 17999, f"{r.theme}/{r.page} would be dropped silently by PAN-OS")
+
+    def test_a_page_that_spends_the_margin_says_what_spent_it(self):
+        """The warn line is the margin `<url/>` needs at serve time. A page that
+        entered the band by gaining a language has to say so, or the reader has
+        no way to tell a tight style from a tight configuration."""
+        for r in self.result.results:
+            for w in r.warnings:
+                if "of the ceiling" in w:
+                    with self.subTest(theme=r.theme, page=r.page):
+                        self.assertIn("built with 2 languages (en, de)", w)
+
+    def test_the_notice_still_reaches_every_style_that_declares_it(self):
+        """The alternative this decision rejects, asserted as an absence: no
+        style loses the notice for having gained a language."""
+        cfg = load_config("contoso", self.root / "config")
+        for theme in load_themes(self.root):
+            with self.subTest(theme=theme["name"]):
+                html = build_page(
+                    "url-block-page",
+                    theme,
+                    cfg,
+                    load_palette("cyber-orange", self.root / "palettes"),
+                    False,
+                    self.root / "templates",
+                )
+                self.assertEqual(redirect.supported(theme), 'id="rx"' in html)
 
 
 class TestSingleLanguageIsFree(unittest.TestCase):

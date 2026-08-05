@@ -104,6 +104,13 @@ class BuildResult:
     # and its length is asserted against PAGE_TOKENS. A second family appearing
     # in it would break an invariant that has nothing to do with the portal.
     portal_results: list[PortalResult] = field(default_factory=list)
+    # What the CONFIG asked for, and what each style actually compiled. Two
+    # fields rather than one because the report's job is to show where they
+    # differ: a style that declares `"i18n": false` ships the base language
+    # alone, and a table that printed only the second list would show a shorter
+    # set with nothing saying it was ever meant to be longer.
+    languages: list[str] = field(default_factory=list)
+    theme_languages: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:
@@ -266,7 +273,11 @@ def build_all(
                 # measured are the bytes that ship. It must not run any earlier:
                 # parse_sections() needs the <!--@SLOT--> markers intact.
                 deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
-                size, errors, warnings = validate(page, deployable)
+                # The language set this page was BUILT with, not the one the
+                # config lists. On an opted-out style they differ, and a size
+                # error that named languages the page does not carry would send
+                # the reader to delete a translation that is not on it.
+                size, errors, warnings = validate(page, deployable, languages=i18n.shipped(cfg, th))
                 emit(deploy_dir / f"{page}.html", deployable)
 
                 if preview:
@@ -336,7 +347,13 @@ def build_all(
         for name, text in sidecars.items():
             (out_dir / "preview" / name).write_bytes(text.encode("utf-8"))
 
-    return BuildResult(results, palette, portal_results)
+    return BuildResult(
+        results,
+        palette,
+        portal_results,
+        i18n.languages(cfg),
+        {th["name"]: i18n.shipped(cfg, th) for th in themes},
+    )
 
 
 def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> dict[str, str]:
@@ -396,6 +413,26 @@ def _flagged(rows: list[Any], all_clear: str | None = None) -> list[str]:
     return lines
 
 
+def _language_cell(result: BuildResult, theme: str) -> str:
+    """What this style's rows say about languages.
+
+    A style that declares `"i18n": false` ships fewer languages than the config
+    listed. That is invisible in the output -- the page looks complete, it is
+    simply in one language -- so it is named here, on the rows it is true of.
+    Silence would be the same class of failure as an oversize page: correct
+    input, plausible output, and a promise quietly not kept.
+
+    The marker is derived from the two lists differing rather than from the flag
+    itself, so a single-language build -- where an opted-out style drops nothing
+    -- carries no marker to read as a missing language.
+    """
+    shipped = result.theme_languages.get(theme) or result.languages
+    cell = ",".join(shipped)
+    if len(shipped) < len(result.languages):
+        cell += " (base only -- i18n:false)"
+    return cell
+
+
 def format_report(result: BuildResult) -> str:
     """The size table. This is the tool's product, not chatter, so it goes to
     stdout as plain text and stays parseable by eye.
@@ -405,15 +442,24 @@ def format_report(result: BuildResult) -> str:
     carries that page, and anything that warns or fails is then named in full
     underneath, where a short list is read and a long table is not.
     """
+    worst = _worst_rows(result.results)
+    cells = {theme: _language_cell(result, theme) for theme, _palette in worst}
+    # Sized to the content rather than pinned, because the widest cell is the
+    # opted-out one and it is three times the width of a plain `en,de`. A fixed
+    # rule would either float past the end of every ordinary build's table or
+    # stop short of the one row that matters most.
+    # 79 is every column before this one; `languages` is the header, and so the
+    # floor on the last column's width.
+    rule = "  " + "-" * (79 + max(len("languages"), *(len(c) for c in cells.values()), 0))
     lines = [
-        f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  status",
-        "  " + "-" * 78,
+        f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  {'status':6}  languages",
+        rule,
     ]
-    for (theme, palette), r in _worst_rows(result.results).items():
+    for (theme, palette), r in worst.items():
         status = _status(result.results, theme, palette)
         pct = f"{r.size / MAX_BYTES * 100:.0f}%"
-        lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status}")
-    lines.append("  " + "-" * 78)
+        lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status:6}  {cells[theme]}")
+    lines.append(rule)
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )

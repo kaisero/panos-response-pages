@@ -45,6 +45,37 @@ def languages(cfg: Mapping[str, Any]) -> list[str]:
     return [str(x) for x in cfg.get("languages", [DEFAULT_LANG])]
 
 
+def enabled(theme: Mapping[str, Any]) -> bool:
+    """Whether this style compiles the configured languages beyond the base one.
+
+    Declared per style, not measured, for the same reason `redirect.supported`
+    is: a measured check would refuse the BUILD for the customer who configured
+    a second language, punishing them for a property of a style they may not
+    even use. The flag says up front which styles carry the feature, and the
+    suite holds it honest by measuring the ones that claim it.
+
+    Opting out is not opting out of the page. An opted-out style still builds
+    every page, still renders `baseLanguage` as real text, and is still measured
+    against the ceiling -- it simply carries no dictionary and no selector. That
+    is a smaller page in ONE language where the config asked for several, which
+    is a real reduction in what the customer gets, so `format_report` prints it
+    on that style's rows rather than letting it pass in silence.
+
+    Absent means true. Six of the seven shipped styles have room, and a theme
+    file written before the flag existed is one of them.
+    """
+    return bool(theme.get("i18n", True))
+
+
+def shipped(cfg: Mapping[str, Any], theme: Mapping[str, Any]) -> list[str]:
+    """The languages this style actually compiles, which is what the table shows.
+
+    One place answers this, because two would eventually disagree -- and the way
+    they would disagree is a report claiming a language the page does not carry.
+    """
+    return languages(cfg) if enabled(theme) else [base_language(cfg)]
+
+
 def strings_path(lang: str, data_dir: pathlib.Path) -> pathlib.Path:
     return data_dir / "strings" / f"{lang}.json"
 

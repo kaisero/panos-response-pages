@@ -429,4 +429,14 @@ def emit(
         return "", "", ""
     # Read after the gate, not before: a single-language build resolves to an
     # empty mapping without opening a file, and every other page never asks.
-    return CSS, HTML, _script(cfg, i18n.redirect_strings(cfg, data_dir), loop=loop)
+    #
+    # A style that opted out of the extra languages gets the empty mapping too.
+    # Nothing on such a page ever assigns `documentElement.lang` -- the selector
+    # that would is exactly what the opt-out drops -- so the notice's own
+    # language table could only ever miss, and it would miss having spent its
+    # bytes on the style that had none to spare. The two flags are independent
+    # by design (nyan declares `"redirect": false` as well, so this branch is
+    # unreachable from the shipped tree today), and independence is precisely
+    # why the dependency has to be written down rather than assumed.
+    translations = i18n.redirect_strings(cfg, data_dir) if i18n.enabled(theme) else {}
+    return CSS, HTML, _script(cfg, translations, loop=loop)
