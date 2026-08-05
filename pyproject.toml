@@ -114,7 +114,15 @@ docstring-code-format = true
 # of all -- their pronouns, articles and prepositions are ordinary words in one
 # language and English misspellings in the dictionary, and there are more of them
 # per sentence than in German.
-skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures,*/data/strings/de.json,*/data/strings/es.json,*/data/strings/it.json,*/data/strings/fr.json"
+#
+# nl.json, da.json and sv.json join them for the same reason, again by name. The
+# Germanic languages collide for a different reason than the Romance ones: they
+# are close enough to English that ordinary Dutch, Danish and Swedish function
+# words -- pronouns, conjunctions, short verb forms -- are themselves live
+# entries in the English misspelling dictionary, so every sentence trips several.
+# The comment cannot list examples: naming them here would trip the same check on
+# this file.
+skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures,*/data/strings/de.json,*/data/strings/es.json,*/data/strings/it.json,*/data/strings/fr.json,*/data/strings/nl.json,*/data/strings/da.json,*/data/strings/sv.json"
 # "levl" is a deliberate misspelling in the test asserting that a typo'd
 # settings key is rejected rather than silently ignored.
 ignore-words-list = "levl"

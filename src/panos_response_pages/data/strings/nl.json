@@ -1,0 +1,194 @@
+{
+  "lang": "nl",
+  "name": "Dutch",
+  "shared": {
+    "reportLabel": "Melden bij IT",
+    "contactAlt": ["Of mail naar ", " met de gegevens hierboven."],
+    "severity": { "calm": "", "warn": "Let op", "crit": "Veiligheidsrisico" },
+    "defaultGloss": "Het bedrijfsbeleid beperkt deze categorie.",
+    "riskGloss": "Deze site is geblokkeerd omdat hij een veiligheidsrisico vormt.",
+    "continueGrantText": "15 minuten",
+    "supportLabel": "IT-support",
+    "redirect": {
+      "go": "Ga nu",
+      "stay": "Blijven",
+      "cancelled": "U blijft op deze pagina.",
+      "cancelledAnnounce": "Geannuleerd. U blijft op deze pagina.",
+      "announce": "U gaat over {n} seconden naar {app}. Kies Blijven of druk op Escape om op deze pagina te blijven."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Applicatie geblokkeerd",
+      "headline": "Deze applicatie is geblokkeerd",
+      "gloss": "Het bedrijfsbeleid beperkt deze applicatie op het netwerk.",
+      "facts": ["Applicatie", "Gebruiker", "Tijdstip"],
+      "extra": "Hebt u deze applicatie nodig voor uw werk? Stuur de melding hierboven, dan beoordeelt IT het.",
+      "report": {
+        "subject": "Melding: geblokkeerde applicatie",
+        "intro": "Beoordeel deze geblokkeerde applicatie.",
+        "prompt": "Waarom ik deze applicatie nodig heb:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Verzenden van inloggegevens geblokkeerd",
+      "headline": "Verzenden van inloggegevens geblokkeerd",
+      "gloss": "U probeerde zojuist uw zakelijke gebruikersnaam en wachtwoord naar deze site te sturen. Wij kennen deze site niet als vertrouwd.",
+      "facts": ["Adres", "Categorie", "Gebruiker", "Tijdstip"],
+      "contactAlt": ["Of mail direct naar ", "."],
+      "extra": "{{COMPANY}} vraagt nooit om uw wachtwoord op een pagina als deze. Vraagt een site u om in te loggen en klopt er iets niet? Sluit het tabblad en ga via uw bladwijzers rechtstreeks naar de dienst.",
+      "report": {
+        "subject": "Mogelijke phishingpagina - verzenden van inloggegevens geblokkeerd",
+        "intro": "Het verzenden van inloggegevens is geblokkeerd.",
+        "prompt": "Wat ik aan het doen was:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Is dit echt een inlogpagina van het bedrijf?",
+      "headline": "Is dit echt een inlogpagina van het bedrijf?",
+      "gloss": "U staat op het punt uw zakelijke gebruikersnaam en wachtwoord naar deze site te sturen. Wij kennen deze site niet als een van de onze.",
+      "facts": ["Adres", "Categorie", "Gebruiker", "Tijdstip"],
+      "extra": "Controleer het adres hierboven goed — let op kleine spelfouten in een naam die u kent. Als u doorgaat, worden uw inloggegevens verstuurd en wordt dit op uw naam vastgelegd.",
+      "report": {
+        "subject": "Mogelijke phishingpagina - vraag om inloggegevens",
+        "intro": "Ik kreeg een waarschuwing voordat ik inloggegevens verstuurde.",
+        "prompt": "Wat ik aan het doen was:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Gegevensoverdracht geblokkeerd",
+      "headline": "Gegevensoverdracht geblokkeerd",
+      "gloss": "Het bedrijfsbeleid beperkt de overdracht van deze inhoud. De overdracht is daarom gestopt.",
+      "facts": ["Richting", "Bestand", "Applicatie", "Gebruiker", "Tijdstip"],
+      "extra": "Moet u dit voor uw werk versturen? Stuur de melding hierboven, dan beoordeelt IT het.",
+      "report": {
+        "subject": "Geblokkeerde gegevensoverdracht",
+        "intro": "Een gegevensoverdracht is geblokkeerd door het beleid.",
+        "prompt": "Waarom ik dit moet versturen:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Doorgaan met deze download?",
+      "headline": "Doorgaan met deze download?",
+      "gloss": "Het bedrijfsbeleid beperkt het downloaden van dit bestandstype. U kunt doorgaan als u dit bestand nodig hebt voor uw werk.",
+      "facts": ["Bestand", "Gebruiker", "Tijdstip"],
+      "extra": "Ga alleen door als u weet wat dit bestand is en waar het vandaan komt.",
+      "report": {
+        "subject": "Waarschuwing bij download",
+        "intro": "Ik kreeg een waarschuwing voordat ik een beperkt bestandstype downloadde.",
+        "prompt": "Wat ik aan het doen was:"
+      }
+    },
+    "file-block-page": {
+      "title": "Dit bestandstype is geblokkeerd",
+      "headline": "Dit bestandstype is geblokkeerd",
+      "gloss": "Het bedrijfsbeleid beperkt de overdracht van dit bestandstype. De overdracht is daarom gestopt.",
+      "facts": ["Bestand", "Gebruiker", "Tijdstip"],
+      "extra": "Hebt u dit bestand nodig voor uw werk? Stuur de melding hierboven, dan beoordeelt IT het.",
+      "report": {
+        "subject": "Geblokkeerde bestandsoverdracht",
+        "intro": "Een bestandsoverdracht is geblokkeerd door het beleid.",
+        "prompt": "Waarom ik dit bestand nodig heb:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Schakel SafeSearch in om door te gaan",
+      "headline": "Schakel SafeSearch in om door te gaan",
+      "gloss": "Uw zoekopdracht is geblokkeerd omdat SafeSearch niet aanstaat. Het bedrijfsbeleid vereist SafeSearch op de zoekmachines waarvoor het geldt.",
+      "facts": ["Gebruiker", "Tijdstip"],
+      "action2": "Zoekinstellingen openen",
+      "extra": [
+        "Zet SafeSearch op de strengste stand en voer uw zoekopdracht opnieuw uit. Bent u ingelogd bij de zoekmachine, vergrendel de instelling dan ook.",
+        "Nog steeds geblokkeerd nadat u SafeSearch hebt ingeschakeld? Neem contact op met ",
+        " en IT kijkt ernaar."
+      ],
+      "report": {
+        "subject": "SafeSearch aan, zoekopdracht nog geblokkeerd",
+        "intro": "SafeSearch staat aan, maar mijn zoekopdracht wordt nog steeds geblokkeerd.",
+        "prompt": "Waar ik naar zocht:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Certificaatprobleem",
+      "headline": "Het certificaat van deze site kon niet worden gecontroleerd",
+      "gloss": "De server bood een certificaat aan dat niet te controleren was. De verbinding is daarom gestopt.",
+      "facts": ["Server", "Certificaat", "Uitgever", "Status", "Reden", "Categorie", "Gebruiker", "Tijdstip"],
+      "extra": "Log niet in en vul geen persoonlijke gegevens in op deze site totdat IT ernaar heeft gekeken.",
+      "report": {
+        "subject": "Certificaatfout",
+        "intro": "Een certificaat kon op deze verbinding niet worden gecontroleerd.",
+        "prompt": "Welke site ik wilde openen:"
+      }
+    },
+    "url-block-page": {
+      "title": "Deze site is geblokkeerd",
+      "headline": "Deze site is geblokkeerd",
+      "gloss": "Het bedrijfsbeleid beperkt deze categorie.",
+      "facts": ["Adres", "Categorie", "Gebruiker", "Tijdstip"],
+      "extra": "Denkt u dat u deze site nodig hebt voor uw werk? Stuur de melding hierboven, dan beoordeelt IT het.",
+      "report": {
+        "subject": "Melding: geblokkeerde site",
+        "intro": "Beoordeel deze blokkering.",
+        "prompt": "Waarom ik toegang nodig heb:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Toch doorgaan naar deze site?",
+      "headline": "Toch doorgaan naar deze site?",
+      "gloss": "Het bedrijfsbeleid beperkt deze categorie.",
+      "facts": ["Adres", "Categorie", "Gebruiker", "Tijdstip"],
+      "extra": ["Als u doorgaat, krijgt u toegang tot ", "alle sites in deze categorie", " voor {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Categoriewaarschuwing - pagina met doorgaan-optie",
+        "intro": "Ik kreeg een waarschuwing voordat ik doorging.",
+        "prompt": "Waarom ik denk dat de categorie niet klopt:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Download geblokkeerd",
+      "headline": "Download geblokkeerd",
+      "gloss": "De virusscan vond malware in dit bestand. De download is daarom gestopt.",
+      "facts": ["Bestand", "Gebruiker", "Tijdstip"],
+      "contactAlt": ["Of mail direct naar ", "."],
+      "extra": "Hebt u ergens anders een kopie van dit bestand geopend? Laat het IT weten — het staat mogelijk al op uw apparaat.",
+      "report": {
+        "subject": "Malware gevonden in een download",
+        "intro": "Een download is geblokkeerd door de virusscan.",
+        "prompt": "Wat ik aan het doen was:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Inloggen",
+      "getSoftware": "Agentsoftware ophalen",
+      "glossSignIn": "Log in met uw bedrijfsaccount.",
+      "glossSoftware": "Download de agent voor uw besturingssysteem en log daarna in vanuit de app.",
+      "download": "Downloaden",
+      "otherPlatforms": "Andere platforms",
+      "note": ["Hulp nodig? Neem contact op met ", "."],
+      "downloadFor": "Downloaden voor ",
+      "chooseDownload": "Kies uw download",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bit",
+      "bit32": "32-bit",
+      "formUser": "Gebruikersnaam",
+      "formPassword": "Wachtwoord",
+      "formNewPassword": "Nieuw wachtwoord",
+      "formConfirmPassword": "bevestig nieuw wachtwoord",
+      "formSubmit": "Inloggen"
+    },
+    "home": {
+      "logoutMessages": [
+        "U bent uitgelogd bij de GlobalProtect-portal.",
+        "De GlobalProtect-portal heeft geen licentie. Koop of activeer de licentie voor uw GlobalProtect-abonnement.",
+        "Gebruiker niet geverifieerd bij de GlobalProtect-portal.",
+        "Systeemfout. Neem contact op met {{CONTACT_REACHABLE}}.",
+        "Systeemfout: de gebruikerssessie kon niet worden verwijderd. Neem contact op met {{CONTACT_REACHABLE}}.",
+        "Kan geen gebruikerssessie maken: maximale capaciteit bereikt. Neem contact op met {{CONTACT_REACHABLE}}.",
+        "Uw sessie is verlopen en u bent om veiligheidsredenen uitgelogd. Log opnieuw in als u verder wilt."
+      ]
+    }
+  }
+}
