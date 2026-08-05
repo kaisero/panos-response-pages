@@ -233,12 +233,19 @@ def runtime_dict(cfg: Mapping[str, Any], page: str, data_dir: pathlib.Path) -> d
         conf = config_strings(cfg, doc, lang)
         # Resolve placeholders inside the copy FIRST, and per language.
         #
-        # This is the silent half of the bug resolve() exists for. page_values()
-        # feeds the template pass, where an unresolved {{COMPANY}} eventually
-        # trips assert_resolved and fails the build loudly. NOTHING here does:
-        # this dictionary is JSON handed to textContent, so a stray placeholder
-        # would be read off the page by a German user as literal braces, with no
-        # error at build time and none on the firewall.
+        # Not because an unresolved one would ship silently -- it would not.
+        # assert_resolved() scans the WHOLE built page, the JSON inside <script>
+        # included, so dropping these calls fails the build loudly:
+        #
+        #   BuildError: unresolved placeholder(s) in credential-block-page: COMPANY
+        #
+        # That message names the page, though, and nothing else: not the
+        # language whose file carries the placeholder, not the key. The reason
+        # to resolve here is the VALUES it resolves against. `lang_values` is
+        # built from this language's own strings, so {{CONTINUE_GRANT}} in a
+        # German sentence becomes "30 Minuten" rather than the English duration
+        # the template pass would have substituted -- a page that builds clean,
+        # reads as German, and states the wrong fact.
         #
         # CONTINUE_GRANT comes from `conf`, not from cfg: a non-base language
         # has its own translation of the duration, and resolving the German
@@ -280,8 +287,13 @@ def runtime_dict(cfg: Mapping[str, Any], page: str, data_dir: pathlib.Path) -> d
         # the key -- the dictionary carries what the page uses and nothing else.
         if "action2" in p:
             entry["a2"] = p["action2"]
+        # Resolved like every other value that leaves this function. It is copy
+        # a translator writes, so it may carry {{COMPANY}} exactly as the page
+        # blocks do, and assigning it raw made it the one copy value here that
+        # reached a page unresolved -- failing the build with a message naming
+        # the PAGE, which is the one thing about it that is not wrong.
         if "categories" in doc:
-            entry["c"] = doc["categories"]
+            entry["c"] = resolve(doc["categories"], lang_values)
         out[lang] = entry
     return out
 
@@ -307,19 +319,76 @@ def flat_keys(doc: Mapping[str, Any], prefix: str = "") -> set[str]:
     return out
 
 
+# The one string that is deliberately empty: a calm page carries a pill with no
+# words in it, and the runtime's `if(V&&V.textContent)` guard is built on that.
+# Listed by exact path rather than by rule, so it stays a single documented
+# exception instead of a hole any future empty string can fall through.
+EMPTY_ALLOWED = frozenset({"shared.severity.calm"})
+
+
+def empty_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
+    """Paths whose value is the empty string.
+
+    An empty fragment is invisible to every other check in this module.
+    check_complete() compares key SETS, and flat_keys() indexes list positions,
+    so `"extra": ["", "Contact ", " and IT will look."]` has exactly the right
+    keys in exactly the right places and is still broken: the template renders
+    no text node for fragment 0, the sentence drops to two child nodes, and the
+    runtime's S() -- which keys on childNodes.length>2 -- silently does nothing.
+    The result is one sentence left in the base language on an otherwise
+    translated page, with a clean build behind it.
+
+    Empty, not blank: " " renders a text node and keeps the shape, and several
+    fragments legitimately end in a space.
+    """
+    out: list[str] = []
+    for key, value in doc.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict):
+            out += empty_leaves(value, f"{path}.")
+        elif isinstance(value, list):
+            out += [f"{path}[{i}]" for i, v in enumerate(value) if v == ""]
+        elif value == "" and path not in EMPTY_ALLOWED:
+            out.append(path)
+    return out
+
+
+def _refuse_empty(lang: str, doc: Mapping[str, Any]) -> None:
+    """Names the language AND every key path, because the author fixing this has
+    to find the string in a file they may not read."""
+    blank = empty_leaves(doc)
+    if blank:
+        raise BuildError(
+            f"{lang}.json has {len(blank)} empty string(s):\n  "
+            + "\n  ".join(blank)
+            + "\nAn empty fragment renders no text node, which collapses the sentence "
+            "the runtime swaps and leaves it in the base language."
+        )
+
+
 def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
-    """Every configured language carries exactly the base language's key set.
+    """Every configured language carries exactly the base language's key set,
+    and no string in any of them is empty.
 
     Exactly, not merely at least: an extra key is a typo or a stale entry, and
     either way it is a string that will never reach a page. Reported rather than
     ignored, because both are real mistakes that are invisible in the output.
+
+    The base language is checked for empty values too, and only for those: it
+    defines the key set, so it cannot be out of step with itself -- but an empty
+    fragment in the MARKUP collapses the three-node shape for every language at
+    once, which is the worse version of the same bug.
     """
     base = base_language(cfg)
-    want = flat_keys(load(base, data_dir))
+    base_doc = load(base, data_dir)
+    want = flat_keys(base_doc)
+    _refuse_empty(base, base_doc)
     for lang in languages(cfg):
         if lang == base:
             continue
-        got = flat_keys(load(lang, data_dir))
+        doc = load(lang, data_dir)
+        _refuse_empty(lang, doc)
+        got = flat_keys(doc)
         missing = sorted(want - got)
         extra = sorted(got - want)
         if missing or extra:
