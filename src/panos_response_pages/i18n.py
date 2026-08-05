@@ -106,7 +106,18 @@ def check(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
     for lang in langs:
         path = strings_path(lang, data_dir)
         if not path.exists():
-            raise BuildError(f"language '{lang}' is configured but {lang}.json is missing from {path.parent}")
+            # The remedy, not just the diagnosis. `languages` defaults to
+            # ["en"], so a data directory copied out by `init` before the
+            # strings tree existed fails this for EVERY build and every page --
+            # and the message on its own reads like a typo in a config key the
+            # author never wrote. Naming `init --force` is the difference
+            # between a five-second fix and a hunt through a config file that
+            # is not wrong.
+            raise BuildError(
+                f"language '{lang}' is configured but {lang}.json is missing from {path.parent}. "
+                "A data directory made before this release has no strings/ at all: refresh it with "
+                "`panos-response-pages init --force` (back up your config/ first)."
+            )
 
     # A `translations` block for a language nothing compiles is copy the author
     # wrote and no user will ever read. Refused rather than ignored, and named as
@@ -198,6 +209,51 @@ def config_strings(cfg: Mapping[str, Any], doc: Mapping[str, Any], lang: str) ->
     return out
 
 
+# The notice's own furniture: two button labels, the line that replaces the
+# sentence when the user stays, and the two things a screen reader is told. All
+# five are SHIPPED copy, so they live in the strings document like every other
+# word this project writes -- and not, as they did, in Python constants that no
+# language can reach. A German page used to read "Sie werden zu ... weitergeleitet"
+# above buttons labelled "Go now" and "Stay", with the whole English sentence read
+# out to a screen reader underneath.
+#
+# They sit inside `shared.redirect`, which is also the block a customer translates
+# their own `message` into -- one block, merged one level by config_strings(), so a
+# language ends up with the shipped furniture and the customer's sentence together.
+#
+# `announce` carries {app} and {n}: the app name and the countdown are values only
+# the browser has. Same token syntax as `redirect.message`, and for the same
+# reason -- this module's own, substituted by redirect.py rather than by
+# substitute().
+NOTICE_KEYS = ("go", "stay", "cancelled", "cancelledAnnounce", "announce")
+
+
+def notice(block: Mapping[str, Any], where: str) -> dict[str, str]:
+    """The five notice strings out of a `redirect` block, or a named failure.
+
+    Checked rather than indexed because the caller splices these into markup and
+    into a JS string literal: a missing key reaches the page as the word
+    "undefined" on a button, which is a clean build and a broken page. `where` is
+    the file the reader has to open -- the strings document, never the config,
+    since this is copy no customer authors.
+    """
+    missing = [k for k in NOTICE_KEYS if not str(block.get(k, "")).strip()]
+    if missing:
+        raise BuildError(
+            f"{where} has no `shared.redirect` copy for the notice: {', '.join(missing)}. "
+            "A data directory made before this release predates the block: refresh it with "
+            "`panos-response-pages init --force` (back up your config/ first)."
+        )
+    return {k: str(block[k]) for k in NOTICE_KEYS}
+
+
+def notice_strings(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> dict[str, str]:
+    """The BASE language's notice furniture, which is what the markup renders."""
+    lang = base_language(cfg)
+    doc = load(lang, data_dir)
+    return notice(doc.get("shared", {}).get("redirect") or {}, f"{lang}.json")
+
+
 def redirect_strings(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> dict[str, dict[str, Any]]:
     """The translated redirect notice, per language, base excluded.
 
@@ -209,15 +265,19 @@ def redirect_strings(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> dict[str
     Each language is resolved against its OWN strings document, so a key the
     customer has not translated falls back to that language's shipped wording
     rather than to the base language's.
+
+    Every non-base language gets an entry now, whether or not the customer wrote
+    one: the furniture is shipped copy and exists in every language, so there is
+    always something to swap even where the sentence itself is untranslated.
     """
     base = base_language(cfg)
     out: dict[str, dict[str, Any]] = {}
     for lang in languages(cfg):
         if lang == base:
             continue
-        block = config_strings(cfg, load(lang, data_dir), lang).get("redirect")
-        if block:
-            out[lang] = dict(block)
+        block = config_strings(cfg, load(lang, data_dir), lang).get("redirect") or {}
+        notice(block, f"{lang}.json")
+        out[lang] = dict(block)
     return out
 
 
@@ -559,6 +619,72 @@ def empty_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
     return out
 
 
+# Angle brackets in copy. Both of them, and anywhere in the string: this is not a
+# tag parser and must not read like one.
+#
+# Copy leaves this module down two paths, and the character breaks both:
+#
+# * As MARKUP, in the base language. `<strong>` renders, which is why the rule
+#   cannot be "escape it" -- the base language would then show the escape.
+# * As JSON inside an inline <script>, in every other language. json.dumps
+#   escapes neither '<' nor a PAN-OS substitution token, so `<user/>` in a German
+#   gloss survives the build, survives validate() -- the token IS legal on that
+#   page -- and is expanded by the FIREWALL at serve time, inside a JS string
+#   literal. A username of the shape `ACME\ukaiser` then reads as \u, and node
+#   says what a browser says:
+#
+#       SyntaxError: Invalid Unicode escape sequence
+#
+#   which kills the entire page script: no language swap, no friendly category
+#   label, no data-c for the redirect to key on, no timestamp, no mailto rebuild.
+#   A clean build, a green validate, and a page that looks plausible.
+#
+# The fix is never innerHTML -- that makes every string in every language file an
+# injection surface. It is to split the string around the element and let the
+# TEMPLATE own the tag, which is what `contactAlt` does around its anchor and
+# url-coach's info box does around its <strong>.
+#
+# The portal family already refuses a raw '<' anywhere in an import (_RAW_LT).
+# This is the block-page half of the same rule, moved off the shipped tree --
+# where a test enforced it -- and into the build, where it also covers the
+# `init`-forked data directory that is the documented way to add a language.
+MARKUP_CHARS = ("<", ">")
+
+
+def markup_leaves(doc: Mapping[str, Any], prefix: str = "") -> list[str]:
+    """Paths whose value carries an angle bracket. Same walk as empty_leaves()."""
+    out: list[str] = []
+    for key, value in doc.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, Mapping):
+            out += markup_leaves(value, f"{path}.")
+        elif isinstance(value, list):
+            out += [f"{path}[{i}]" for i, v in enumerate(value) if _has_markup(v)]
+        elif _has_markup(value):
+            out.append(path)
+    return out
+
+
+def _has_markup(value: Any) -> bool:
+    return isinstance(value, str) and any(c in value for c in MARKUP_CHARS)
+
+
+def _refuse_markup(where: str, doc: Mapping[str, Any], prefix: str = "") -> None:
+    """Names the source AND every key path, like _refuse_empty: whoever fixes
+    this has to find the string in a file they may not read."""
+    bad = markup_leaves(doc, prefix)
+    if bad:
+        raise BuildError(
+            f"{where} has {len(bad)} string(s) containing '<' or '>':\n  "
+            + "\n  ".join(bad)
+            + "\nCopy reaches every non-base language as JSON inside a <script>. A tag renders there "
+            "as literal angle brackets, and a PAN-OS token such as <user/> is expanded by the firewall "
+            "at serve time -- inside a JS string literal, where a username like ACME\\ukaiser reads as "
+            "an invalid \\u escape and kills the whole page script.\nSplit the string around the element "
+            "and let the template own the tag, as `contactAlt` does."
+        )
+
+
 def _refuse_empty(lang: str, doc: Mapping[str, Any]) -> None:
     """Names the language AND every key path, because the author fixing this has
     to find the string in a file they may not read."""
@@ -584,16 +710,27 @@ def check_complete(cfg: Mapping[str, Any], data_dir: pathlib.Path) -> None:
     defines the key set, so it cannot be out of step with itself -- but an empty
     fragment in the MARKUP collapses the three-node shape for every language at
     once, which is the worse version of the same bug.
+
+    The markup rule runs over the base language and over the customer's
+    `translations` block as well, for the same reason. A tag in the base language
+    is only right until a second language is configured, and a `translations`
+    value reaches the script by exactly the path a strings value does -- the
+    block is the documented place to translate customer-authored copy, so it
+    cannot be the one place the rule does not reach.
     """
     base = base_language(cfg)
     base_doc = load(base, data_dir)
     want = flat_keys(base_doc)
     _refuse_empty(base, base_doc)
+    _refuse_markup(f"{base}.json", base_doc)
+    for lang, block in (cfg.get("translations") or {}).items():
+        _refuse_markup(f"the config `translations` block for '{lang}'", block, f"translations.{lang}.")
     for lang in languages(cfg):
         if lang == base:
             continue
         doc = load(lang, data_dir)
         _refuse_empty(lang, doc)
+        _refuse_markup(f"{lang}.json", doc)
         got = flat_keys(doc)
         missing = sorted(want - got)
         extra = sorted(got - want)

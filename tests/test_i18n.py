@@ -190,6 +190,97 @@ class TestNoStringIsEmpty(unittest.TestCase):
         i18n.check_complete({"baseLanguage": "en", "languages": ["en"]}, DATA)
 
 
+class TestNoCopyReachesAScriptAsMarkup(unittest.TestCase):
+    """The build refuses '<' and '>' in copy, wherever the copy came from.
+
+    A rule the suite used to enforce over the SHIPPED tree only (see
+    TestNoCopyCarriesMarkup). Every `init`-forked data directory -- the
+    documented way to add a translation -- was unguarded, and so was the
+    `translations` block, which is the documented way to translate your own copy.
+
+    The failure is not cosmetic. Copy reaches every non-base language as JSON
+    inside a <script>; json.dumps escapes neither '<' nor a PAN-OS substitution
+    token. A `<user/>` in a German gloss builds clean and validates clean -- the
+    token is legal on that page -- and is then expanded by the FIREWALL at serve
+    time, inside a JS string literal. Reproduced before this guard existed, with
+    a username of the shape `ACME\\ukaiser`:
+
+        SyntaxError: Invalid Unicode escape sequence
+
+    which kills the whole page script: `lang` stays "en" for a German user, the
+    redirect's `data-c` is never set so the notice can never arm, and the
+    timestamp stays empty. A clean build behind a plausible-looking page.
+    """
+
+    def _write(self, tmp, name, doc):
+        d = tmp / "strings"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def _check(self, tmp, **cfg):
+        i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"], **cfg}, tmp)
+
+    def test_a_pan_os_token_in_a_translation_is_refused(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"pages": {"p": {"gloss": "Blocked."}}})
+            # Marked as validate.py marks its own German entries: an English
+            # misspelling dictionary reads the German conjunction as a typo.
+            self._write(tmp, "de", {"pages": {"p": {"gloss": "Angemeldet als <user/>."}}})  # codespell:ignore
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            msg = str(ctx.exception)
+            self.assertIn("de.json", msg)
+            self.assertIn("pages.p.gloss", msg)
+            self.assertIn("kills the whole page script", msg)
+
+    def test_a_tag_in_the_base_language_is_refused_too(self):
+        """The base language is where a tag looks harmless -- it renders. It is
+        also the document every other language is copied from."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "Contact <strong>IT</strong>."}})
+            self._write(tmp, "de", {"shared": {"a": "de:x"}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("en.json", str(ctx.exception))
+
+    def test_a_closing_bracket_alone_counts(self):
+        """Both characters, not a tag parser: a stray '>' is a half-written tag
+        and reads as one to everything downstream."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": "de:x >"}})
+            with self.assertRaises(BuildError):
+                self._check(tmp)
+
+    def test_a_fragment_of_a_split_sentence_is_named_by_index(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"contactAlt": ["Or email ", " with the details."]}})
+            self._write(tmp, "de", {"shared": {"contactAlt": ["de:Or email ", " <user/>"]}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp)
+            self.assertIn("shared.contactAlt[1]", str(ctx.exception))
+
+    def test_the_translations_block_is_covered(self):
+        """The customer's own copy takes the same path to the same <script>, and
+        it is the block the documentation tells them to write."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = pathlib.Path(td)
+            self._write(tmp, "en", {"shared": {"a": "x"}})
+            self._write(tmp, "de", {"shared": {"a": "de:x"}})
+            with self.assertRaises(BuildError) as ctx:
+                self._check(tmp, translations={"de": {"redirect": {"message": "Zu <user/>."}}})
+            msg = str(ctx.exception)
+            self.assertIn("translations.de.redirect.message", msg)
+            self.assertIn("'de'", msg)
+
+    def test_the_shipped_tree_passes(self):
+        i18n.check_complete({"baseLanguage": "en", "languages": ["en", "de"]}, DATA)
+
+
 class TestPageValues(unittest.TestCase):
     def test_builds_the_placeholder_values_for_one_page(self):
         doc = {
@@ -499,6 +590,12 @@ class TestNoCopyCarriesMarkup(unittest.TestCase):
     let the template own the tag -- which is what `contactAlt` does around its
     anchor, safe-search's `.note` around its contact anchor, and url-coach's
     info box around its <strong>.
+
+    This covers the SHIPPED tree only, without a build. The same rule is enforced
+    on every build over every configured language and the customer's own
+    `translations` block -- see TestNoCopyReachesAScriptAsMarkup and
+    i18n.check_complete. Both are kept: this one names the file with no config in
+    hand, that one reaches the forked data directories this one cannot see.
     """
 
     def test_no_string_in_any_shipped_document_contains_a_tag(self):
@@ -809,19 +906,40 @@ class TestRedirectStringsPerLanguage(unittest.TestCase):
         shutil.copy(DATA / "strings/en.json", self.tmp / "strings/en.json")
         (self.tmp / "strings/de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
 
-    def test_a_language_nobody_translated_is_absent(self):
-        self.assertEqual(i18n.redirect_strings(self.CFG, self.tmp), {})
+    def test_a_language_nobody_translated_still_carries_its_furniture(self):
+        """The buttons, the cancelled line and the two announcements are SHIPPED
+        copy: they exist in every language whether or not the customer wrote a
+        sentence of their own. That is what stops "Go now" and "Stay" sitting
+        under a German notice. The customer's own keys stay absent."""
+        got = i18n.redirect_strings(self.CFG, self.tmp)
+        self.assertEqual(sorted(got["de"]), sorted(i18n.NOTICE_KEYS))
+        self.assertEqual(got["de"]["stay"], "de:Stay")
 
     def test_it_carries_the_translated_block(self):
         cfg = dict(self.CFG, translations={"de": {"redirect": {"message": "Weiterleitung zu {app}."}}})
-        self.assertEqual(i18n.redirect_strings(cfg, self.tmp), {"de": {"message": "Weiterleitung zu {app}."}})
+        got = i18n.redirect_strings(cfg, self.tmp)
+        self.assertEqual(got["de"]["message"], "Weiterleitung zu {app}.")
+        self.assertEqual(got["de"]["stay"], "de:Stay", "the customer's block displaced the shipped furniture")
 
     def test_the_base_language_is_not_shipped(self):
         """The base language's notice is `redirect.message` itself -- the value
-        the build writes into the script as the default. Carrying a second copy
-        of it here is the waste runtime_dict already refuses."""
+        the build writes into the script as the default, above buttons the markup
+        already renders. Carrying a second copy of either here is the waste
+        runtime_dict already refuses."""
         cfg = dict(self.CFG, translations={"en": {"redirect": {"message": "Off to {app}."}}})
-        self.assertEqual(i18n.redirect_strings(cfg, self.tmp), {})
+        self.assertNotIn("en", i18n.redirect_strings(cfg, self.tmp))
+
+    def test_a_language_whose_document_predates_the_block_is_named(self):
+        """A data directory forked before the notice copy existed. Without this
+        the missing keys reach the page as the word "undefined" on a button."""
+        path = self.tmp / "strings/de.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        del doc["shared"]["redirect"]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        with self.assertRaises(BuildError) as caught:
+            i18n.redirect_strings(self.CFG, self.tmp)
+        self.assertIn("de.json", str(caught.exception))
+        self.assertIn("init --force", str(caught.exception))
 
 
 class TestShippedConfigCopyMatchesTheDefaults(unittest.TestCase):
