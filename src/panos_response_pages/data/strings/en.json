@@ -94,6 +94,18 @@
         "intro": "SafeSearch is enabled but my search is still blocked.",
         "prompt": "What I searched for:"
       }
+    },
+    "ssl-cert-status-page": {
+      "title": "Certificate problem",
+      "headline": "This site's certificate could not be verified",
+      "gloss": "The server presented a certificate that could not be checked, so the connection was stopped.",
+      "facts": ["Server", "Certificate", "Issuer", "Status", "Reason", "Category", "User", "Time"],
+      "extra": "Do not sign in or enter personal details on this site until IT has looked at it.",
+      "report": {
+        "subject": "Certificate error",
+        "intro": "A certificate could not be verified on this connection.",
+        "prompt": "What I was trying to reach:"
+      }
     }
   }
 }
