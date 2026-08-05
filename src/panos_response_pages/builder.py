@@ -14,7 +14,7 @@ from collections.abc import Container, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from panos_response_pages import datadir, logs, redirect
+from panos_response_pages import datadir, i18n, logs, redirect
 from panos_response_pages.config import customer_keys, load_config
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
@@ -174,6 +174,18 @@ def build_all(
     what most tests want.
     """
     cfg = load_config(customer, data_dir / "config")
+    # Validated once per build, before any page is composed. Both checks are
+    # cheap and neither depends on a theme or a palette, so running them per
+    # page would just repeat the same failure 364 times.
+    #
+    # Wired here rather than in page.py deliberately: check_complete compares
+    # the configured languages against each other, which is a property of the
+    # configuration, not of any one page -- and page.py never sees more than the
+    # base language. Without this call site every rule either module enforces is
+    # dead code, and a language configuration that cannot produce a correct page
+    # instead surfaces as a KeyError from inside substitution, or not at all.
+    i18n.check(cfg, data_dir)
+    i18n.check_complete(cfg, data_dir)
     chosen = customer_keys(customer, data_dir / "config")
     palette_dir = data_dir / "palettes"
 
