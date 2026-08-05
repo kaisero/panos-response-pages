@@ -1,0 +1,10 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated sha256 digest map, not secrets -- gitleaks' generic-api-key rule false-positives on hex hashes keyed by filenames containing 'credential'"
+paths = [
+  '''tests/fixtures/byte-identity\.json''',
+]
