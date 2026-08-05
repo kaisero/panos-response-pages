@@ -49,6 +49,8 @@ def category_js(
     severity: Mapping[str, str],
     has_category: bool,
     email_mode: bool,
+    lang_dict: str = "",
+    base_lang: str = "en",
 ) -> str:
     """Compact category -> [tone, gloss] map plus the client-side selector.
 
@@ -80,29 +82,60 @@ def category_js(
     email_mode drops the mailto rebuild entirely. It is not a size optimisation:
     the rebuild assigns a.href unconditionally, so leaving it in would overwrite
     a configured ticket URL the moment the page finished loading.
+
+    lang_dict is the JSON runtime dictionary from i18n.runtime_dict(), or the
+    empty string in a single-language build. Empty is not merely a size
+    optimisation either: `t` is not declared at all without it, so every
+    expression below that consults the selected language has to keep its
+    pre-existing form or become a ReferenceError on every page.
     """
     for name, v in categories.items():
         if v["tone"] not in TONE_CSS:
             raise BuildError(f"category '{name}' has tone '{v['tone']}'; expected one of {', '.join(TONE_CSS)}")
 
     compact = {k: [TONE_CSS[v["tone"]], v["gloss"]] for k, v in categories.items()}
+    sev_map = json.dumps(severity, separators=(",", ":"))
+    risk = json.dumps(risk_gloss)
     # The tone/gloss half. Omitted when the page pins its own copy, and when
     # there is no category row to read the key off in the first place.
+    #
+    # Every language-aware branch below is emitted ONLY when there is a
+    # dictionary. In a single-language build this string has to be the bytes it
+    # was before multi-language support existed -- that promise is asserted, and
+    # `t` does not exist to be consulted anyway.
     tone_gloss = (
         ""
         if lock_copy
         else (
             "var g=document.getElementById('gloss'),m=M[k],d="
             + json.dumps(default_gloss)
-            + ";"
+            # The two generic fallbacks are rebound once rather than tested at
+            # each of their three use sites: same result, fewer bytes on the two
+            # pages that carry this block.
+            + ((",r=" + risk + ";if(t){d=t.dg;r=t.rg}") if lang_dict else ";")
             + "if(m){document.documentElement.setAttribute('data-tone',m[0]);"
+            # BLOCKER: this runs AFTER the language swap and re-sets .sev, so a
+            # baked-in base-language map silently reverts the pill to English the
+            # moment a category resolves -- on url-block-page and url-coach-text,
+            # the only category-bearing pages without COPY_LOCK.
             "var v=document.querySelector('.sev');"
-            "if(v)v.textContent=" + json.dumps(severity, separators=(",", ":")) + "[m[0]]||'';"
+            "if(v)v.textContent="
+            + (("(t?t.s:" + sev_map + ")") if lang_dict else sev_map)
+            + "[m[0]]||'';"
             # An empty gloss means "no tailored copy": fall back to the generic
             # sentence, but not to the calm one on a warn/crit category -- the
             # banner would read "Security risk" over "restricted by policy".
-            "if(g)g.textContent=m[1]||(m[0]=='calm'?d:" + json.dumps(risk_gloss) + ");}"
-            "else if(g)g.textContent=d;"
+            #
+            # A per-category gloss is base-language text, so a selected language
+            # may only use its own `c` block -- absent (the block is optional),
+            # it takes the translated generic sentence for the category's tone
+            # rather than showing one English sentence inside a German page.
+            + (
+                "if(g)g.textContent=(t?t.c&&t.c[k]:m[1])||(m[0]=='calm'?d:r);}"
+                if lang_dict
+                else "if(g)g.textContent=m[1]||(m[0]=='calm'?d:" + risk + ");}"
+            )
+            + "else if(g)g.textContent=d;"
         )
     )
     # The friendly label: "online-storage-and-backup" -> "Online Storage and
@@ -149,12 +182,68 @@ def category_js(
         if email_mode
         else ""
     )
+    # Language selection. First, because everything after it reads the words it
+    # chose: the category lookup rewrites the gloss, the timestamp formats to a
+    # locale, and the mail rebuild folds the rendered rows into a body.
+    #
+    # The base language is absent from the dictionary -- it is the markup. A
+    # browser whose languages do not match leaves the page exactly as served,
+    # which is the only failure mode: never blank, never half-swapped.
+    #
+    # The base language also STOPS the search. A browser that ranks it above a
+    # compiled language must keep the page it was served, or a user who prefers
+    # English with German second would be handed German.
+    lang = (
+        (
+            "var T=" + lang_dict + ",LS=navigator.languages||[navigator.language||''],t,lk,i;"
+            "for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();"
+            "if(lk==" + json.dumps(base_lang) + ")break;if(T[lk]){t=T[lk];break}}"
+            "if(t){var Q=function(s){return document.querySelector(s)};"
+            "document.documentElement.lang=lk;document.title=t.t;"
+            "var H=Q('h1');if(H)H.textContent=t.h;"
+            "var G0=Q('#gloss');if(G0)G0.textContent=t.g;"
+            # Positional against `dl dt` in document order -- the same contract
+            # the numbered {{T_FACT*}} placeholders are built on.
+            "[].forEach.call(document.querySelectorAll('dl dt'),function(e,i){if(t.f[i])e.textContent=t.f[i]});"
+            # The report anchor's own text plus the three data-* fields the
+            # mailto rebuild below reads to compose the body.
+            "var R=Q('#rep');if(R){R.lastChild.nodeValue=t.rl;"
+            "R.setAttribute('data-subject',t.rs);R.setAttribute('data-intro',t.ri);"
+            "R.setAttribute('data-prompt',t.rp)}"
+            # "Or email <a>address</a> with the details above." -- text, anchor,
+            # text. The address between them is not copy and is left alone.
+            "var P=Q('.plain');if(P&&P.childNodes.length>2){P.childNodes[0].nodeValue=t.ca[0];"
+            "P.childNodes[2].nodeValue=t.ca[1]}"
+            "var X=Q('.infobox span,.warnline span');if(X&&t.x)X.textContent=t.x;"
+            # The static pill. Only swapped when it says something: a calm page
+            # carries an empty one, and writing a label into it would invent a
+            # severity the page never declared. The category lookup re-sets this
+            # from t.s as well, for the pages where a category can change it.
+            "var V=Q('.sev');if(V&&V.textContent)"
+            "V.textContent=t.s[document.documentElement.getAttribute('data-tone')]||V.textContent;}"
+        )
+        if lang_dict
+        else ""
+    )
+    # The timestamp. In a multi-language build it formats to whatever language
+    # was selected; in a single-language build it keeps its exact previous form,
+    # variable name included, because those bytes are asserted.
+    ts = (
+        (
+            "var ts=document.getElementById('ts');"
+            "if(ts)ts.textContent=new Date().toLocaleString(document.documentElement.lang||undefined);"
+        )
+        if lang_dict
+        else ("var t=document.getElementById('ts');if(t)t.textContent=new Date().toLocaleString();")
+    )
     return (
         "<script>(function(){"
+        + lang
         + ("var M=" + json.dumps(compact, separators=(",", ":")) + ";" if has_category and not lock_copy else "")
         + lookup
-        + "var t=document.getElementById('ts');"
-        "if(t)t.textContent=new Date().toLocaleString();" + report + "})();</script>"
+        + ts
+        + report
+        + "})();</script>"
     )
 
 

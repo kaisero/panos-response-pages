@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 from collections.abc import Mapping
@@ -178,6 +179,25 @@ def build_page(
     # here rather than relied upon to surface later.
     severity = i18n.resolve(strings["shared"]["severity"], base)
 
+    # The runtime dictionary, and the empty string on the single-language builds
+    # that are every existing customer. It carries the base language's
+    # translations of nothing, because the base language IS the markup -- so a
+    # config that lists one language compiles no dictionary and emits no
+    # selector, and its pages are byte-identical to pages from before this
+    # existed.
+    #
+    # ensure_ascii=False matters: "ä" costs two bytes where "ä" costs six,
+    # and this dictionary ships on every page of every style.
+    lang_dict = (
+        json.dumps(
+            i18n.runtime_dict(cfg, page, template_dir.parent),
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        if len(i18n.languages(cfg)) > 1
+        else ""
+    )
+
     values = dict(base)
     values.update(
         {
@@ -210,6 +230,8 @@ def build_page(
                 severity=severity,
                 has_category='id="cat"' in parts["FACTS"],
                 email_mode=contact.mode(cfg) == contact.EMAIL,
+                lang_dict=lang_dict,
+                base_lang=i18n.base_language(cfg),
             )
             + redirect_js,
         }

@@ -7,6 +7,7 @@ suite was thorough and the coverage number said 31%.
 """
 
 import functools
+import json
 import pathlib
 import tempfile
 
@@ -17,6 +18,34 @@ from panos_response_pages.builder import BuildResult, build_all
 # single-palette assertion meant before the matrix existed. Tests that only
 # need *a* build read this one rather than picking arbitrarily.
 DEFAULT_PALETTE = "cyber-orange"
+
+
+def translated_strings(prefix: str = "de:") -> dict:
+    """A stand-in translation of the shipped English document.
+
+    The real de.json is a task of its own. Until it lands there is no language
+    to compile, and a multi-language test that skipped until there was would
+    leave the runtime unexercised for exactly as long as it was easiest to get
+    wrong.
+
+    Every leaf is PREFIXED rather than replaced, so {{COMPANY}} and
+    {{CONTINUE_GRANT}} survive into the copy -- which is what makes the
+    placeholder assertions mean anything. The key set is untouched, so the
+    document also satisfies check_complete().
+    """
+
+    def walk(value):
+        if isinstance(value, str):
+            return prefix + value
+        if isinstance(value, list):
+            return [walk(v) for v in value]
+        if isinstance(value, dict):
+            return {k: walk(v) for k, v in value.items()}
+        return value
+
+    doc = walk(json.loads((DATA / "strings/en.json").read_text(encoding="utf-8")))
+    doc["lang"] = "de"
+    return doc
 
 
 @functools.lru_cache(maxsize=1)

@@ -10,8 +10,9 @@ from typing import ClassVar
 
 import pytest
 
+from _build import translated_strings
 from _paths import DATA
-from panos_response_pages import i18n
+from panos_response_pages import i18n, scripts
 from panos_response_pages.builder import load_themes
 from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
@@ -401,6 +402,141 @@ class TestShippedConfigCopyMatchesTheDefaults(unittest.TestCase):
         for key in i18n.CONFIG_STRING_KEYS:
             with self.subTest(key=key):
                 self.assertEqual(shared[key], cfg[key], f"en.json and _defaults.json disagree about {key}")
+
+
+class TestRuntimeDict(unittest.TestCase):
+    CFG: ClassVar = {"baseLanguage": "en", "languages": ["en", "de"], "company": "Example Corp"}
+
+    def setUp(self):
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rt-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        (self.tmp / "strings").mkdir()
+        for name in ("en", "de"):
+            shutil.copy(DATA / "strings/en.json", self.tmp / "strings" / f"{name}.json")
+        (self.tmp / "strings/de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
+
+    def test_base_language_is_not_shipped(self):
+        """It is already in the markup as real text. Shipping it again would be
+        the largest single waste in the design."""
+        cfg = {"baseLanguage": "en", "languages": ["en"], "company": "Example Corp"}
+        self.assertEqual(i18n.runtime_dict(cfg, "application-block-page", DATA), {})
+
+    def test_carries_only_the_keys_that_page_uses(self):
+        d = i18n.runtime_dict(self.CFG, "application-block-page", self.tmp)
+        self.assertEqual(sorted(d), ["de"])
+        self.assertEqual(
+            set(d["de"]),
+            {"t", "h", "g", "f", "x", "rl", "rs", "ri", "rp", "ca", "s", "dg", "rg"},
+        )
+        self.assertEqual(len(d["de"]["f"]), 3, "one label per dt on this page")
+
+    def test_the_second_action_label_rides_only_on_the_page_that_has_one(self):
+        d = i18n.runtime_dict(self.CFG, "safe-search-block-page", self.tmp)
+        self.assertEqual(d["de"]["a2"], "de:Open search settings")
+        self.assertEqual(len(d["de"]["x"]), 3, "the split extra keeps its fragments")
+        self.assertNotIn("a2", i18n.runtime_dict(self.CFG, "url-block-page", self.tmp)["de"])
+
+    def test_a_page_override_of_contact_alt_wins(self):
+        """Two pages say "straight away" instead of "with the details above".
+        Reading `shared` unconditionally would swap the urgent wording out for
+        the calm one the moment a language was selected."""
+        d = i18n.runtime_dict(self.CFG, "credential-block-page", self.tmp)
+        self.assertEqual(d["de"]["ca"], ["de:Or email ", "de: straight away."])
+
+    def test_the_customer_translation_of_a_config_string_wins(self):
+        cfg = dict(self.CFG, translations={"de": {"defaultGloss": "Kunden-DE"}})
+        d = i18n.runtime_dict(cfg, "url-block-page", self.tmp)
+        self.assertEqual(d["de"]["dg"], "Kunden-DE")
+        self.assertEqual(d["de"]["rg"], "de:" + "This site was blocked because it presents a security risk.")
+
+    def test_continue_grant_is_resolved_from_the_target_language(self):
+        """A German sentence with the English duration inside it is the failure
+        this guards against: the value has to come from the language's own
+        strings, not from cfg."""
+        cfg = dict(self.CFG, translations={"de": {"continueGrantText": "30 Minuten"}}, continueGrantText="15 minutes")
+        d = i18n.runtime_dict(cfg, "url-coach-text", self.tmp)
+        self.assertIn("30 Minuten", d["de"]["x"])
+        self.assertNotIn("15 minutes", d["de"]["x"])
+
+    def test_no_placeholder_survives_into_the_dictionary(self):
+        """The silent half of the placeholder bug.
+
+        Nothing downstream of here would catch it: this dictionary is JSON
+        handed to textContent, so an unresolved {{COMPANY}} is not a build
+        error -- it is a German user reading literal braces off the page.
+
+        Asserted against the two pages that actually carry a placeholder inside
+        their copy, not against an easy one.
+        """
+        for page in ("credential-block-page", "url-coach-text"):
+            with self.subTest(page=page):
+                blob = json.dumps(i18n.runtime_dict(self.CFG, page, self.tmp))
+                self.assertNotIn("{{", blob, f"{page}: unresolved placeholder in the runtime dictionary")
+
+
+class TestEmittedRuntime(unittest.TestCase):
+    SEVERITY: ClassVar = {"calm": "", "warn": "Caution", "crit": "Security risk"}
+
+    def _js(self, **over):
+        kwargs = {
+            "lock_copy": True,
+            "has_category": False,
+            "email_mode": True,
+            "severity": self.SEVERITY,
+        }
+        kwargs.update(over)
+        categories = kwargs.pop("categories", {})
+        return scripts.category_js(categories, "d", "r", **kwargs)
+
+    def test_single_language_emits_nothing_new(self):
+        """The byte-identity promise, at the level of the function that would
+        break it."""
+        self.assertEqual(self._js(), self._js(lang_dict=""))
+
+    def test_multi_language_emits_the_selector(self):
+        js = self._js(lang_dict='{"de":{"h":"Hallo"}}')
+        self.assertIn("navigator.languages", js)
+        self.assertIn("Hallo", js)
+        self.assertIn("documentElement.lang", js)
+
+    def test_the_base_language_stops_the_search(self):
+        """A browser that prefers the base language must keep the page it was
+        served. Without the break it would fall through to the next entry in
+        navigator.languages and swap to a language the user ranked lower."""
+        js = self._js(lang_dict='{"de":{"h":"Hallo"}}', base_lang="fr")
+        self.assertIn('if(lk=="fr")break', js)
+
+    def test_severity_label_consults_the_selected_language(self):
+        """The category script runs AFTER the language swap and re-sets .sev.
+        Without this it reverts the pill to English on url-block-page and
+        url-coach-text -- the only category-bearing pages without COPY_LOCK."""
+        js = self._js(
+            categories={"gambling": {"tone": "warn", "gloss": ""}},
+            lock_copy=False,
+            has_category=True,
+            lang_dict='{"de":{"s":{"warn":"Achtung"}}}',
+        )
+        self.assertIn("t?t.s:", js, "severity must fall back to the base map only when no language matched")
+
+    def test_the_single_language_severity_line_never_references_t(self):
+        """`t` is not declared when there is no dictionary, so the ternary form
+        would be a ReferenceError on every page of a single-language build."""
+        js = self._js(categories={"gambling": {"tone": "warn", "gloss": ""}}, lock_copy=False, has_category=True)
+        self.assertNotIn("t?t.s:", js)
+
+    def test_the_generic_glosses_follow_the_selected_language(self):
+        js = self._js(
+            categories={"gambling": {"tone": "warn", "gloss": ""}},
+            lock_copy=False,
+            has_category=True,
+            lang_dict='{"de":{"dg":"Standard","rg":"Risiko"}}',
+        )
+        self.assertIn("d=t.dg", js)
+        self.assertIn("r=t.rg", js)
+
+    def test_the_timestamp_is_localised_only_in_multi_language_builds(self):
+        self.assertIn("toLocaleString();", self._js())
+        self.assertIn("toLocaleString(document.documentElement.lang||undefined)", self._js(lang_dict='{"de":{}}'))
 
 
 class TestFactLabelCounts(unittest.TestCase):

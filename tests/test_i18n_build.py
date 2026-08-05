@@ -18,10 +18,13 @@ import unittest
 
 import pytest
 
-from _build import built
+from _build import built, translated_strings
 from _paths import DATA, ROOT
-from panos_response_pages.builder import build_all
+from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages.config import load_config
 from panos_response_pages.errors import BuildError
+from panos_response_pages.page import build_page
+from panos_response_pages.palettes import load_palette
 
 pytestmark = pytest.mark.integration
 
@@ -118,6 +121,56 @@ class TestABuildRunsTheLanguageValidators(unittest.TestCase):
         message = str(err.value)
         assert "de.json" in message
         assert "shared.nosuchkey" in message
+
+
+class TestAMultiLanguagePageCarriesTheRuntime(unittest.TestCase):
+    """A real built page, not the emitted string in isolation.
+
+    Everything here is reachable only through build_page: the dictionary has to
+    survive JSON encoding into a <script> body, the selector has to be emitted
+    before the category lookup that depends on it, and the severity fix has to
+    land on the page it exists for.
+    """
+
+    @staticmethod
+    def _page(name: str) -> str:
+        root = broken_data_dir(strings={"de": translated_strings()}, languages=["en", "de"])
+        cfg = load_config("contoso", root / "config")
+        palette = load_palette("cyber-orange", root / "palettes")
+        return build_page(name, load_themes(root)[0], cfg, palette, False, root / "templates")
+
+    def test_the_selector_runs_before_the_category_lookup(self):
+        """The lookup reads the words the selector chose. Emitted the other way
+        round it would rewrite the gloss and then have it overwritten."""
+        html = self._page("url-block-page")
+        self.assertIn("navigator.languages", html)
+        self.assertLess(html.index("navigator.languages"), html.index("getElementById('cat')"))
+
+    def test_the_severity_pill_consults_the_selected_language(self):
+        """BLOCKER. The category script re-sets .sev after the swap. Reading the
+        baked-in base map there reverts the pill to English on exactly the two
+        category-bearing pages without COPY_LOCK."""
+        for page in ("url-block-page", "url-coach-text"):
+            with self.subTest(page=page):
+                html = self._page(page)
+                self.assertIn("(t?t.s:", html, f"{page}: .sev is re-set from the base map alone")
+                # "Caution" may appear as the base-language fallback map and as
+                # the static pill, but never as the only source the runtime has.
+                self.assertIn('"warn":"de:Caution"', html, f"{page}: the German label never reached the page")
+
+    def test_no_placeholder_reaches_the_page_inside_the_dictionary(self):
+        """The dictionary is JSON handed to textContent. assert_resolved does
+        not look inside it, so this is the only thing that would notice."""
+        for page in ("credential-block-page", "url-coach-text"):
+            with self.subTest(page=page):
+                self.assertNotIn("{{", self._page(page))
+
+    def test_the_base_language_is_not_shipped_twice(self):
+        """It is already the markup. A dictionary carrying it would be the
+        largest single waste in the design."""
+        html = self._page("url-block-page")
+        self.assertIn('"de":{', html)
+        self.assertNotIn('"en":{', html)
 
 
 class TestSingleLanguageIsFree(unittest.TestCase):

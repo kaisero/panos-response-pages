@@ -19,6 +19,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from panos_response_pages import contact
 from panos_response_pages.errors import BuildError
 from panos_response_pages.templates import substitute
 
@@ -204,6 +205,84 @@ def page_values(doc: Mapping[str, Any], page: str, values: Mapping[str, object])
     # engine's own settings -- names it here, because only that page has one.
     if "action2" in p:
         out["T_ACTION2_LABEL"] = p["action2"]
+    return out
+
+
+# Single-letter keys. This dictionary ships in every page of every style, so a
+# descriptive key costs its own length x pages x styles x languages for nothing:
+# the only reader is the emitted script twenty lines away.
+def runtime_dict(cfg: Mapping[str, Any], page: str, data_dir: pathlib.Path) -> dict[str, dict[str, Any]]:
+    """Per-page translations for every language EXCEPT the base one.
+
+    The base language is already in the markup as real text; shipping it here as
+    well would be the largest single waste in the design.
+    """
+    base = base_language(cfg)
+    out: dict[str, dict[str, Any]] = {}
+    for lang in languages(cfg):
+        if lang == base:
+            continue
+        doc = load(lang, data_dir)
+        # config_strings() is handed THIS language's own document, so the
+        # fallback it applies when the customer has not translated a key is that
+        # language's shipped wording rather than the base language's. For
+        # `lang == base` it would return the strings-file value in place of the
+        # customer's live config value -- which is why the loop skips the base
+        # language above, and why that skip is load-bearing rather than an
+        # optimisation.
+        conf = config_strings(cfg, doc, lang)
+        # Resolve placeholders inside the copy FIRST, and per language.
+        #
+        # This is the silent half of the bug resolve() exists for. page_values()
+        # feeds the template pass, where an unresolved {{COMPANY}} eventually
+        # trips assert_resolved and fails the build loudly. NOTHING here does:
+        # this dictionary is JSON handed to textContent, so a stray placeholder
+        # would be read off the page by a German user as literal braces, with no
+        # error at build time and none on the firewall.
+        #
+        # CONTINUE_GRANT comes from `conf`, not from cfg: a non-base language
+        # has its own translation of the duration, and resolving the German
+        # string against the English value would put "15 minutes" inside a
+        # German sentence.
+        lang_values = {
+            "COMPANY": cfg["company"],
+            "SUPPORT_EMAIL": contact.email(cfg),
+            "CONTINUE_GRANT": conf["continueGrantText"],
+        }
+        pages = doc.get("pages", {})
+        if page not in pages:
+            raise BuildError(f"{lang}.json has no entry for page '{page}'")
+        p = resolve(pages[page], lang_values)
+        shared = resolve(doc.get("shared", {}), lang_values)
+        entry: dict[str, Any] = {
+            "t": p["title"],
+            "h": p["headline"],
+            "g": p["gloss"],
+            "f": list(p["facts"]),
+            # A string when the slot is one run of prose, a list when the
+            # template interrupts it with build-time markup. Kept in the shape
+            # page_values() sees, for the same reason: the order IS the contract.
+            "x": p.get("extra", ""),
+            "rl": shared["reportLabel"],
+            "rs": p["report"]["subject"],
+            "ri": p["report"]["intro"],
+            "rp": p["report"]["prompt"],
+            # Mirrors page_values(): the two pages that want the user moving now
+            # carry their own pair, and a page override has to win here too or
+            # the swap would quietly replace "straight away" with the shared
+            # wording the moment a language was selected.
+            "ca": list(p.get("contactAlt", shared["contactAlt"])),
+            "s": shared["severity"],
+            "dg": conf["defaultGloss"],
+            "rg": conf["riskGloss"],
+        }
+        # Only safe-search offers a second button, so only safe-search pays for
+        # the key -- the dictionary carries what the page uses and nothing else.
+        if "action2" in p:
+            entry["a2"] = p["action2"]
+        if "categories" in doc:
+            entry["c"] = doc["categories"]
+        out[lang] = entry
     return out
 
 
