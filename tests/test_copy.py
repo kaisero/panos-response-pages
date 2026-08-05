@@ -111,8 +111,11 @@ class TestCopy(unittest.TestCase):
                 continue
             self.assertNotIn("15 minutes", body, f"{name} hardcodes the Continue grant duration")
         for name, doc in strings:
-            coach = doc["pages"]["url-coach-text"]
-            self.assertIn("{{CONTINUE_GRANT}}", coach["extra"], f"{name}: url-coach-text drops the configured duration")
+            # The slot is split into fragments around its <strong>, so the
+            # placeholder is asserted against the reassembled sentence. "".join
+            # is a no-op on the single-string shape, so this reads either.
+            extra = "".join(doc["pages"]["url-coach-text"]["extra"])
+            self.assertIn("{{CONTINUE_GRANT}}", extra, f"{name}: url-coach-text drops the configured duration")
 
 
 if __name__ == "__main__":

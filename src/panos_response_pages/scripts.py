@@ -199,14 +199,16 @@ def category_js(
             "for(i=0;i<LS.length;i++){lk=LS[i].slice(0,2).toLowerCase();"
             "if(lk==" + json.dumps(base_lang) + ")break;if(T[lk]){t=T[lk];break}}"
             "if(t){var Q=function(s){return document.querySelector(s)};"
-            # A sentence a build-time anchor splits in two: text, anchor, text.
-            # Both halves are copy; the anchor between them holds a configured
-            # address or name and is left exactly as served. Two page shapes
-            # have it -- .plain (the alternate contact line) and .note
-            # (safe-search's contact sentence) -- so it is a function rather
-            # than the same four statements written out twice.
-            "var S=function(e,a,b){if(e&&e.childNodes.length>2){"
-            "e.childNodes[0].nodeValue=a;e.childNodes[2].nodeValue=b}};"
+            # A sentence one child element splits in two: text, element, text.
+            # The outer halves are always copy. The middle is copy only when the
+            # caller passes `c`: .plain and .note wrap a build-time anchor
+            # holding a configured address or name, which must be left exactly
+            # as served, while url-coach's info box wraps a <strong> whose text
+            # is the emphasised phrase itself. Returns truthy when it found the
+            # three-node shape, so a caller can tell which shape it has.
+            "var S=function(e,a,b,c){if(e&&e.childNodes.length>2){"
+            "e.childNodes[0].nodeValue=a;e.childNodes[2].nodeValue=b;"
+            "if(c!=null)e.childNodes[1].textContent=c;return 1}};"
             "document.documentElement.lang=lk;document.title=t.t;"
             "var H=Q('h1');if(H)H.textContent=t.h;"
             "var G0=Q('#gloss');if(G0)G0.textContent=t.g;"
@@ -229,13 +231,21 @@ def category_js(
             "R.setAttribute('data-intro',t.ri);R.setAttribute('data-prompt',t.rp)}"
             "S(Q('.plain'),t.ca[0],t.ca[1]);"
             # `extra` is a string when the slot is one run of prose and a list
-            # when the template interrupts it with markup. Safe-search is the
-            # list case: fragment 0 is the infobox, and 1 and 2 straddle the
-            # contact anchor in the .note below it. Assigned whole to
-            # textContent the list stringifies, rendering all three
-            # comma-joined into the infobox and never swapping the note at all.
-            "var x=t.x||'';if(x.pop){S(Q('.note'),x[1],x[2]);x=x[0]}"
-            "var X=Q('.infobox span,.warnline span');if(X&&x)X.textContent=x;"
+            # when the template interrupts it with markup. Assigned whole to
+            # textContent a list stringifies, rendering the fragments
+            # comma-joined into the callout and never swapping the rest.
+            #
+            # Which three nodes the fragments belong to is read off the callout
+            # itself, never off the page name. If the callout span is already
+            # the three-node shape it IS the split sentence -- url-coach wraps
+            # its middle phrase in a <strong>, and the three fragments are that
+            # span's own text, the <strong>'s text, and the tail -- so it is
+            # filled in place and left alone below. Otherwise the callout holds
+            # one run of prose (fragment 0) and the split sentence is the .note
+            # beneath it, where fragments 1 and 2 straddle the contact anchor.
+            "var X=Q('.infobox span,.warnline span'),x=t.x||'';"
+            "if(x.pop){if(S(X,x[0],x[2],x[1]))X=0;else S(Q('.note'),x[1],x[2]);x=x[0]}"
+            "if(X&&x)X.textContent=x;"
             # The static pill. Only swapped when it says something: a calm page
             # carries an empty one, and writing a label into it would invent a
             # severity the page never declared. The category lookup re-sets this

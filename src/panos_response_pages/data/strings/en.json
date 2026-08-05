@@ -129,7 +129,7 @@
       "headline": "Continue to this site?",
       "gloss": "This category is restricted by company policy.",
       "facts": ["Address", "Category", "User", "Time"],
-      "extra": "Continuing grants access to <strong>every site in this category</strong> for {{CONTINUE_GRANT}}.",
+      "extra": ["Continuing grants access to ", "every site in this category", " for {{CONTINUE_GRANT}}."],
       "report": {
         "subject": "Category warning - continue page",
         "intro": "I was warned before continuing.",

@@ -260,6 +260,53 @@ class TestEnglishCoversEveryPage(unittest.TestCase):
         self.assertEqual(sorted(doc["pages"]), sorted(PAGE_TOKENS))
 
 
+def _leaves(value, path=""):
+    """Every string leaf of a strings document, with its path."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from _leaves(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            yield from _leaves(item, f"{path}[{i}]")
+    elif isinstance(value, str):
+        yield path, value
+
+
+class TestNoCopyCarriesMarkup(unittest.TestCase):
+    """Every string in the file has to survive being assigned to textContent.
+
+    A strings document reaches the page down two paths: the base language goes
+    through substitute() into the markup, where a `<strong>` renders; every
+    other language goes through the runtime dictionary into textContent, where
+    the same characters render as literal angle brackets. So markup inside copy
+    reads correctly in exactly one language and is escaped in all the others.
+
+    innerHTML is not the fix. It would make every string in every language file
+    an injection surface, and on the portal a raw `<` stops PAN-OS substituting
+    <pan_form/> at all. The fix is to split the string around the element and
+    let the template own the tag -- which is what `contactAlt` does around its
+    anchor, safe-search's `.note` around its contact anchor, and url-coach's
+    info box around its <strong>.
+    """
+
+    def test_no_string_in_the_shipped_document_contains_a_tag(self):
+        doc = i18n.load("en", DATA)
+        bad = [(path, value) for path, value in _leaves(doc) if "<" in value or ">" in value]
+        self.assertEqual(bad, [], "copy containing markup renders escaped in every non-base language")
+
+    def test_the_split_reassembles_into_the_sentence_the_page_shows(self):
+        """The split is a rendering detail, not an edit. Joined back up, the
+        fragments plus the tag the template now owns are the sentence English
+        readers see today, character for character."""
+        extra = i18n.load("en", DATA)["pages"]["url-coach-text"]["extra"]
+        self.assertIsInstance(extra, list, "the slot is three fragments the template wraps a <strong> around")
+        self.assertEqual(len(extra), 3)
+        self.assertEqual(
+            extra[0] + "<strong>" + extra[1] + "</strong>" + extra[2],
+            "Continuing grants access to <strong>every site in this category</strong> for {{CONTINUE_GRANT}}.",
+        )
+
+
 class TestSeverityLabels(unittest.TestCase):
     def test_severity_labels_come_from_the_strings_file(self):
         """The third home of English copy. It cannot stay in Python once the
@@ -455,8 +502,11 @@ class TestRuntimeDict(unittest.TestCase):
         strings, not from cfg."""
         cfg = dict(self.CFG, translations={"de": {"continueGrantText": "30 Minuten"}}, continueGrantText="15 minutes")
         d = i18n.runtime_dict(cfg, "url-coach-text", self.tmp)
-        self.assertIn("30 Minuten", d["de"]["x"])
-        self.assertNotIn("15 minutes", d["de"]["x"])
+        # Split around its <strong>, so the duration lives in one fragment;
+        # asserted against the reassembled sentence, as the reader sees it.
+        x = "".join(d["de"]["x"])
+        self.assertIn("30 Minuten", x)
+        self.assertNotIn("15 minutes", x)
 
     def test_no_placeholder_survives_into_the_dictionary(self):
         """The silent half of the placeholder bug.

@@ -266,6 +266,56 @@ class TestTheRuntimeHandlesTheSafeSearchShape(unittest.TestCase):
         self.assertIn("t.a2", runtime_code(html), "a2 is compiled into the dictionary and never read")
 
 
+class TestTheRuntimeHandlesInlineMarkupInACallout(unittest.TestCase):
+    """url-coach-text is the second container shape a list-valued `extra` has.
+
+    Its info box emphasises the phrase that IS the warning -- continuing grants
+    the category, not the page -- so the span reads text, <strong>, text. That
+    is the same three-node shape as .plain and .note, but the middle node is
+    copy here rather than a build-time anchor, and there is no .note beneath it
+    to take fragments 1 and 2.
+
+    Read as one string the markup renders escaped in every language but the
+    base one: a German reader sees the characters `<strong>`.
+    """
+
+    _page = staticmethod(multi_language_page)
+
+    def test_the_callout_is_text_strong_text(self):
+        """The structural fact the in-place swap rests on. A fourth node, or a
+        second element, moves the indices and the fragments land wrong."""
+        html = self._page("url-coach-text")
+        span = re.search(r'<p class="infobox">.*?<span>(.*?)</span>', html, re.S).group(1)
+        lead, _strong, tail = re.match(r"(.*?)(<strong>.*?</strong>)(.*)", span, re.S).groups()
+        self.assertTrue(lead.strip() and tail.strip(), "no text node either side of the <strong>")
+        self.assertNotIn("<", lead)
+        self.assertNotIn("<", tail)
+        self.assertIsNone(re.search(r'<p class="note">', html), "url-coach has no .note to take the fragments")
+
+    def test_the_emphasised_phrase_is_swapped_with_the_text_around_it(self):
+        html = self._page("url-coach-text")
+        self.assertIn('"x":["de:Continuing grants access to ', html, "the dictionary lost the split extra")
+        code = runtime_code(html)
+        self.assertNotIn("textContent=t.x", code, "a list-valued extra is assigned straight to textContent")
+        self.assertIn("childNodes[1].textContent=c", code, "the emphasised phrase is never swapped")
+
+    def test_no_dictionary_value_carries_a_tag(self):
+        """The whole point of the split: what reaches textContent is text."""
+        for name in ("url-coach-text", "safe-search-block-page"):
+            with self.subTest(page=name):
+                html = self._page(name)
+                dictionary = re.search(r"var T=(\{.*?\}),LS=", html, re.S).group(1)
+                self.assertNotIn("<", dictionary, "markup inside the dictionary renders escaped")
+
+    def test_the_other_shapes_are_untouched(self):
+        """One expression covers three containers, so the two that worked
+        before have to keep working: safe-search's fragments still straddle its
+        .note anchor, and a string-valued extra still fills the callout."""
+        safe = runtime_code(self._page("safe-search-block-page"))
+        self.assertIn("'.note'", safe, "the .note fragments are no longer swapped")
+        self.assertIn("if(X&&x)X.textContent=x", runtime_code(self._page("url-block-page")))
+
+
 class TestSingleLanguageIsFree(unittest.TestCase):
     def test_english_only_build_is_byte_identical(self):
         out, _result = built()
