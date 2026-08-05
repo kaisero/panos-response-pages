@@ -1,0 +1,191 @@
+{
+  "lang": "de",
+  "shared": {
+    "reportLabel": "An die IT melden",
+    "contactAlt": ["Oder senden Sie eine E-Mail an ", " mit den obigen Angaben."],
+    "severity": { "calm": "", "warn": "Warnung", "crit": "Sicherheitsrisiko" },
+    "defaultGloss": "Diese Kategorie ist durch die Unternehmensrichtlinie eingeschränkt.",
+    "riskGloss": "Diese Website wurde gesperrt, weil sie ein Sicherheitsrisiko darstellt.",
+    "continueGrantText": "15 Minuten",
+    "supportLabel": "IT-Support"
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Anwendung gesperrt",
+      "headline": "Diese Anwendung ist gesperrt",
+      "gloss": "Die Unternehmensrichtlinie schränkt diese Anwendung im Netzwerk ein.",
+      "facts": ["Anwendung", "Benutzer", "Zeitpunkt"],
+      "extra": "Wenn Sie diese Anwendung für Ihre Arbeit benötigen, senden Sie die obige Meldung, und die IT prüft den Fall.",
+      "report": {
+        "subject": "Meldung: gesperrte Anwendung",
+        "intro": "Bitte prüfen Sie diese Sperrung einer Anwendung.",
+        "prompt": "Warum ich diese Anwendung benötige:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Zugangsdaten gesperrt",
+      "headline": "Übermittlung von Zugangsdaten gesperrt",
+      "gloss": "Sie haben gerade versucht, Ihren dienstlichen Benutzernamen und Ihr Passwort an eine Website zu senden, die wir nicht als vertrauenswürdig einstufen.",
+      "facts": ["Adresse", "Kategorie", "Benutzer", "Zeitpunkt"],
+      "contactAlt": ["Oder wenden Sie sich sofort per E-Mail an ", "."],
+      "extra": "{{COMPANY}} fragt Sie auf einer Seite wie dieser niemals nach Ihrem Passwort. Wenn eine Website Sie zur Anmeldung auffordert und Ihnen etwas seltsam vorkommt, schließen Sie den Tab und rufen Sie den Dienst direkt über Ihre Lesezeichen auf.",
+      "report": {
+        "subject": "Mögliche Phishing-Seite - Zugangsdaten blockiert",
+        "intro": "Eine Übermittlung von Zugangsdaten wurde blockiert.",
+        "prompt": "Was ich gerade getan habe:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Ist das wirklich eine Anmeldeseite des Unternehmens?",
+      "headline": "Ist das wirklich eine Anmeldeseite des Unternehmens?",
+      "gloss": "Sie sind dabei, Ihren dienstlichen Benutzernamen und Ihr Passwort an eine Website zu senden, die wir nicht als eine unserer eigenen kennen.",
+      "facts": ["Adresse", "Kategorie", "Benutzer", "Zeitpunkt"],
+      "extra": "Prüfen Sie die Adresse oben genau – achten Sie auf kleine Abweichungen im Namen. Wenn Sie fortfahren, werden Ihre Zugangsdaten gesendet und der Vorgang wird unter Ihrem Namen protokolliert.",
+      "report": {
+        "subject": "Mögliche Phishing-Seite - Abfrage von Zugangsdaten",
+        "intro": "Ich wurde vor dem Absenden von Zugangsdaten gewarnt.",
+        "prompt": "Was ich gerade getan habe:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Datenübertragung gesperrt",
+      "headline": "Datenübertragung gesperrt",
+      "gloss": "Die Unternehmensrichtlinie schränkt die Übertragung dieser Inhalte ein, daher wurde die Übertragung gestoppt.",
+      "facts": ["Richtung", "Datei", "Anwendung", "Benutzer", "Zeitpunkt"],
+      "extra": "Wenn Sie dies für Ihre Arbeit senden müssen, schicken Sie die obige Meldung, und die IT prüft den Fall.",
+      "report": {
+        "subject": "Gesperrte Datenübertragung",
+        "intro": "Eine Datenübertragung wurde durch eine Richtlinie gesperrt.",
+        "prompt": "Warum ich dies senden muss:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Download fortsetzen?",
+      "headline": "Download fortsetzen?",
+      "gloss": "Das Herunterladen von Dateien dieses Typs ist durch die Unternehmensrichtlinie eingeschränkt. Sie können fortfahren, wenn Sie diese Datei für Ihre Arbeit benötigen.",
+      "facts": ["Datei", "Benutzer", "Zeitpunkt"],
+      "extra": "Fahren Sie nur fort, wenn Sie wissen, worum es sich bei dieser Datei handelt und woher sie stammt.",
+      "report": {
+        "subject": "Warnung beim Herunterladen einer Datei",
+        "intro": "Ich wurde vor dem Herunterladen eines eingeschränkten Dateityps gewarnt.",
+        "prompt": "Was ich gerade getan habe:"
+      }
+    },
+    "file-block-page": {
+      "title": "Dieser Dateityp ist gesperrt",
+      "headline": "Dieser Dateityp ist gesperrt",
+      "gloss": "Die Übertragung von Dateien dieses Typs ist durch die Unternehmensrichtlinie eingeschränkt, daher wurde sie gestoppt.",
+      "facts": ["Datei", "Benutzer", "Zeitpunkt"],
+      "extra": "Wenn Sie diese Datei für Ihre Arbeit benötigen, senden Sie die obige Meldung, und die IT prüft den Fall.",
+      "report": {
+        "subject": "Gesperrte Dateiübertragung",
+        "intro": "Eine Dateiübertragung wurde durch eine Richtlinie gesperrt.",
+        "prompt": "Warum ich diese Datei benötige:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "SafeSearch aktivieren, um fortzufahren",
+      "headline": "SafeSearch aktivieren, um fortzufahren",
+      "gloss": "Ihre Suche wurde gesperrt, weil SafeSearch nicht aktiviert ist. Die Unternehmensrichtlinie verlangt SafeSearch auf den Suchmaschinen, für die sie gilt.",
+      "facts": ["Benutzer", "Zeitpunkt"],
+      "action2": "Sucheinstellungen öffnen",
+      "extra": [
+        "Stellen Sie SafeSearch auf die strengste Option ein und starten Sie Ihre Suche erneut. Wenn Sie bei der Suchmaschine angemeldet sind, sperren Sie die Einstellung zusätzlich.",
+        "Die Suche wird trotz aktiviertem SafeSearch weiterhin gesperrt? Wenden Sie sich an ",
+        ", dann sieht sich die IT das an."
+      ],
+      "report": {
+        "subject": "SafeSearch aktiv, Suche weiterhin gesperrt",
+        "intro": "SafeSearch ist aktiviert, meine Suche wird aber weiterhin gesperrt.",
+        "prompt": "Wonach ich gesucht habe:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Zertifikatsproblem",
+      "headline": "Das Zertifikat dieser Website konnte nicht geprüft werden",
+      "gloss": "Der Server hat ein Zertifikat vorgelegt, das nicht geprüft werden konnte, daher wurde die Verbindung gestoppt.",
+      "facts": ["Server", "Zertifikat", "Aussteller", "Status", "Grund", "Kategorie", "Benutzer", "Zeitpunkt"],
+      "extra": "Melden Sie sich auf dieser Website nicht an und geben Sie dort keine persönlichen Daten ein, bis die IT sie geprüft hat.",
+      "report": {
+        "subject": "Zertifikatsfehler",
+        "intro": "Bei dieser Verbindung konnte ein Zertifikat nicht geprüft werden.",
+        "prompt": "Was ich aufrufen wollte:"
+      }
+    },
+    "url-block-page": {
+      "title": "Diese Website ist gesperrt",
+      "headline": "Diese Website ist gesperrt",
+      "gloss": "Diese Kategorie ist durch die Unternehmensrichtlinie eingeschränkt.",
+      "facts": ["Adresse", "Kategorie", "Benutzer", "Zeitpunkt"],
+      "extra": "Wenn Sie diese Website für Ihre Arbeit benötigen, senden Sie die obige Meldung, und die IT prüft den Fall.",
+      "report": {
+        "subject": "Meldung: gesperrte Website",
+        "intro": "Bitte prüfen Sie diese Sperrung.",
+        "prompt": "Warum ich Zugriff benötige:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Website trotzdem aufrufen?",
+      "headline": "Website trotzdem aufrufen?",
+      "gloss": "Diese Kategorie ist durch die Unternehmensrichtlinie eingeschränkt.",
+      "facts": ["Adresse", "Kategorie", "Benutzer", "Zeitpunkt"],
+      "extra": ["Wenn Sie fortfahren, erhalten Sie Zugriff auf ", "alle Websites dieser Kategorie", " – für {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Kategoriewarnung - Seite mit Fortfahren-Aktion",
+        "intro": "Ich wurde gewarnt, bevor ich fortgefahren bin.",
+        "prompt": "Warum ich die Kategorie für falsch halte:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Download gesperrt",
+      "headline": "Download gesperrt",
+      "gloss": "Die Virenprüfung hat Schadsoftware in dieser Datei gefunden, daher wurde der Download gestoppt.",
+      "facts": ["Datei", "Benutzer", "Zeitpunkt"],
+      "contactAlt": ["Oder wenden Sie sich sofort per E-Mail an ", "."],
+      "extra": "Wenn Sie eine Kopie dieser Datei aus einer anderen Quelle geöffnet haben, informieren Sie die IT – sie befindet sich möglicherweise bereits auf Ihrem Gerät.",
+      "report": {
+        "subject": "Schadsoftware in einem Download gefunden",
+        "intro": "Ein Download wurde von der Virenprüfung gesperrt.",
+        "prompt": "Was ich gerade getan habe:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Anmelden",
+      "getSoftware": "Agent-Software herunterladen",
+      "glossSignIn": "Melden Sie sich mit Ihrem Unternehmenskonto an.",
+      "glossSoftware": "Laden Sie den Agent für Ihr Betriebssystem herunter und melden Sie sich anschließend in der App an.",
+      "download": "Herunterladen",
+      "otherPlatforms": "Andere Plattformen",
+      "note": ["Brauchen Sie Hilfe? Wenden Sie sich an ", "."],
+      "downloadFor": "Herunterladen für ",
+      "chooseDownload": "Download auswählen",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64 Bit",
+      "bit32": "32 Bit",
+      "formUser": "Benutzername",
+      "formPassword": "Kennwort",
+      "formNewPassword": "Neues Kennwort",
+      "formConfirmPassword": "Neues Kennwort bestätigen",
+      "formSubmit": "Anmelden"
+    },
+    "home": {
+      "logoutMessages": [
+        "Sie wurden erfolgreich vom GlobalProtect-Portal abgemeldet.",
+        "Das GlobalProtect-Portal ist nicht lizenziert. Erwerben oder aktivieren Sie die Lizenz für Ihr GlobalProtect-Abonnement.",
+        "Sie sind am GlobalProtect-Portal nicht authentifiziert.",
+        "Systemfehler. Wenden Sie sich an {{CONTACT_REACHABLE}}.",
+        "Systemfehler: Die Benutzersitzung konnte nicht gelöscht werden. Wenden Sie sich an {{CONTACT_REACHABLE}}.",
+        "Es kann keine Benutzersitzung erstellt werden, die maximale Kapazität ist erreicht. Wenden Sie sich an {{CONTACT_REACHABLE}}.",
+        "Ihre Anmeldesitzung ist abgelaufen und Sie wurden aus Sicherheitsgründen abgemeldet. Melden Sie sich bitte erneut an, wenn Sie fortfahren möchten."
+      ]
+    }
+  },
+  "categories": {
+    "malware": "Diese Website verbreitet bekanntermaßen Software, die Daten stehlen oder Ihr Gerät übernehmen kann.",
+    "phishing": "Diese Website gibt sich als echte Anmeldeseite aus, um Passwörter abzugreifen.",
+    "streaming-media": "Streaming-Dienste sind im Unternehmensnetz nicht verfügbar, vor allem zum Schutz der Bandbreite."
+  }
+}
