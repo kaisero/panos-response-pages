@@ -18,8 +18,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Dutch, Danish, Swedish, Japanese, Chinese (Simplified), Vietnamese, Russian
   and Ukrainian, each a complete `data/strings/<code>.json`. **Everything beyond
   English and German is model-drafted and unreviewed by a native speaker**; have
-  one read the pages you intend to serve. Per-language reviewer checklists are
-  under `docs/plans/`.
+  one read the pages you intend to serve.
 - **Not all thirteen fit in one build.** The GlobalProtect portal's 16,170 B
   import ceiling is the binding constraint: roughly English plus three to five
   others, depending which. Cost is driven by character count, not bytes per

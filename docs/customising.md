@@ -280,11 +280,10 @@ needs thirteen. A vsys in Munich takes `["en","de"]`, one in Osaka `["en","ja"]`
 > the page; wording that is merely *correct* is not enough for that. **Have a
 > speaker read the pages you intend to serve, before you serve them.**
 >
-> Start from the reviewer checklist rather than from the JSON:
-> `docs/plans/2026-08-06-<code>-review.md` in the repository records what the
-> translator was unsure about and why, anything reworded to stay clear of the
+> Review for what a guard cannot check: the register, anything that reads as a
+> literal translation rather than as native copy, wording that strays into the
 > [copy rules](architecture/url-filtering-response-pages.md#copy-rules-enforced),
-> the register chosen, and every word long enough to threaten a layout.
+> and every word long enough to threaten a layout.
 
 ### Translating your own copy
 

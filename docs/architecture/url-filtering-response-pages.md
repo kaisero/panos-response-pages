@@ -184,10 +184,9 @@ the file, finds nothing it recognises, and passes — so the rule is enforced by
 translator's judgement and by review, not by the build. This is deliberate: eleven
 sets of banned phrases is a maintenance burden with a false-positive risk this
 project has already met once, in a deliberately wide German phrase that matched
-copy meaning something else. The phrases each language *would* contribute are
-recorded in its reviewer checklist under `docs/plans/`, so extending the list later
-is a decision rather than a fresh translation exercise. Treat "the copy audit
-passed" as evidence about English and German only.
+copy meaning something else. Extending the list to a third language is therefore
+a deliberate decision rather than something a translation is expected to carry
+with it. Treat "the copy audit passed" as evidence about English and German only.
 
 ## Language selection at load time
 

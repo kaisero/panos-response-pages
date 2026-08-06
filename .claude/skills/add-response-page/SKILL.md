@@ -139,7 +139,7 @@ preview:
 
 ```python
 PAGE_SAMPLE = {
-    "ssl-cert-status-page": {"url": "192.0.2.24"},   # <url/> is the destination IP here
+    "ssl-cert-status-page": {"url": "192.0.2.24"},  # <url/> is the destination IP here
 }
 ```
 
