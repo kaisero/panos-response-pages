@@ -178,6 +178,17 @@ The audit runs over **every language file**, not just `en.json`. A German senten
 asserts something untrue exactly as easily as an English one, and the reviewer who
 would have caught it in a template is less likely to be reading the translation.
 
+**But it matches phrases, and the phrases are English and German.** Thirteen
+languages ship; the guard knows two of them. For the other eleven the audit walks
+the file, finds nothing it recognises, and passes — so the rule is enforced by the
+translator's judgement and by review, not by the build. This is deliberate: eleven
+sets of banned phrases is a maintenance burden with a false-positive risk this
+project has already met once, in a deliberately wide German phrase that matched
+copy meaning something else. The phrases each language *would* contribute are
+recorded in its reviewer checklist under `docs/plans/`, so extending the list later
+is a decision rather than a fresh translation exercise. Treat "the copy audit
+passed" as evidence about English and German only.
+
 ## Language selection at load time
 
 PAN-OS serves one page per type per vsys. A firewall with German and English
@@ -186,6 +197,14 @@ against because the file is static — so the choice happens in the browser. Eve
 configured language is compiled into the page and one is selected on load. See
 [Customising](../customising.md#languages) for the config keys and the byte budget;
 this is the contract the emitted script honours.
+
+**Thirteen languages ship and the contract below is unchanged by that.** Nothing
+here is per-language: the dictionary is a flat map keyed by code, the loop reads
+`navigator.languages` in order, and adding a twelfth or a thirteenth entry to `T`
+adds no branch and no rule. What thirteen languages changed is the budget, not the
+runtime — a build compiles English plus three to five others before the portal
+import is refused, so the emitted `T` is small whatever the strings directory
+holds. The `T` this section describes is the one a real build emits.
 
 **Nothing is emitted at all when only one language is configured.** Not an empty
 dictionary and not a disabled selector: the byte-identity guarantee is asserted
@@ -297,6 +316,16 @@ moment it is translated — passes. Only the template knows how many rows there 
 The guard therefore reads the template: it extracts the `<!--@FACTS-->` block from
 each page, counts `<dt>`, and asserts that every strings file's `facts` array for
 that page has exactly that many entries. Per page, per language.
+
+**It catches a length, not an order.** A `facts` array with the right number of
+labels in the wrong sequence is indistinguishable from a correct one to every
+check in the build: key parity passes, the count passes, the page renders, and the
+Time row is labelled "User" in that language alone. There is no guard to write for
+it — the arrays are positional by design, and a checker would need to know what
+each row means in a language it does not read. It is caught by rendering the page
+and reading it, which is why every language shipped here was rendered before it was
+committed, and why the reviewer checklists name the fact rows as something to check
+rather than leaving it to a general read-through.
 
 ## What is not covered here
 

@@ -19,7 +19,7 @@ documentation and are ignored by the build.
 | `riskGloss` | The same, for a `warn` or `critical` category. Separate because a banner reading "Security risk" over "restricted by company policy" contradicts itself |
 | `redirect` | Opt-in handoff to a sanctioned app on the URL block page. Off by default — see [below](#redirecting-to-a-sanctioned-app) |
 | `baseLanguage` | The language written into the markup as real text — see [Languages](#languages) |
-| `languages` | Every language compiled into the page. `["en"]` is byte-identical to a build from before the feature existed |
+| `languages` | Which of the thirteen shipped languages are compiled into the page. `["en"]` is byte-identical to a build from before the feature existed |
 | `translations` | Your *own* copy, per language. The strings files translate what this project ships; this translates what you changed |
 
 Each page declares its own `<!--@MARK-->` — an inline SVG shown as a large
@@ -255,6 +255,37 @@ Writing `de-AT` in `languages` is refused rather than quietly truncated: truncat
 it would send the build looking for a file you did not write, and you would find out
 from the missing translation rather than from the config.
 
+### What ships, and what you can compile
+
+Thirteen languages ship as `strings/<code>.json`: **English** (`en`), **German**
+(`de`), **Spanish** (`es`), **Italian** (`it`), **French** (`fr`), **Dutch**
+(`nl`), **Danish** (`da`), **Swedish** (`sv`), **Japanese** (`ja`), **Chinese,
+Simplified** (`zh`), **Vietnamese** (`vi`), **Russian** (`ru`) and **Ukrainian**
+(`uk`).
+
+**Shipping thirteen files is not the same as compiling thirteen into a page, and
+you cannot.** A page has a byte ceiling and the GlobalProtect portal import is
+*refused* above 16,170 B, so one build carries English plus three to five
+others, depending which — see [how many fit](#how-many-fit-in-one-build). That is
+a property to plan around rather than a limitation to work around: no firewall
+needs thirteen. A vsys in Munich takes `["en","de"]`, one in Osaka `["en","ja"]`.
+`languages` is how you choose, and the files you do not list cost nothing.
+
+> **Everything beyond English and German is model-drafted, and no native speaker
+> has reviewed it.** The eleven languages added after German were translated
+> from `en.json` by a model. They are complete, they pass every guard this
+> project has, and each was rendered and read — but "passes the guards" is not
+> "reads like something your legal department signed off". A response page is
+> read by someone who has just been interrupted and is deciding whether to trust
+> the page; wording that is merely *correct* is not enough for that. **Have a
+> speaker read the pages you intend to serve, before you serve them.**
+>
+> Start from the reviewer checklist rather than from the JSON:
+> `docs/plans/2026-08-06-<code>-review.md` in the repository records what the
+> translator was unsure about and why, anything reworded to stay clear of the
+> [copy rules](architecture/url-filtering-response-pages.md#copy-rules-enforced),
+> the register chosen, and every word long enough to threaten a layout.
+
 ### Translating your own copy
 
 The strings files translate what this project ships. They cannot translate what
@@ -362,14 +393,26 @@ a user reading one back to IT should be reading what PAN-OS calls it.
 
 The preview gallery carries a **Language** dropdown listing every
 `strings/<code>.json` in your data tree by its friendly name — *English*,
-*German*. Picking one re-renders the frames in it.
+*German*, *Chinese (Simplified)*. Picking one re-renders the frames in it.
 
 It ignores `languages` on purpose, for the same reason the Redirect control
 ignores `redirect.enabled`: the shipped default is `languages: ["en"]`, so a
-config-driven dropdown would be empty and the German that ships in the tree
-unreachable. What a firewall serves is still governed entirely by `languages`;
-only the gallery looks past it. The extra dictionary exists in `out/preview/`
-alone and cannot reach `out/deploy/` — the build refuses it there.
+config-driven dropdown would be empty and the twelve languages that ship in the
+tree unreachable. **The gallery is where you decide which languages to compile,
+so it has to show you the ones you have not compiled.** What a firewall serves is
+still governed entirely by `languages`; only the gallery looks past it. The extra
+dictionaries exist in `out/preview/` alone and cannot reach `out/deploy/` — the
+build refuses them there.
+
+Selecting a language **fetches** it. Each non-base language is written to its own
+`preview/lang-<code>.js` sidecar and loaded on demand, the same shape and the same
+loader the palette blobs already use; the base language has no sidecar at all,
+because it is the text the frames are already served in. So `index.html` does not
+grow with the language count — it is about 1.83 MB whether two languages ship or
+thirteen. Inlining all thirteen was the original design and it broke: the gallery
+reached 2.88 MB against a 2.5 MB budget somewhere around the tenth language, and
+a document that size is one nobody waits for. A language you never select costs a
+file on disk and nothing else.
 
 Two things about a swapped frame differ from what the firewall serves. The
 timestamp keeps the format the frame loaded with, because the page has already
@@ -477,48 +520,80 @@ Measured from real builds, not estimated. An earlier estimate put the one-off
 runtime at 240 B and was wrong by a factor of five — it grew while absorbing the
 page-shape fixes the feature turned out to need.
 
-| | Bytes |
-|---|---|
-| Runtime, one-off per page | 1,197 |
-| Dictionary, per language | 641 |
-| **First extra language** | **1,838** |
-| Each further language | 641 |
+A language is charged in two parts. The **runtime** — the selector loop, the
+swap and the shape checks — is 1,197 B per page and is paid **once**, by
+whichever language you add first. Every language after that costs only its
+**dictionary**:
+
+| Language | B/page | Language | B/page |
+|---|---|---|---|
+| `de` German | 641 | `sv` Swedish | 745 |
+| `zh` Chinese (Simplified) | 651 | `vi` Vietnamese | 847 |
+| `es` / `it` / `fr` | 670–730 | `ja` Japanese | 1,025 |
+| `da` Danish | 718 | `uk` Ukrainian | 1,136 |
+| `nl` Dutch | 736 | `ru` Russian | 1,185 |
+
+Measured as the marginal cost of adding that language to an existing two-language
+build, so the runtime is already paid and this is the dictionary alone. German's
+641 B was measured earlier, against a `["en"]` build, and is the number the
+`×1.206` expansion figure elsewhere in this page comes from.
 
 Only 6–9% of a built page is language-dependent. The rest is CSS, the SVG mark and
 the emitted script, none of which changes with language — which is why a language
 costs far less than the intuition of "another copy of the page".
 
-On the worst non-`nyan` block page (`glass`/`url-block-page`, 10,973 B in English):
+**The spread is 1.8×, so an average is the wrong number to plan with.** Russian
+costs nearly two Chinese dictionaries. Budget the languages you are actually
+shipping, not "n × the typical language".
 
-| Languages | Size | |
+#### What predicts the cost is characters, not bytes per character
+
+The intuition — Cyrillic is two bytes a character, CJK is three, so CJK must be
+the expensive one — is backwards, and this table is what disproves it. **Chinese
+is the cheapest language in the project**, because it needs about 0.3 characters
+for every English character: three bytes each, but a third as many of them.
+Japanese needs about 0.55 and is dearer than Vietnamese, because katakana
+loanwords are a net loss — `アプリケーション` is 24 B against `Application`'s 11.
+Cyrillic pays two bytes a character *and* needs roughly as many characters as
+English, which is why `ru` and `uk` sit at the top.
+
+So the question to ask of a language you are considering is not what script it
+uses. It is how many characters it needs to say the same thing.
+
+### How many fit in one build
+
+**The GlobalProtect portal is the binding constraint** — always, and not because
+it is merely tighter. It is the harder failure of the two. PAN-OS **refuses** a
+portal import above 16,170 B outright, at import time, with an error you cannot
+miss. An oversize *block* page imports clean, commits clean, and is then silently
+never displayed: the user gets the PAN-OS default and nobody is told.
+
+Measured with real translations, on the worst import (`beacon`/`login`, 12,119 B
+in English alone):
+
+| Mix | Fits | Breaks |
 |---|---|---|
-| English only | 10,973 B | byte-identical to pre-feature |
-| + 1 | 12,811 B | 3,189 B under the warn line |
-| + 2 | 13,452 B | |
-| + 3 | 14,093 B | |
+| Cheapest first — `en zh da nl sv es` | 6 languages | the 7th is refused |
+| Dearest first — `en ru uk ja` | 4 languages | the 5th is refused |
 
-**Five additional languages fit under the 16,000 B warn line.** Real German measures
-**×1.206** of English, so call it **four in practice**. Hold the warn line rather
-than the 17,999 B hard ceiling: the 1,999 B gap exists because `<url/>` expands at
-serve time, and a long blocked URL grows the page after the byte count was taken.
+**So: English plus three to five others, depending which.** Pick from the cost
+table above; the difference between the two rows is entirely which languages you
+chose, not how the build behaves.
 
-Cyrillic and Greek cost roughly 1.6× (two bytes per character in UTF-8); CJK is
-roughly par with English.
+Block pages have more room than that, but planning against them is planning
+against the wrong number — a set that fits every block page and not the portal
+leaves you with a firewall you cannot finish configuring. Hold the 16,000 B warn
+line rather than the 17,999 B serving ceiling on those pages: the 1,999 B gap
+exists because `<url/>` expands at serve time, and a long blocked URL grows the
+page after the byte count was taken.
 
-**The portal is the tighter of the two**, not the looser, because it starts from a
-larger baseline. Its worst import is `beacon`/`login` at 12,119 B, and its warn line
-is 15,000 B:
-
-| Languages | `beacon`/`login` | |
-|---|---|---|
-| English only | 12,119 B | byte-identical to pre-feature |
-| + German | 13,945 B | 1,055 B under the warn line |
-| + 2 | 14,588 B | |
-| + 3 | 15,231 B | **over the warn line** |
-
-**Two additional languages fit under the warn line, four before PAN-OS refuses the
-import outright at 16,170 B.** If you are planning more than one extra language, the
-portal is the constraint to plan against.
+You do not have to find the edge by trial: the build reports both families
+against their own ceilings, and **size is the one failure that names the
+languages it was built with**, because it is the one failure where "what could
+come out of this file" is the next question. It also names the recovery —
+dropping the optional per-language `categories` block first. The point of
+failing the build is that it is the last place this is visible: past it, an
+oversize block page is a page PAN-OS accepts and never shows.
 
 #### German plus an enabled redirect crosses the warn line
 
@@ -546,18 +621,53 @@ about 1,800 B on that page.
 Chrome needs **`--accept-lang`**, not `--lang`:
 
 ```
-open -na "Google Chrome" --args --accept-lang=de-DE,de --user-data-dir=/tmp/chrome-de \
+open -na "Google Chrome" --args --accept-lang=uk,en --user-data-dir=/tmp/chrome-uk \
   file:///path/to/out/preview/glass/url-block-page.html
 ```
 
 `--lang` changes Chrome's *interface* language and does not move
 `navigator.languages`, so the page renders in English and looks like a broken
-feature rather than a wrong flag. This has already caught someone on this branch.
-The same trap applies to any check you make: the selector reads
+feature rather than a wrong flag. This has already caught someone on this branch,
+twice. The same trap applies to any check you make: the selector reads
 `navigator.languages`, so that is the thing that has to change.
+
+Keep `,en` on the end. It makes the check honest — the base language is second in
+the list, exactly as it is for a real user who prefers Ukrainian, and it exercises
+the rule that the base language stops the search only when it is ranked *above* a
+compiled language. A single-entry `--accept-lang=uk` tests a browser nobody has.
 
 ### Known rough edges
 
+- **The copy-rule guard knows English and German phrases only.**
+  `validate.BANNED_COPY` refuses two classes of claim a response page cannot
+  substantiate — that data was or was not transmitted, and that a policy applies
+  to all users — and the audit does run over every language file. But it matches
+  *phrases*, and the phrase list is English and German. **For the other eleven
+  languages nothing in the build enforces the rule**; the translators applied it
+  by judgement. The trap is not hypothetical: on a credential-block page the
+  sentence a native writer reaches for first is "your password was not sent", and
+  the page cannot know that. Extending the list to eleven languages was
+  considered and rejected — eleven sets of banned phrases is a maintenance burden
+  with a false-positive risk this project has already been bitten by once, with a
+  deliberately wide German phrase. Each reviewer checklist lists the phrases its
+  language would contribute if the list is ever extended, so the work is
+  recorded rather than lost.
+- **`zh` serves Simplified to Traditional readers.** Language keys are two
+  lowercase letters, so `zh` matches `zh-CN`, `zh-TW` and `zh-HK` alike and a
+  Hong Kong or Taiwan browser is handed Simplified. There is no `zh-Hans` /
+  `zh-Hant` distinction to make inside a two-letter key space — that needs a
+  fallback chain and a script-subtag rule the selector does not have. The only
+  mitigation available is honesty in the label: the file's `name` is **"Chinese
+  (Simplified)"**, so the preview dropdown and any reviewer see what they are
+  actually looking at. If your users are predominantly Traditional readers,
+  translate a variant into your own tree rather than shipping `zh` to them.
+- **A reordered `facts` array is not caught.** The length is: every strings file's
+  `facts` array is counted against the `<dt>` rows in that page's template, per
+  page and per language. The *order* is not, and cannot be — labels swap
+  positionally, so a permuted array is a page that builds clean, validates clean,
+  and labels the Time row "User". Only reading the rendered page finds it, which
+  is why every language was rendered before it was committed and why the reviewer
+  checklists ask for the fact rows specifically.
 - **`supportUrl` mode puts an English "at" inside German logout messages.** The
   portal's logout messages are filled by PAN-OS with `.text()`, so they cannot carry
   a link and print the contact as prose instead — `"the Service Desk at
