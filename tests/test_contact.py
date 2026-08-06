@@ -362,10 +362,15 @@ class TestPortalContact(unittest.TestCase):
 
 def _template_copy(tmp: pathlib.Path) -> pathlib.Path:
     """A private copy of the shipped shells/ and pages/ templates, editable
-    without touching the packaged data build_page reads by default."""
+    without touching the packaged data build_page reads by default.
+
+    strings/ comes along because it is a sibling of templates/, not a part of
+    it: build_page resolves the base language relative to the directory it is
+    handed, so a copy without it builds a page whose copy has gone missing."""
     dest = tmp / "templates"
     shutil.copytree(TEMPLATES / "shells", dest / "shells")
     shutil.copytree(TEMPLATES / "pages", dest / "pages")
+    shutil.copytree(TEMPLATES.parent / "strings", tmp / "strings")
     return dest
 
 

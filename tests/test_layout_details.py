@@ -1,9 +1,17 @@
-"""Layout details that broke once and must not break again."""
+"""Layout details that broke once and must not break again.
 
+Rules about MARKUP are asserted on the templates. Rules that involve the words
+in the markup -- a label's position, a callout's guidance, a mail subject -- are
+asserted on the BUILT pages: copy lives in `data/strings/*.json` now, so the
+template carries a placeholder where the sentence used to be and a template-only
+assertion has nothing left to find.
+"""
+
+import functools
 import re
 import unittest
 
-from _build import preview_dir
+from _build import deploy_dir, preview_dir
 from _paths import DATA
 
 SHELL = (DATA / "templates/shells/assist.html").read_text(encoding="utf-8")
@@ -11,10 +19,40 @@ PAGES = DATA / "templates/pages"
 
 SECTION_RE = re.compile(r"<!--@([A-Z_]+)-->(.*?)<!--/@\1-->", re.S)
 
+# The one page with no report BUTTON: its only a.btn is the search-settings
+# link, and IT contact is an inline anchor inside its note. Named once so the
+# counters below can DERIVE how many pages offer the button instead of carrying
+# a hand-maintained number that stops being true when a page is added.
+NO_REPORT_BUTTON = "safe-search-block-page"
+
+# The label the shared `reportLabel` renders to in the base language. The built
+# pages this suite reads are an English single-language build.
+REPORT_LABEL = "Report to IT"
+
 
 def slots(name):
     text = (PAGES / f"{name}.html").read_text(encoding="utf-8")
     return {k: v.strip() for k, v in SECTION_RE.findall(text)}
+
+
+@functools.lru_cache(maxsize=1)
+def built_pages():
+    """Every built response page, as (path, html); portal pages excluded."""
+    return tuple(
+        (f, f.read_text(encoding="utf-8")) for f in sorted(deploy_dir().rglob("*.html")) if "portal" not in f.parts
+    )
+
+
+def built(*stems):
+    """The built copies of the named pages, across every style and palette."""
+    return [(f, text) for f, text in built_pages() if f.stem in stems]
+
+
+def page_dirs():
+    """The (style, palette) directories a build produces. Counters multiply by
+    this rather than hardcoding a number, so adding a style widens the coverage
+    instead of invalidating a count."""
+    return {f.parent for f, _ in built_pages()}
 
 
 class TestWarnline(unittest.TestCase):
@@ -104,10 +142,20 @@ class TestInfobox(unittest.TestCase):
         self.assertGreaterEqual(found, 1, "expected at least one info box")
 
     def test_credential_block_keeps_the_never_asks_guidance(self):
-        body = (PAGES / "credential-block-page.html").read_text(encoding="utf-8")
-        boxes = self.INFOBOX_RE.findall(body)
-        self.assertEqual(len(boxes), 1)
-        self.assertIn("never ask", boxes[0])
+        """The one piece of advice on the highest-stakes page: we will never ask
+        for your password on a page like this one.
+
+        Asserted on the built page. The template holds {{T_EXTRA}}, so the
+        sentence exists nowhere until the strings file and the markup are put
+        together -- and a callout that quietly lost its copy is still a callout.
+        """
+        found = 0
+        for f, text in built("credential-block-page"):
+            found += 1
+            boxes = self.INFOBOX_RE.findall(text)
+            self.assertEqual(len(boxes), 1, f"{f}: expected exactly one info box")
+            self.assertIn("never ask", boxes[0], f"{f}: the info box lost the 'never asks' guidance")
+        self.assertEqual(found, len(page_dirs()), "not every build of credential-block-page was examined")
 
     def test_no_page_mixes_a_warnline_and_an_infobox(self):
         """Two stacked callouts read as competing alerts; each page should make
@@ -126,30 +174,55 @@ class TestInfobox(unittest.TestCase):
 
 
 class TestActionOrder(unittest.TestCase):
+    COACH_PAGES = ("url-coach-text", "credential-coach-text")
+
     def test_continue_sits_left_of_report_on_both_coach_pages(self):
-        for name in ("url-coach-text", "credential-coach-text"):
-            actions = slots(name)["ACTIONS"]
-            self.assertIn("<pan_form/>", actions, f"{name} should offer Continue")
+        """The primary action is Continue; reporting is the alternative.
+
+        Asserted on the built page: the report label is {{T_REPORT_LABEL}} in
+        the template, so there is no "Report to IT" in it to find a position
+        for. `<pan_form/>` survives into the output untouched -- the firewall
+        expands it at serve time -- so both landmarks are present there.
+        """
+        found = 0
+        for f, text in built(*self.COACH_PAGES):
+            found += 1
+            self.assertIn("<pan_form/>", text, f"{f} should offer Continue")
+            self.assertIn(f">{REPORT_LABEL}</a>", text, f"{f} should offer the report action")
             self.assertLess(
-                actions.index("<pan_form/>"),
-                actions.index("Report to IT"),
-                f"{name}: Continue must precede Report to IT",
+                text.index("<pan_form/>"),
+                text.index(f">{REPORT_LABEL}</a>"),
+                f"{f}: Continue must precede {REPORT_LABEL}",
             )
+        self.assertEqual(found, len(self.COACH_PAGES) * len(page_dirs()), "not every coach page build was examined")
 
 
 class TestActionStyling(unittest.TestCase):
     def test_report_to_it_is_a_button_on_every_page_that_offers_it(self):
         """It rendered as an underlined text link on url-coach-text, which read
-        as prose rather than a control."""
-        for page in PAGES.glob("*.html"):
-            body = page.read_text(encoding="utf-8")
-            if "Report to IT" not in body:
+        as prose rather than a control.
+
+        On BUILT pages, and with a count. The label is a placeholder in the
+        template now, so the old template-side loop skipped every page and
+        passed while asserting nothing -- coverage in appearance only. The count
+        is what makes that impossible to repeat: it is derived from the file
+        listing rather than from the same `if` that decides whether to look, so
+        a build where the label went missing fails here instead of going quiet.
+        """
+        examined = 0
+        for f, text in built_pages():
+            if f">{REPORT_LABEL}</a>" not in text:
+                self.assertEqual(f.stem, NO_REPORT_BUTTON, f"{f}: no report button and it is not the page allowed one")
                 continue
+            examined += 1
             # The mailto body carries <url/> and <category/>, so the anchor's
             # attributes contain ">" -- match backwards from the label instead.
-            idx = body.index(">Report to IT</a>")
-            opening = body.rindex("<a ", 0, idx)
-            self.assertIn('class="btn"', body[opening:idx], f"{page.stem}: Report to IT must be a full button")
+            idx = text.index(f">{REPORT_LABEL}</a>")
+            opening = text.rindex("<a ", 0, idx)
+            self.assertIn('class="btn"', text[opening:idx], f"{f}: {REPORT_LABEL} must be a full button")
+        expected = len(built_pages()) - len(page_dirs())
+        self.assertEqual(examined, expected, f"expected {expected} pages with a report button, examined {examined}")
+        self.assertGreater(examined, 0, "the loop examined no pages at all")
 
     def test_no_underlined_action_style_remains(self):
         self.assertNotIn("btn-secondary", SHELL, "the underlined secondary style was retired")
@@ -266,12 +339,26 @@ class TestMailto(unittest.TestCase):
         self.assertEqual(found, len(list(PAGES.glob("*.html"))), "not every page was checked")
 
     def test_subjects_are_distinct_per_page(self):
-        subjects = {}
-        for name, tag in self._report_links():
-            m = re.search(r'data-subject="([^"]+)"', tag)
-            self.assertIsNotNone(m, name)
-            subjects.setdefault(m.group(1), []).append(name)
-        dupes = {s: n for s, n in subjects.items() if len(n) > 1}
+        """A shared subject line makes two incidents one ticket thread.
+
+        Asserted on the built pages, and WITHIN a build rather than across all
+        of them: every page carries the same {{T_REPORT_SUBJECT}} placeholder in
+        the template, so the subjects only differ once a language is substituted
+        in -- and the same page built in seven styles is the same page, so its
+        subject is expected to repeat across directories.
+
+        `data-subject` is the only attribute of that name on a page, so it is
+        matched directly rather than by first slicing out the anchor: the
+        anchor's other attributes carry copy that can contain '>'.
+        """
+        subjects: dict[tuple[object, str], list[str]] = {}
+        for f, text in built_pages():
+            m = re.search(r'data-subject="([^"]*)"', text)
+            self.assertIsNotNone(m, f"{f} carries no report subject")
+            subjects.setdefault((f.parent, m.group(1)), []).append(f.stem)
+        examined = sum(len(stems) for stems in subjects.values())
+        self.assertEqual(examined, len(built_pages()), "not every built page was examined")
+        dupes = {subject: sorted(stems) for (_dir, subject), stems in subjects.items() if len(stems) > 1}
         self.assertEqual(dupes, {}, f"pages share a mail subject, so tickets are indistinguishable: {dupes}")
 
 

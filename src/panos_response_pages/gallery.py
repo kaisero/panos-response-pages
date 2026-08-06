@@ -21,8 +21,9 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from panos_response_pages import redirect
+from panos_response_pages import i18n, redirect
 from panos_response_pages.errors import BuildError
+from panos_response_pages.scripts import PREVIEW_SWAP
 
 GALLERY_CSS = """
 *{box-sizing:border-box}
@@ -74,6 +75,10 @@ box-shadow:0 1px 2px rgba(10,20,30,.05),0 10px 30px rgba(10,20,30,.08)}
 .dev.mobile iframe{border-radius:1.1rem}
 iframe{border:0;display:block;width:100%;background:var(--srf)}
 .seg[hidden]{display:none}
+/* The listbox controls hide themselves too now -- Language goes away on a style
+   that compiles none. `hidden` alone cannot do it: the UA rule it sets is
+   display:none, and .ctl's own inline-flex beats it on specificity. */
+.ctl[hidden]{display:none}
 .foot{margin:0 auto;padding:0 1.5rem 3rem;max-width:52rem;text-align:center;
 color:var(--mut);font-size:.78rem;line-height:1.6}
 .foot code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.94em}
@@ -244,6 +249,9 @@ def build_gallery(
     palettes: Sequence[Mapping[str, Any]],
     portal_blobs: Mapping[tuple[str, str, str], str] | None = None,
     portal_previews: Sequence[str] = (),
+    languages: Sequence[tuple[str, str]] = (),
+    base_language: str = "",
+    language_blobs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[str, dict[str, str]]:
     """Self-contained preview: every page inlined via iframe srcdoc.
 
@@ -255,6 +263,17 @@ def build_gallery(
     visitor sees, and they are the only frames in this gallery that load
     anything from disk -- the prefixes pull jQuery from `portal/` beside this
     file, and srcdoc resolves that relative to this document.
+
+    `languages` is (code, friendly name) pairs with the base language first --
+    every language the data directory ships, not the ones `languages` in the
+    config turned on. `base_language` is the code the frames are served in, so
+    selecting it means calling nothing.
+
+    `language_blobs` is {code: {page key: dictionary}} for every language but the
+    base one. The frames compile none of it: one dictionary per language inside
+    every frame of every page is what took this document to 2.9 MB at thirteen
+    languages, and none of it is read until a reader picks a language. Each is a
+    sibling file fetched on demand, exactly as a palette's frames are.
     """
 
     def seg(
@@ -323,6 +342,17 @@ def build_gallery(
         else ""
     )
 
+    # Only when there is a choice, like Palette: a data directory that predates
+    # the strings tree ships exactly one language, and a dropdown with one entry
+    # is a label pretending to be a control.
+    lang_ctl = _listbox("lang", "Language", [(None, list(languages))], base_language) if len(languages) > 1 else ""
+    # Which styles compiled the extra languages. A style that declares
+    # `"i18n": false` renders the base language and nothing else -- the same
+    # thing the size report prints as "base only" -- so selecting it must take
+    # the control away rather than leave a dropdown whose frames cannot answer
+    # it. Exactly what RXOK does for the Redirect toggle.
+    lang_ok = json.dumps({t["name"]: 1 for t in themes if i18n.enabled(t)})
+
     # Same shape as the login states: one page rendered two ways, so it composes
     # into the key rather than becoming an entry in the page list. Always built,
     # so the toggle demonstrates the handoff to someone whose config has not
@@ -367,9 +397,13 @@ def build_gallery(
         )
         return out
 
-    def encode(obj: dict[str, str]) -> str:
+    def encode(obj: Any) -> str:
         # </ would close the <script> that carries this, wherever it appears
         # inside a blob -- which it does, in every page that has a </style>.
+        # ensure_ascii is left on, which matters more now that this also encodes
+        # translations: a sidecar is a bare .js file with no charset to declare,
+        # so \u escapes are what keeps Cyrillic and CJK out of the hands of
+        # whatever encoding the browser would otherwise guess.
         return json.dumps(obj).replace("</", "<\\/")
 
     opening = palette["name"]
@@ -379,6 +413,16 @@ def build_gallery(
         for p in palettes
         if p["name"] != opening
     }
+    # One file per language, and the base language has none: it is the text the
+    # frames are served in, so selecting it calls nothing and fetches nothing.
+    # Same shape as the palette sidecars, same loader, same INFLIGHT guard.
+    sidecars.update(
+        {
+            f"lang-{code}.js": f"PL({json.dumps(code)},{encode(pages_of)})"
+            for code, pages_of in (language_blobs or {}).items()
+            if code != base_language
+        }
+    )
 
     # The redirect demo, keyed off the page list rather than in it -- `pages` is
     # PAGE_TOKENS, and this variant is not a page PAN-OS serves. Looked up rather
@@ -396,6 +440,7 @@ def build_gallery(
   {theme_ctl}
   {page_ctl}
   {palette_ctl}
+  {lang_ctl}
   {state_seg}
   {redirect_seg}
   {view_seg}
@@ -407,19 +452,31 @@ def build_gallery(
    prefixes to show the whole served page — <strong>preview only, never importable</strong>.
    <strong>Redirect: On</strong> shows the sanctioned-app handoff on a calm category, and its countdown
    <strong>restarts</strong> so the motion stays visible — the served page hands over once and does not
-   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.</p>
+   loop. It is shown whatever <code>redirect.enabled</code> says, so what ships still follows the config.
+   <strong>Language</strong> offers every translation this data directory ships, whatever <code>languages</code>
+   lists, and overrides whatever the browser would have negotiated.</p>
 <script>
-var D={payload},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
+var D={payload},TT={{}},LOADED={{}},S={{theme:"{themes[0]["name"]}",page:"{pages[0]}",
 palette:"{palette["name"]}",view:"both",scheme:"light",
-state:"{states[0] if states else ""}",redirect:"off"}};
-LOADED[S.palette]=1;
+state:"{states[0] if states else ""}",redirect:"off",lang:"{base_language}"}};
+// The two sidecar families, named in one place each. Everything below keys
+// LOADED, FAILED and INFLIGHT on the FILE, not on the palette or the language,
+// so one loader serves both and neither can be asked for twice.
+function BSRC(p){{return "blobs-"+p+".js"}}
+function LSRC(l){{return "lang-"+l+".js"}}
+LOADED[BSRC(S.palette)]=1;
 document.documentElement.setAttribute("data-pal",S.palette);
 // Each palette but the opening one arrives as a sibling classic script that
 // calls this. A module would be CORS-checked and fail on file://, and fetch()
 // is unavailable there for the same reason -- which is why this is a <script
 // src> and not a request.
-function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[name]=1}}
-// One <script src> per palette, ever. Two renders of the same not-yet-loaded
+function PP(name,obj){{for(var k in obj)D[k]=obj[k];LOADED[BSRC(name)]=1}}
+// And each language but the base one. The frames compile no translations at all
+// -- a dictionary inlined into every frame of every page is what took this
+// document to 2.9 MB at thirteen languages -- so the words for one language
+// arrive here and are handed to the frame's own swap when it loads.
+function PL(lang,obj){{TT[lang]=obj;LOADED[LSRC(lang)]=1}}
+// One <script src> per file, ever. Two renders of the same not-yet-loaded
 // palette -- flipping the viewport while a sidecar is still in flight -- must
 // not append a second element and re-fetch the file; the second caller queues
 // behind the first and both run when it resolves.
@@ -427,37 +484,55 @@ var INFLIGHT={{}};
 // A missing or interrupted sidecar used to mark itself loaded and settle with
 // no further sign of anything wrong -- so the one frame that needed it just
 // rendered blank, which reads as a page bug rather than a missing file. FAILED
-// records which palette's sidecar did not load, so frame() can say so instead
-// of rendering nothing; LOADED still gets set, on purpose, so a palette that
-// failed once is not retried in a loop on every subsequent selection.
+// records which file did not load, so frame() can say so instead of rendering
+// nothing; LOADED still gets set, on purpose, so a file that failed once is not
+// retried in a loop on every subsequent selection.
 var FAILED={{}};
-function need(pal,done){{
-  if(LOADED[pal]) return done();
-  if(INFLIGHT[pal]){{INFLIGHT[pal].push(done);return}}
-  INFLIGHT[pal]=[done];
+function need(src,done){{
+  if(!src||LOADED[src]) return done();
+  if(INFLIGHT[src]){{INFLIGHT[src].push(done);return}}
+  INFLIGHT[src]=[done];
   var s=document.createElement("script");
-  s.src="blobs-"+pal+".js";
+  s.src=src;
   function settle(){{
-    var q=INFLIGHT[pal];delete INFLIGHT[pal];
+    var q=INFLIGHT[src];delete INFLIGHT[src];
     for(var i=0;i<q.length;i++) q[i]();
   }}
   s.onload=settle;
-  s.onerror=function(){{LOADED[pal]=1;FAILED[pal]=1;settle()}};
+  s.onerror=function(){{LOADED[src]=1;FAILED[src]=1;settle()}};
   document.head.appendChild(s);
 }}
 // Which styles have room for the notice. nyan does not -- its URL block page is
 // 15558 B before a flat 3347 B notice, against a 17999 B ceiling -- so selecting
 // it must take the control away rather than offer an On with nothing behind it.
 var RXPAGE="{redirect.PAGE}",RXSUF="{redirect.PREVIEW_SUFFIX}",RXOK={rx_ok};
+// The Language control. Colour scheme is CSS, so setting an attribute on the
+// loaded document restyles it; language is not -- the frame's runtime picked a
+// language and rewrote the text before `load` fired. So the preview build parks
+// the apply half of that swap on the frame's own window and this calls it. Same
+// closure, same code path, one language later.
+//
+// BASELANG is what the frames are SERVED in, and draw() rebuilds them on every
+// control change, so selecting it means calling nothing at all rather than
+// swapping back.
+var BASELANG="{base_language}",LANGOK={lang_ok},SWAP="{PREVIEW_SWAP}";
 // The login surface is one import in four server-driven states, and the url
 // block page is one page built with and without the sanctioned-app handoff. Both
 // controls compose into the key rather than selecting a page of their own.
-function key(){{
+function pkey(){{
   var p=S.page;
   if(p==="portal:login") p=p+"-"+S.state;
   if(p===RXPAGE&&S.redirect==="on"&&RXOK[S.theme]) p=p+RXSUF;
+  return p;
+}}
+function key(){{
+  var p=pkey();
   return S.theme+"|"+S.palette+"|"+p;
 }}
+// The words for THIS frame in the selected language, out of the file the
+// language control fetched. Undefined until one has been, and undefined for the
+// base language forever -- the frame is already in it.
+function dict(){{var d=TT[S.lang];return d&&d[pkey()]}}
 // A frame never shrinks below this. Block pages fill their frame and want to be
 // shrink-wrapped, so their floor is 0. The portal pages are a small card centred
 // in min-height:100vh, and shrink-wrapping one collapses the viewport it is
@@ -480,14 +555,24 @@ function fit(f){{
     }}
   }}catch(e){{f.style.height=(min||900)+"px";}}
 }}
+// What a frame says instead of rendering blank when the file behind it did not
+// load. One sentence, one shape, whichever sidecar is missing.
+function miss(src,what){{
+  return "<p style='font:14px sans-serif;padding:2rem'>"+src+" failed to load &mdash; "+what+"</p>";
+}}
 function frame(kind){{
   var f=document.createElement("figure");
   var d=document.createElement("div"); d.className="dev "+kind;
   var i=document.createElement("iframe");
   var blob=D[key()];
-  if(!blob&&FAILED[S.palette]){{
-    blob="<p style='font:14px sans-serif;padding:2rem'>blobs-"+S.palette+".js failed to load "
-      +"&mdash; this palette's preview is missing.</p>";
+  if(!blob&&FAILED[BSRC(S.palette)]){{
+    blob=miss(BSRC(S.palette),"this palette's preview is missing.");
+  }}
+  // The same for a language whose file did not arrive. Rendering the frame in
+  // the base language instead would be a preview that quietly disagrees with the
+  // control above it -- the one thing a reviewer is here to compare.
+  else if(S.lang!==BASELANG&&FAILED[LSRC(S.lang)]){{
+    blob=miss(LSRC(S.lang),"this language's translations are missing.");
   }}
   i.setAttribute("srcdoc",blob||"");
   i.setAttribute("title",S.page+" "+kind);
@@ -498,6 +583,19 @@ function frame(kind){{
     // Set the scheme on the loaded document rather than rewriting the markup:
     // string surgery here has to survive heredoc, Python and f-string quoting.
     try{{i.contentDocument.documentElement.setAttribute("data-force-scheme",S.scheme);}}catch(e){{}}
+    // Before fit(), never after: the swap changes how much text the frame holds,
+    // and measuring first would size it to the language it is about to stop
+    // showing. Guarded on the function's existence rather than on LANGOK, so a
+    // portal frame -- which carries no block-page runtime at all -- is simply a
+    // frame that does not answer.
+    // The dictionary travels WITH the call: the frame compiled none, so the swap
+    // is handed the words for this page in this language and files them away
+    // before applying them. A frame built with its languages compiled in ignores
+    // the second argument, which is what keeps one code path for both.
+    try{{
+      var w=i.contentWindow;
+      if(S.lang!==BASELANG&&w&&typeof w[SWAP]==="function") w[SWAP](S.lang,dict());
+    }}catch(e){{}}
     fit(i);
   }});
   d.appendChild(i); f.appendChild(d);
@@ -510,11 +608,21 @@ function draw(){{
   if(g) g.hidden = S.page!=="portal:login";
   var r=document.getElementById("rxgrp");
   if(r) r.hidden = S.page!==RXPAGE||!RXOK[S.theme];
+  var L=document.getElementById("langgrp");
+  if(L) L.hidden = !LANGOK[S.theme];
   var s=document.getElementById("stage"); s.innerHTML="";
   if(S.view!=="mobile") s.appendChild(frame("desktop"));
   if(S.view!=="desktop") s.appendChild(frame("mobile"));
 }}
-function render(){{ need(S.palette,draw); }}
+// Both axes, and only what this selection actually needs: the opening palette is
+// already here, and the base language has no file at all. Nested rather than
+// counted, because two files is the most any one render can be waiting on and a
+// counter would be more machinery than the case deserves.
+function render(){{
+  need(BSRC(S.palette),function(){{
+    need(S.lang===BASELANG?"":LSRC(S.lang),draw);
+  }});
+}}
 // Cleared within the group: each segmented control is its own radiogroup, so
 // the pressed state never has to be reasoned about across the whole bar.
 document.querySelectorAll(".seg button").forEach(function(b){{
@@ -616,6 +724,7 @@ function mkListbox(idPrefix,prop){{
 mkListbox("theme","theme");
 mkListbox("page","page");
 mkListbox("pal","palette");
+mkListbox("lang","lang");
 render();
 </script>
 </body></html>

@@ -1,0 +1,194 @@
+{
+  "lang": "zh",
+  "name": "Chinese (Simplified)",
+  "shared": {
+    "reportLabel": "向 IT 报告",
+    "contactAlt": ["或发送邮件至 ", "，并附上以上信息。"],
+    "severity": { "calm": "", "warn": "注意", "crit": "安全风险" },
+    "defaultGloss": "此类别受公司政策限制。",
+    "riskGloss": "此网站存在安全风险，因此已被拦截。",
+    "continueGrantText": "15 分钟",
+    "supportLabel": "IT 支持",
+    "redirect": {
+      "go": "立即前往",
+      "stay": "留在本页",
+      "cancelled": "您将留在本页。",
+      "cancelledAnnounce": "已取消。您将留在本页。",
+      "announce": "{n} 秒后将前往 {app}。如需留在本页，请选择“留在本页”或按 Esc 键。"
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "应用程序已被拦截",
+      "headline": "此应用程序已被拦截",
+      "gloss": "公司政策限制在网络中使用此应用程序。",
+      "facts": ["应用程序", "用户", "时间"],
+      "extra": "如果工作中需要此应用程序，请发送上面的报告，IT 部门会进行审核。",
+      "report": {
+        "subject": "应用程序拦截报告",
+        "intro": "请审核此应用程序拦截。",
+        "prompt": "我需要此应用程序的原因："
+      }
+    },
+    "credential-block-page": {
+      "title": "凭据提交已被拦截",
+      "headline": "凭据提交已被拦截",
+      "gloss": "您刚才试图将工作用户名和密码发送到此网站。我们未将此网站识别为可信网站。",
+      "facts": ["地址", "类别", "用户", "时间"],
+      "contactAlt": ["或立即发送邮件至 ", "。"],
+      "extra": "{{COMPANY}} 绝不会在这样的页面上索要您的密码。如果某个网站要求您登录，而您觉得有异常，请关闭该标签页，并从书签直接访问该服务。",
+      "report": {
+        "subject": "可能的钓鱼页面 - 凭据提交已拦截",
+        "intro": "一次凭据提交被拦截。",
+        "prompt": "我当时在做的操作："
+      }
+    },
+    "credential-coach-text": {
+      "title": "这真的是公司的登录页面吗？",
+      "headline": "这真的是公司的登录页面吗？",
+      "gloss": "您正要将工作用户名和密码发送到此网站。我们未将此网站识别为公司的网站。",
+      "facts": ["地址", "类别", "用户", "时间"],
+      "extra": "请仔细核对上面的地址，留意熟悉名称中的细微拼写差异。继续操作会发送您的凭据，并以您的名义记录。",
+      "report": {
+        "subject": "可能的钓鱼页面 - 凭据输入提示",
+        "intro": "在提交凭据前收到了警告。",
+        "prompt": "我当时在做的操作："
+      }
+    },
+    "data-filter-block-page": {
+      "title": "数据传输已被拦截",
+      "headline": "数据传输已被拦截",
+      "gloss": "公司政策限制传输此内容，因此传输已停止。",
+      "facts": ["方向", "文件", "应用程序", "用户", "时间"],
+      "extra": "如果工作中需要发送此内容，请发送上面的报告，IT 部门会进行审核。",
+      "report": {
+        "subject": "被拦截的数据传输",
+        "intro": "一次数据传输被策略拦截。",
+        "prompt": "我需要发送此内容的原因："
+      }
+    },
+    "file-block-continue-page": {
+      "title": "要继续下载吗？",
+      "headline": "要继续下载吗？",
+      "gloss": "公司政策限制下载此类型的文件。如果工作中需要此文件，您可以继续。",
+      "facts": ["文件", "用户", "时间"],
+      "extra": "只有在您清楚此文件的内容和来源时才继续。",
+      "report": {
+        "subject": "文件下载警告",
+        "intro": "在下载受限文件类型前收到了警告。",
+        "prompt": "我当时在做的操作："
+      }
+    },
+    "file-block-page": {
+      "title": "此文件类型已被拦截",
+      "headline": "此文件类型已被拦截",
+      "gloss": "公司政策限制传输此类型的文件，因此传输已停止。",
+      "facts": ["文件", "用户", "时间"],
+      "extra": "如果工作中需要此文件，请发送上面的报告，IT 部门会进行审核。",
+      "report": {
+        "subject": "被拦截的文件传输",
+        "intro": "一次文件传输被策略拦截。",
+        "prompt": "我需要此文件的原因："
+      }
+    },
+    "safe-search-block-page": {
+      "title": "开启安全搜索以继续",
+      "headline": "开启安全搜索以继续",
+      "gloss": "您的搜索被拦截，因为未开启安全搜索。公司政策要求在其涵盖的搜索引擎上开启安全搜索。",
+      "facts": ["用户", "时间"],
+      "action2": "打开搜索设置",
+      "extra": [
+        "请将安全搜索设为最严格的选项，然后重新搜索。如果您已登录该搜索引擎，请同时锁定此设置。",
+        "开启安全搜索后仍被拦截？请联系 ",
+        "，IT 部门会进行查看。"
+      ],
+      "report": {
+        "subject": "已开启安全搜索但仍被拦截",
+        "intro": "已开启安全搜索，但我的搜索仍被拦截。",
+        "prompt": "我搜索的内容："
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "证书问题",
+      "headline": "无法验证此网站的证书",
+      "gloss": "服务器提供的证书无法通过验证，因此连接已停止。",
+      "facts": ["服务器", "证书", "颁发者", "状态", "原因", "类别", "用户", "时间"],
+      "extra": "在 IT 部门查看之前，请不要在此网站上登录或输入个人信息。",
+      "report": {
+        "subject": "证书错误",
+        "intro": "此连接上的证书无法通过验证。",
+        "prompt": "我想访问的网站："
+      }
+    },
+    "url-block-page": {
+      "title": "此网站已被拦截",
+      "headline": "此网站已被拦截",
+      "gloss": "此类别受公司政策限制。",
+      "facts": ["地址", "类别", "用户", "时间"],
+      "extra": "如果您认为工作中需要此网站，请发送上面的报告，IT 部门会进行审核。",
+      "report": {
+        "subject": "网站拦截报告",
+        "intro": "请审核此拦截。",
+        "prompt": "我需要访问的原因："
+      }
+    },
+    "url-coach-text": {
+      "title": "要继续访问此网站吗？",
+      "headline": "要继续访问此网站吗？",
+      "gloss": "此类别受公司政策限制。",
+      "facts": ["地址", "类别", "用户", "时间"],
+      "extra": ["继续操作会开放对 ", "此类别中所有网站", " 的访问，有效期 {{CONTINUE_GRANT}}。"],
+      "report": {
+        "subject": "类别警告 - 继续页面",
+        "intro": "在继续操作前收到了警告。",
+        "prompt": "我认为类别有误的原因："
+      }
+    },
+    "virus-block-page": {
+      "title": "下载已被拦截",
+      "headline": "下载已被拦截",
+      "gloss": "病毒扫描在此文件中发现了恶意软件，因此下载已停止。",
+      "facts": ["文件", "用户", "时间"],
+      "contactAlt": ["或立即发送邮件至 ", "。"],
+      "extra": "如果您从其他地方打开过此文件的副本，请告知 IT 部门。它可能已经在您的设备上。",
+      "report": {
+        "subject": "在下载中检测到恶意软件",
+        "intro": "一次下载被病毒扫描拦截。",
+        "prompt": "我当时在做的操作："
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "登录",
+      "getSoftware": "获取代理软件",
+      "glossSignIn": "请使用您的公司账号登录。",
+      "glossSoftware": "请下载适用于您操作系统的代理程序，然后在应用中登录。",
+      "download": "下载",
+      "otherPlatforms": "其他平台",
+      "note": ["需要帮助？请联系 ", "。"],
+      "downloadFor": "下载：",
+      "chooseDownload": "选择下载项",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64 位",
+      "bit32": "32 位",
+      "formUser": "用户名",
+      "formPassword": "密码",
+      "formNewPassword": "新密码",
+      "formConfirmPassword": "确认新密码",
+      "formSubmit": "登录"
+    },
+    "home": {
+      "logoutMessages": [
+        "您已成功退出 GlobalProtect 门户。",
+        "GlobalProtect 门户未获得许可。请购买或激活您的 GlobalProtect 订阅许可证。",
+        "用户未通过 GlobalProtect 门户的身份验证。",
+        "系统错误。请联系 {{CONTACT_REACHABLE}}。",
+        "系统错误，无法删除用户会话。请联系 {{CONTACT_REACHABLE}}。",
+        "无法创建用户会话，已达到最大容量。请联系 {{CONTACT_REACHABLE}}。",
+        "您的登录会话已过期，出于安全原因您已被退出登录。如需继续，请重新登录。"
+      ]
+    }
+  }
+}

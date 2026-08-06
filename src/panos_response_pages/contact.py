@@ -16,7 +16,7 @@ built from -- each page still declares `data-subject`, `data-intro` and
 `data-prompt`. A ticket-system adapter (ServiceNow, Jira Service Management) is
 the reason: those fields are exactly what such a system wants as
 `short_description` and `description`, and an adapter added later reads them from
-the anchor rather than needing all nine templates edited again.
+the anchor rather than needing all eleven templates edited again.
 
 Why `supportUrl` must be absolute https, and never a relative path: a response
 page is served AS the blocked site, so its origin is whatever the user was

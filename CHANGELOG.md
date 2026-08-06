@@ -4,6 +4,72 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2]
+
+### Added
+
+- **Multi-language response pages.** Every configured language is compiled into
+  the page and the browser picks one from `navigator.languages` at load time.
+  Two new config keys: `baseLanguage` (rendered as real text, and what a browser
+  without JavaScript shows) and `languages`. Two-letter primary subtags only, so
+  `de` matches `de-AT`, `de-CH` and `de-DE`. A build with the default
+  `languages: ["en"]` is byte-identical to before.
+- **Thirteen shipped languages** — English, German, Spanish, Italian, French,
+  Dutch, Danish, Swedish, Japanese, Chinese (Simplified), Vietnamese, Russian
+  and Ukrainian, each a complete `data/strings/<code>.json`. **Everything beyond
+  English and German is model-drafted and unreviewed by a native speaker**; have
+  one read the pages you intend to serve.
+- **Not all thirteen fit in one build.** The GlobalProtect portal's 16,170 B
+  import ceiling is the binding constraint: roughly English plus three to five
+  others, depending which. Cost is driven by character count, not bytes per
+  character — Chinese is cheapest at 651 B per page, Russian dearest at
+  1,185 B, plus a one-off 1,197 B runtime.
+- **`translations`, for your own copy** — `defaultGloss`, `riskGloss`,
+  `continueGrantText`, `supportLabel`, `logoutMessages` and the redirect
+  sentence. Your block beats the shipped strings file; a key you omit falls back
+  to that language's shipped translation, not to the base language.
+- **A theme may decline extra languages with `"i18n": false`.** `nyan` does, for
+  lack of headroom. Any other style that overflows fails the build.
+- **Guards for translation failures**: exact key parity in both directions, no
+  empty strings, no `<` or `>` in any copy (a PAN-OS token inside JSON would be
+  expanded by the firewall and break the page script), and a per-language
+  `facts` count against the template. The copy audit runs over every language
+  file.
+- **PAN-OS's own injected login form is translated** — `#user`, `#passwd`,
+  `#submit` and the two change-password fields. Re-applied on `window.onload`
+  and individually guarded, so a renamed id degrades to English.
+- **A tenth page type, `data-filter-block-page`**, plus the `<direction/>`
+  token it provides.
+- **An eleventh page type, `ssl-cert-status-page`**, plus `<certname/>`,
+  `<issuer/>`, `<status/>` and `<reason/>`. Tone is `warn`, not `crit`.
+
+### Changed
+
+- **Page copy has moved out of the templates into `data/strings/<lang>.json`.**
+  **If you forked the templates with `init` to reword a page, that wording now
+  lives in `strings/en.json`** and your edited template is no longer used.
+  `SEV_LABEL` moves from Python into `shared.severity`.
+- **If you forked the data directory with `init`, refresh it: `init --force`**
+  (back up your `config/` first). A tree without `strings/` now fails every
+  build, including single-language ones.
+- The redirect notice is translatable: its furniture lives in
+  `shared.redirect`, its sentence in `translations.<lang>.redirect`. A language
+  translating the per-category sentences but not the default `message` is now
+  refused.
+- The preview gallery loads languages on demand from `preview/lang-<code>.js`
+  instead of inlining them, so `index.html` no longer grows with the language
+  count.
+
+### Known limitations
+
+- German plus an enabled redirect puts `url-block-page` over the 16,000 B warn
+  line on `beacon`, `glass` and `mesh` (by 202, 494 and 84 B). Well under the
+  17,999 B hard ceiling, so the build warns rather than fails.
+- The copy-rule guard matches English and German phrases only.
+- `zh` is served to Traditional readers too, since keys are two-letter subtags.
+- In `supportUrl` mode the portal's logout messages assemble `"<name> at <url>"`
+  in code, so that `at` stays English.
+
 ## [0.1.1]
 
 ### Added

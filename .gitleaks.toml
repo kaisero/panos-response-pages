@@ -1,0 +1,13 @@
+title = "gitleaks config"
+
+[extend]
+useDefault = true
+
+# Singular [allowlist], not [[allowlists]]: the plural array-of-tables form is
+# ignored without error by the gitleaks 8.24.3 that gitleaks-action pins, so the
+# scan ran on stock rules in CI while the 8.30.x CLI and pre-commit hook passed.
+[allowlist]
+description = "Generated sha256 digest map, not secrets -- gitleaks' generic-api-key rule false-positives on hex hashes keyed by filenames containing 'credential'"
+paths = [
+  '''tests/fixtures/byte-identity\.json''',
+]

@@ -8,31 +8,31 @@
   body here carries only the user and the safe-search settings URL.
 -->
 
-<!--@TITLE-->Turn on SafeSearch to continue<!--/@TITLE-->
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
 
 <!--@TONE-->calm<!--/@TONE-->
 
 <!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><!--/@MARK-->
 
-<!--@HEADLINE-->Turn on SafeSearch to continue<!--/@HEADLINE-->
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
 
-<!--@GLOSS-->Your search was blocked because SafeSearch is not switched on. Company policy requires SafeSearch on the search engines it covers.<!--/@GLOSS-->
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
 
 <!--@FACTS-->
-<div class="f"><dt>User</dt><dd><user/></dd></div>
-<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<div class="f"><dt>{{T_FACT1}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd id="ts"></dd></div>
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" href="<ssurl/>">Open search settings</a>
+<a class="btn" href="<ssurl/>">{{T_ACTION2_LABEL}}</a>
 <!--/@ACTIONS-->
 
 <!--@EXTRA-->
-<p class="infobox">{{INFO_MARK}}<span>Set SafeSearch to its strictest option, then run your search again. If you are signed in to the search engine, lock the setting as well.</span></p>
-<p class="note">Still blocked after turning SafeSearch on? Contact <a id="rep"{{CONTACT_TO}} data-subject="SafeSearch still blocked"
-   data-intro="SafeSearch is enabled but my search is still blocked."
-   data-prompt="What I searched for:"
-   href="{{CONTACT_HREF}}">{{CONTACT_NAME}}</a> and IT will take a look.</p>
+<p class="infobox">{{INFO_MARK}}<span>{{T_EXTRA1}}</span></p>
+<p class="note">{{T_EXTRA2}}<a id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}"
+   data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{CONTACT_NAME}}</a>{{T_EXTRA3}}</p>
 <!--/@EXTRA-->
 
 <!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->

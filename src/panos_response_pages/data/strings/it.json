@@ -1,0 +1,194 @@
+{
+  "lang": "it",
+  "name": "Italian",
+  "shared": {
+    "reportLabel": "Segnala all'IT",
+    "contactAlt": ["Oppure scriva a ", " con i dati qui sopra."],
+    "severity": { "calm": "", "warn": "Attenzione", "crit": "Rischio sicurezza" },
+    "defaultGloss": "La politica aziendale limita questa categoria.",
+    "riskGloss": "Questo sito è stato bloccato perché presenta un rischio per la sicurezza.",
+    "continueGrantText": "15 minuti",
+    "supportLabel": "Assistenza IT",
+    "redirect": {
+      "go": "Vai ora",
+      "stay": "Resta qui",
+      "cancelled": "Resta su questa pagina.",
+      "cancelledAnnounce": "Annullato. Resta su questa pagina.",
+      "announce": "Verrà indirizzato a {app} tra {n} secondi. Scelga «Resta qui» o prema Esc per rimanere su questa pagina."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Applicazione bloccata",
+      "headline": "Questa applicazione è bloccata",
+      "gloss": "La politica aziendale limita questa applicazione sulla rete.",
+      "facts": ["Applicazione", "Utente", "Data e ora"],
+      "extra": "Se le serve questa applicazione per lavoro, invii la segnalazione qui sopra e l'IT la esaminerà.",
+      "report": {
+        "subject": "Segnalazione: applicazione bloccata",
+        "intro": "Vi chiedo di esaminare questo blocco di applicazione.",
+        "prompt": "Perché mi serve questa applicazione:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Invio di credenziali bloccato",
+      "headline": "Invio di credenziali bloccato",
+      "gloss": "Ha appena provato a inviare nome utente e password di lavoro a un sito che non riconosciamo come attendibile.",
+      "facts": ["Indirizzo", "Categoria", "Utente", "Data e ora"],
+      "contactAlt": ["Oppure scriva a ", " subito."],
+      "extra": "{{COMPANY}} non le chiederà mai la password in una pagina come questa. Se un sito le chiede di accedere e qualcosa non le torna, chiuda la scheda e apra il servizio dai suoi preferiti.",
+      "report": {
+        "subject": "Possibile pagina di phishing - invio di credenziali bloccato",
+        "intro": "È stato bloccato un invio di credenziali.",
+        "prompt": "Cosa stavo facendo:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "È davvero una pagina di accesso aziendale?",
+      "headline": "È davvero una pagina di accesso aziendale?",
+      "gloss": "Sta per inviare nome utente e password di lavoro a un sito che non riconosciamo come nostro.",
+      "facts": ["Indirizzo", "Categoria", "Utente", "Data e ora"],
+      "extra": "Controlli con attenzione l'indirizzo qui sopra: cerchi piccoli errori in un nome che conosce. Se continua, le credenziali vengono inviate e l'operazione resta registrata a suo nome.",
+      "report": {
+        "subject": "Possibile pagina di phishing - richiesta di credenziali",
+        "intro": "Sono stato avvisato prima di inviare le credenziali.",
+        "prompt": "Cosa stavo facendo:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Trasferimento di dati bloccato",
+      "headline": "Trasferimento di dati bloccato",
+      "gloss": "La politica aziendale limita il trasferimento di questo contenuto, quindi è stato interrotto.",
+      "facts": ["Direzione", "File", "Applicazione", "Utente", "Data e ora"],
+      "extra": "Se deve inviare questo contenuto per lavoro, invii la segnalazione qui sopra e l'IT la esaminerà.",
+      "report": {
+        "subject": "Trasferimento di dati bloccato",
+        "intro": "Un trasferimento di dati è stato bloccato dalla politica.",
+        "prompt": "Perché devo inviare questo contenuto:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Continuare con questo download?",
+      "headline": "Continuare con questo download?",
+      "gloss": "La politica aziendale limita il download dei file di questo tipo. Può continuare se le serve questo file per lavoro.",
+      "facts": ["File", "Utente", "Data e ora"],
+      "extra": "Continui solo se sa che cos'è questo file e da dove arriva.",
+      "report": {
+        "subject": "Avviso di download di un file",
+        "intro": "Sono stato avvisato prima di scaricare un tipo di file soggetto a restrizioni.",
+        "prompt": "Cosa stavo facendo:"
+      }
+    },
+    "file-block-page": {
+      "title": "Questo tipo di file è bloccato",
+      "headline": "Questo tipo di file è bloccato",
+      "gloss": "La politica aziendale limita il trasferimento dei file di questo tipo, quindi è stato interrotto.",
+      "facts": ["File", "Utente", "Data e ora"],
+      "extra": "Se le serve questo file per lavoro, invii la segnalazione qui sopra e l'IT la esaminerà.",
+      "report": {
+        "subject": "Trasferimento di file bloccato",
+        "intro": "Un trasferimento di file è stato bloccato dalla politica.",
+        "prompt": "Perché mi serve questo file:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Attivare SafeSearch per continuare",
+      "headline": "Attivare SafeSearch per continuare",
+      "gloss": "La sua ricerca è stata bloccata perché SafeSearch non è attivo. La politica aziendale richiede SafeSearch sui motori di ricerca a cui si applica.",
+      "facts": ["Utente", "Data e ora"],
+      "action2": "Apri impostazioni di ricerca",
+      "extra": [
+        "Imposti SafeSearch sull'opzione più restrittiva e ripeta la ricerca. Se ha effettuato l'accesso al motore di ricerca, blocchi anche l'impostazione.",
+        "Ancora bloccata dopo aver attivato SafeSearch? Scriva a ",
+        " e l'IT verificherà."
+      ],
+      "report": {
+        "subject": "SafeSearch attivo, ricerca ancora bloccata",
+        "intro": "SafeSearch è attivo, ma la mia ricerca è ancora bloccata.",
+        "prompt": "Che cosa ho cercato:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Problema di certificato",
+      "headline": "Non è stato possibile verificare il certificato di questo sito",
+      "gloss": "Il server ha presentato un certificato che non è stato possibile controllare, quindi la connessione è stata interrotta.",
+      "facts": ["Server", "Certificato", "Emittente", "Stato", "Motivo", "Categoria", "Utente", "Data e ora"],
+      "extra": "Non acceda e non inserisca dati personali su questo sito finché l'IT non lo avrà controllato.",
+      "report": {
+        "subject": "Errore di certificato",
+        "intro": "Non è stato possibile verificare un certificato su questa connessione.",
+        "prompt": "Che cosa volevo aprire:"
+      }
+    },
+    "url-block-page": {
+      "title": "Questo sito è bloccato",
+      "headline": "Questo sito è bloccato",
+      "gloss": "La politica aziendale limita questa categoria.",
+      "facts": ["Indirizzo", "Categoria", "Utente", "Data e ora"],
+      "extra": "Se ritiene che questo sito le serva per lavoro, invii la segnalazione qui sopra e l'IT la esaminerà.",
+      "report": {
+        "subject": "Segnalazione: sito bloccato",
+        "intro": "Vi chiedo di esaminare questo blocco.",
+        "prompt": "Perché mi serve l'accesso:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Continuare su questo sito?",
+      "headline": "Continuare su questo sito?",
+      "gloss": "La politica aziendale limita questa categoria.",
+      "facts": ["Indirizzo", "Categoria", "Utente", "Data e ora"],
+      "extra": ["Se continua, avrà accesso a ", "tutti i siti di questa categoria", " per {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Avviso di categoria - pagina di conferma",
+        "intro": "Sono stato avvisato prima di continuare.",
+        "prompt": "Perché ritengo che la categoria sia sbagliata:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Download bloccato",
+      "headline": "Download bloccato",
+      "gloss": "La scansione antivirus ha trovato malware in questo file, quindi il download è stato interrotto.",
+      "facts": ["File", "Utente", "Data e ora"],
+      "contactAlt": ["Oppure scriva a ", " subito."],
+      "extra": "Se ha aperto una copia di questo file da un'altra fonte, lo segnali all'IT: potrebbe essere già sul suo dispositivo.",
+      "report": {
+        "subject": "Malware rilevato in un download",
+        "intro": "Un download è stato bloccato dalla scansione antivirus.",
+        "prompt": "Cosa stavo facendo:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Accedi",
+      "getSoftware": "Scarica il software agent",
+      "glossSignIn": "Acceda con il suo account aziendale.",
+      "glossSoftware": "Scarichi l'agent per il suo sistema operativo, poi acceda dall'app.",
+      "download": "Scarica",
+      "otherPlatforms": "Altre piattaforme",
+      "note": ["Serve aiuto? Scriva a ", "."],
+      "downloadFor": "Scarica per ",
+      "chooseDownload": "Scelga il download",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64 bit",
+      "bit32": "32 bit",
+      "formUser": "Nome utente",
+      "formPassword": "Password",
+      "formNewPassword": "Nuova password",
+      "formConfirmPassword": "Conferma nuova password",
+      "formSubmit": "Accedi"
+    },
+    "home": {
+      "logoutMessages": [
+        "Ha effettuato la disconnessione dal portale GlobalProtect.",
+        "Il portale GlobalProtect non è provvisto di licenza. Acquisti o attivi la licenza dell'abbonamento GlobalProtect.",
+        "Utente non autenticato sul portale GlobalProtect.",
+        "Errore di sistema. Contatti {{CONTACT_REACHABLE}}.",
+        "Errore di sistema: non è stato possibile eliminare la sessione utente. Contatti {{CONTACT_REACHABLE}}.",
+        "Impossibile creare la sessione utente: capacità massima raggiunta. Contatti {{CONTACT_REACHABLE}}.",
+        "La sua sessione è scaduta ed è stata chiusa per motivi di sicurezza. Acceda di nuovo se desidera continuare."
+      ]
+    }
+  }
+}

@@ -44,8 +44,15 @@ document.documentElement.setAttribute('data-gp','logout');
 [].forEach.call(document.getElementsByTagName('link'),function(l){if(l.rel==='stylesheet'){l.disabled=true;}});
 }
 </script>
+{{PORTAL_I18N}}
 <!--/@HEAD_SCRIPT-->
 <!--
   Gating is on location.pathname, not the DOM -- this runs in <head>, before
   #taLogout is parsed.
+
+  The language runtime is NOT gated the same way, and is empty in a
+  single-language build. It reassigns logout_text_array, which PAN-OS' ready
+  handler reads on logout.esp -- this is synchronous in <head> and therefore
+  always wins -- and sets <html lang>, which is right on the untouched portal
+  home page too.
 -->
