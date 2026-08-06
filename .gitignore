@@ -4,9 +4,11 @@
 out/
 
 # Working material: prototypes, plans, specs and design reviews. Kept in the
-# working tree, never published. The docs/ tree is real documentation and IS
-# tracked.
+# working tree, never published. The rest of the docs/ tree is real
+# documentation and IS tracked.
 tmp/
+docs/plans/
+docs/specs/
 
 # OS cruft
 .DS_Store

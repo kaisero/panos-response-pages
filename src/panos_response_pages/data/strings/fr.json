@@ -1,0 +1,194 @@
+{
+  "lang": "fr",
+  "name": "French",
+  "shared": {
+    "reportLabel": "Signaler au service IT",
+    "contactAlt": ["Ou écrivez à ", " avec les informations ci-dessus."],
+    "severity": { "calm": "", "warn": "Attention", "crit": "Risque de sécurité" },
+    "defaultGloss": "La politique de l'entreprise restreint cette catégorie.",
+    "riskGloss": "Ce site a été bloqué parce qu'il présente un risque de sécurité.",
+    "continueGrantText": "15 minutes",
+    "supportLabel": "Support IT",
+    "redirect": {
+      "go": "Y aller",
+      "stay": "Rester ici",
+      "cancelled": "Vous restez sur cette page.",
+      "cancelledAnnounce": "Annulé. Vous restez sur cette page.",
+      "announce": "Redirection vers {app} dans {n} secondes. Choisissez « Rester ici » ou appuyez sur Échap pour rester sur cette page."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Application bloquée",
+      "headline": "Cette application est bloquée",
+      "gloss": "La politique de l'entreprise restreint cette application sur le réseau.",
+      "facts": ["Application", "Utilisateur", "Date et heure"],
+      "extra": "Si vous avez besoin de cette application pour votre travail, envoyez le signalement ci-dessus et le service IT l'examinera.",
+      "report": {
+        "subject": "Signalement : application bloquée",
+        "intro": "Merci d'examiner ce blocage d'application.",
+        "prompt": "Pourquoi j'ai besoin de cette application :"
+      }
+    },
+    "credential-block-page": {
+      "title": "Envoi d'identifiants bloqué",
+      "headline": "Envoi d'identifiants bloqué",
+      "gloss": "Vous venez d'essayer d'envoyer votre identifiant et votre mot de passe professionnels à un site que nous ne reconnaissons pas comme fiable.",
+      "facts": ["Adresse", "Catégorie", "Utilisateur", "Date et heure"],
+      "contactAlt": ["Ou écrivez à ", " sans attendre."],
+      "extra": "{{COMPANY}} ne vous demandera jamais votre mot de passe sur une page comme celle-ci. Si un site vous demande de vous connecter et que quelque chose vous semble anormal, fermez l'onglet et ouvrez le service depuis vos favoris.",
+      "report": {
+        "subject": "Possible page d'hameçonnage - envoi d'identifiants bloqué",
+        "intro": "Un envoi d'identifiants a été bloqué.",
+        "prompt": "Ce que je faisais :"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Est-ce bien une page de connexion de l'entreprise ?",
+      "headline": "Est-ce bien une page de connexion de l'entreprise ?",
+      "gloss": "Vous êtes sur le point d'envoyer votre identifiant et votre mot de passe professionnels à un site que nous ne reconnaissons pas comme l'un des nôtres.",
+      "facts": ["Adresse", "Catégorie", "Utilisateur", "Date et heure"],
+      "extra": "Vérifiez attentivement l'adresse ci-dessus : cherchez de petites fautes dans un nom que vous connaissez. Si vous continuez, vos identifiants sont envoyés et l'opération est enregistrée à votre nom.",
+      "report": {
+        "subject": "Possible page d'hameçonnage - demande d'identifiants",
+        "intro": "J'ai reçu un avertissement avant d'envoyer mes identifiants.",
+        "prompt": "Ce que je faisais :"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Transfert de données bloqué",
+      "headline": "Transfert de données bloqué",
+      "gloss": "La politique de l'entreprise restreint le transfert de ce contenu. Le transfert a été arrêté.",
+      "facts": ["Sens", "Fichier", "Application", "Utilisateur", "Date et heure"],
+      "extra": "Si vous devez envoyer ce contenu pour votre travail, envoyez le signalement ci-dessus et le service IT l'examinera.",
+      "report": {
+        "subject": "Transfert de données bloqué",
+        "intro": "Un transfert de données a été bloqué par la politique.",
+        "prompt": "Pourquoi je dois envoyer ce contenu :"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Continuer ce téléchargement ?",
+      "headline": "Continuer ce téléchargement ?",
+      "gloss": "La politique de l'entreprise restreint le téléchargement des fichiers de ce type. Vous pouvez continuer si vous avez besoin de ce fichier pour votre travail.",
+      "facts": ["Fichier", "Utilisateur", "Date et heure"],
+      "extra": "Ne continuez que si vous savez ce qu'est ce fichier et d'où il vient.",
+      "report": {
+        "subject": "Avertissement de téléchargement",
+        "intro": "J'ai reçu un avertissement avant de télécharger un type de fichier restreint.",
+        "prompt": "Ce que je faisais :"
+      }
+    },
+    "file-block-page": {
+      "title": "Ce type de fichier est bloqué",
+      "headline": "Ce type de fichier est bloqué",
+      "gloss": "La politique de l'entreprise restreint le transfert des fichiers de ce type. Le transfert a été arrêté.",
+      "facts": ["Fichier", "Utilisateur", "Date et heure"],
+      "extra": "Si vous avez besoin de ce fichier pour votre travail, envoyez le signalement ci-dessus et le service IT l'examinera.",
+      "report": {
+        "subject": "Transfert de fichier bloqué",
+        "intro": "Un transfert de fichier a été bloqué par la politique.",
+        "prompt": "Pourquoi j'ai besoin de ce fichier :"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Activez SafeSearch pour continuer",
+      "headline": "Activez SafeSearch pour continuer",
+      "gloss": "Votre recherche a été bloquée parce que SafeSearch n'est pas activé. La politique de l'entreprise exige SafeSearch sur les moteurs de recherche qu'elle couvre.",
+      "facts": ["Utilisateur", "Date et heure"],
+      "action2": "Ouvrir les paramètres de recherche",
+      "extra": [
+        "Réglez SafeSearch sur l'option la plus stricte, puis relancez votre recherche. Si vous utilisez un compte sur le moteur de recherche, verrouillez aussi le réglage.",
+        "Recherche toujours bloquée après avoir activé SafeSearch ? Écrivez à ",
+        " et le service IT vérifiera."
+      ],
+      "report": {
+        "subject": "SafeSearch actif, recherche toujours bloquée",
+        "intro": "SafeSearch est activé, mais ma recherche est toujours bloquée.",
+        "prompt": "Ce que j'ai recherché :"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Problème de certificat",
+      "headline": "Le certificat de ce site n'a pas pu être vérifié",
+      "gloss": "Le serveur a présenté un certificat qui n'a pas pu être contrôlé. La connexion a été arrêtée.",
+      "facts": ["Serveur", "Certificat", "Émetteur", "État", "Motif", "Catégorie", "Utilisateur", "Date et heure"],
+      "extra": "Ne vous connectez pas et ne saisissez pas de données personnelles sur ce site tant que le service IT ne l'a pas examiné.",
+      "report": {
+        "subject": "Erreur de certificat",
+        "intro": "Un certificat n'a pas pu être vérifié sur cette connexion.",
+        "prompt": "Ce que je cherchais à ouvrir :"
+      }
+    },
+    "url-block-page": {
+      "title": "Ce site est bloqué",
+      "headline": "Ce site est bloqué",
+      "gloss": "La politique de l'entreprise restreint cette catégorie.",
+      "facts": ["Adresse", "Catégorie", "Utilisateur", "Date et heure"],
+      "extra": "Si vous pensez que ce site vous est nécessaire pour votre travail, envoyez le signalement ci-dessus et le service IT l'examinera.",
+      "report": {
+        "subject": "Signalement : site bloqué",
+        "intro": "Merci d'examiner ce blocage.",
+        "prompt": "Pourquoi j'ai besoin de cet accès :"
+      }
+    },
+    "url-coach-text": {
+      "title": "Continuer vers ce site ?",
+      "headline": "Continuer vers ce site ?",
+      "gloss": "La politique de l'entreprise restreint cette catégorie.",
+      "facts": ["Adresse", "Catégorie", "Utilisateur", "Date et heure"],
+      "extra": ["Si vous continuez, vous aurez accès à ", "tous les sites de cette catégorie", " pendant {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Avertissement de catégorie - page de confirmation",
+        "intro": "J'ai reçu un avertissement avant de continuer.",
+        "prompt": "Pourquoi je pense que la catégorie est fausse :"
+      }
+    },
+    "virus-block-page": {
+      "title": "Téléchargement bloqué",
+      "headline": "Téléchargement bloqué",
+      "gloss": "L'analyse antivirus a trouvé un logiciel malveillant dans ce fichier. Le téléchargement a été arrêté.",
+      "facts": ["Fichier", "Utilisateur", "Date et heure"],
+      "contactAlt": ["Ou écrivez à ", " sans attendre."],
+      "extra": "Si vous avez ouvert une copie de ce fichier venant d'ailleurs, prévenez le service IT : il est peut-être déjà sur votre appareil.",
+      "report": {
+        "subject": "Logiciel malveillant détecté dans un téléchargement",
+        "intro": "Un téléchargement a été bloqué par l'analyse antivirus.",
+        "prompt": "Ce que je faisais :"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Se connecter",
+      "getSoftware": "Télécharger l'agent",
+      "glossSignIn": "Connectez-vous avec votre compte d'entreprise.",
+      "glossSoftware": "Téléchargez l'agent pour votre système d'exploitation, puis connectez-vous depuis l'application.",
+      "download": "Télécharger",
+      "otherPlatforms": "Autres plateformes",
+      "note": ["Besoin d'aide ? Écrivez à ", "."],
+      "downloadFor": "Télécharger pour ",
+      "chooseDownload": "Choisissez votre téléchargement",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64 bits",
+      "bit32": "32 bits",
+      "formUser": "Nom d'utilisateur",
+      "formPassword": "Mot de passe",
+      "formNewPassword": "Nouveau mot de passe",
+      "formConfirmPassword": "Confirmer le nouveau mot de passe",
+      "formSubmit": "Se connecter"
+    },
+    "home": {
+      "logoutMessages": [
+        "Déconnexion du portail GlobalProtect réussie.",
+        "Le portail GlobalProtect n'a pas de licence. Achetez ou activez la licence de votre abonnement GlobalProtect.",
+        "Utilisateur non authentifié sur le portail GlobalProtect.",
+        "Erreur système. Contactez {{CONTACT_REACHABLE}}.",
+        "Erreur système : impossible de supprimer la session utilisateur. Contactez {{CONTACT_REACHABLE}}.",
+        "Impossible de créer la session utilisateur : capacité maximale atteinte. Contactez {{CONTACT_REACHABLE}}.",
+        "Votre session a expiré et a été fermée pour des raisons de sécurité. Reconnectez-vous si vous souhaitez continuer."
+      ]
+    }
+  }
+}

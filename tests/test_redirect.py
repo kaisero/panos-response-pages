@@ -7,6 +7,7 @@ page took from the blocked site rather than from config, or a feature that is
 """
 
 import copy
+import functools
 import json
 import pathlib
 import re
@@ -14,7 +15,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from typing import ClassVar
 
+from _build import translated_strings
 from _paths import DATA
 from panos_response_pages import redirect
 from panos_response_pages.builder import load_themes
@@ -53,6 +56,33 @@ def render(cfg, page="url-block-page", theme=None):
     return strip_output(build_page(page, theme or THEMES[0], cfg, PALETTE, False, TEMPLATES))
 
 
+@functools.lru_cache(maxsize=1)
+def german_data_dir() -> pathlib.Path:
+    """A copy of the shipped data directory with a second language in it.
+
+    A copy, never DATA itself: that tree is the installed package the rest of the
+    suite builds from, and a strings file written into it would decide the
+    outcome of tests that have nothing to do with languages.
+    """
+    root = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rx-lang-")) / "data"
+    shutil.copytree(DATA, root)
+    (root / "strings" / "de.json").write_text(json.dumps(translated_strings()), encoding="utf-8")
+    return root
+
+
+def german(translation, **over):
+    """`configured()` with German compiled in and the notice translated."""
+    cfg = configured(**over)
+    cfg["languages"] = ["en", "de"]
+    cfg["translations"] = {"de": {"redirect": translation}}
+    return cfg
+
+
+def render_german(cfg, theme=None):
+    root = german_data_dir()
+    return strip_output(build_page("url-block-page", theme or THEMES[0], cfg, PALETTE, False, root / "templates"))
+
+
 def script_of(html):
     """The redirect script only.
 
@@ -65,16 +95,26 @@ def script_of(html):
     HTML sanitizer to code scanning (it misses <SCRIPT>, attributes, comments),
     and the alert is noise on a helper that only ever sees markup this repo
     emitted itself.
+
+    `var R={` and not `var R=`: the language block declares a `var R=Q('#rep')`
+    of its own, so on a multi-language page the looser test returns the CATEGORY
+    script and every assertion below runs against the wrong one.
     """
     for block in html.split("<script>")[1:]:
         body = block.split("</script>")[0]
-        if "var R=" in body:
+        if "var R={" in body:
             return body
     return ""
 
 
 def map_of(html):
     return json.loads(re.search(r"var R=(\{.*?\});", script_of(html), re.S).group(1))
+
+
+def lang_table(html):
+    """The per-language notice table, or None when the build compiled one language."""
+    found = re.search(r"var X=(\{.*?\})\[document\.documentElement\.lang\]", script_of(html), re.S)
+    return json.loads(found.group(1)) if found else None
 
 
 class TestOffByDefault(unittest.TestCase):
@@ -121,7 +161,7 @@ class TestOnlyTheUrlBlockPage(unittest.TestCase):
 
     def test_emit_is_empty_for_every_other_page(self):
         for page in sorted(PAGE_TOKENS):
-            parts = redirect.emit(configured(), page, SUPPORTING[0])
+            parts = redirect.emit(configured(), page, SUPPORTING[0], data_dir=DATA)
             if page == redirect.PAGE:
                 self.assertTrue(all(parts))
             else:
@@ -440,23 +480,41 @@ class TestPreviewDemo(unittest.TestCase):
                 self.assertNotIn('<div class="rx"', self.demo(theme=th))
 
 
-class TestStayLabelEscaping(unittest.TestCase):
-    """STAY_LABEL used to be concatenated straight into a single-quoted JS
-    literal. It is "Stay" today, so nothing breaks -- but pure copy editing
-    that gave it an apostrophe would emit syntactically broken JavaScript that
-    Python cannot catch and nothing asserted against. It is now wrapped with
-    json.dumps, as CANCELLED_ANNOUNCE already is a few lines above."""
+class TestNoticeCopyEscaping(unittest.TestCase):
+    """The announcement used to be concatenated into a single-quoted JS literal.
+
+    It is "Stay" and plain English today, so nothing breaks -- but this is COPY,
+    in a strings file a translator edits, and an apostrophe in it would emit
+    syntactically broken JavaScript that Python cannot catch. Every string
+    spliced into the script goes through json.dumps for that reason; this is
+    what says so. Written against the strings document rather than a Python
+    constant because that is where the words live now.
+    """
+
+    APOSTROPHES: ClassVar = {
+        "go": "Let's go",
+        "stay": "Don't go",
+        "cancelled": "You're staying here.",
+        "cancelledAnnounce": "Cancelled. You're staying here.",
+        "announce": "You'll be sent to {app} in {n} seconds. Choose Don't go to stay.",
+    }
+
+    def data_dir_with(self, notice):
+        root = pathlib.Path(tempfile.mkdtemp(prefix="panos-rp-rx-copy-")) / "data"
+        shutil.copytree(DATA, root)
+        path = root / "strings" / "en.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["shared"]["redirect"] = notice
+        path.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        return root
 
     @unittest.skipUnless(shutil.which("node"), "node not installed")
-    def test_an_apostrophe_in_stay_label_still_produces_parseable_js(self):
-        original = redirect.STAY_LABEL
-        redirect.STAY_LABEL = "Don't go"
-        try:
-            script = script_of(render(configured()))
-        finally:
-            redirect.STAY_LABEL = original
-
-        self.assertIn("Don't go", script)
+    def test_an_apostrophe_anywhere_in_the_notice_copy_still_parses(self):
+        root = self.data_dir_with(self.APOSTROPHES)
+        html = strip_output(build_page("url-block-page", THEMES[0], configured(), PALETTE, False, root / "templates"))
+        script = script_of(html)
+        self.assertIn("You'll be sent to", script)
+        self.assertIn("Don't go", html, "the base language's buttons are markup, not script")
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
             f.write(script)
             path = pathlib.Path(f.name)
@@ -539,6 +597,249 @@ class TestTheNoticeActuallyArms(unittest.TestCase):
             return json.loads(r.stdout.strip().splitlines()[-1])
         finally:
             path.unlink()
+
+
+class TestTheNoticeIsTranslated(unittest.TestCase):
+    """The notice is the last user-visible sentence no language path reached.
+
+    A customer who enables the redirect and configures German used to get a
+    German page with one English sentence in it: `redirect.message` is
+    customer-authored copy, and the translatable-key tuple was flat, so neither
+    it nor a per-category override could be named.
+
+    Every fallback here is to the TRANSLATED default, never to English. A
+    category whose override nobody translated is the case that matters: falling
+    back to its English override would put an English sentence in a German page
+    for exactly the categories a customer cared enough to write copy for.
+    """
+
+    DEFAULT_DE = "Weiterleitung zu {app} — die freigegebene Alternative."
+    VIDEO_DE = "Sieh es auf {app} an."
+
+    def test_a_single_language_build_carries_no_table(self):
+        """The byte-identity promise, where this feature would break it: one
+        language means the notice has nothing to select between."""
+        script = script_of(render(configured()))
+        self.assertIsNone(lang_table(render(configured())))
+        self.assertNotIn("var X=", script)
+        self.assertIn("m.textContent=(r[3]||D).split('{app}').join(n);", script)
+
+    def test_the_default_notice_is_translated(self):
+        table = lang_table(render_german(german({"message": self.DEFAULT_DE})))
+        self.assertEqual(table["de"]["m"], self.DEFAULT_DE)
+
+    def test_a_per_category_override_is_translated(self):
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        table = lang_table(render_german(cfg))
+        self.assertEqual(table["de"]["c"], {"streaming-media": self.VIDEO_DE})
+
+    def test_an_untranslated_category_takes_the_translated_default(self):
+        """Not the English one. `social-networking` carries an English override
+        here and no German one, so the German reader must get the German default
+        sentence rather than the English override the config happens to hold."""
+        cfg = german({"message": self.DEFAULT_DE})
+        cfg["redirect"]["categories"]["social-networking"]["message"] = "Head over to {app} instead."
+        html = render_german(cfg)
+        self.assertNotIn("c", lang_table(html)["de"], "nothing was translated per category")
+        self.assertIn("m.textContent=(X&&(X.c&&X.c[y]||X.m)||r[3]||D)", script_of(html))
+
+    def test_a_translation_for_an_unmapped_category_is_not_shipped(self):
+        """The table is keyed on `redirect.categories`, so a sentence for
+        anything else has nothing to key on and would be bytes no page can
+        reach -- on the one page already closest to the ceiling."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"nowhere": "Zu {app}."}})
+        self.assertNotIn("nowhere", script_of(render_german(cfg)))
+
+    def test_the_app_token_survives_translation(self):
+        """`{app}` is substituted by this module, not by substitute(), so it is a
+        different token syntax that resolve() and assert_resolved() both ignore.
+        A German sentence that lost it renders a notice naming no application,
+        and nothing in the build would say so."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        table = lang_table(render_german(cfg))
+        self.assertIn("{app}", table["de"]["m"])
+        self.assertIn("{app}", table["de"]["c"]["streaming-media"])
+
+    def test_the_german_text_is_not_escaped_into_six_bytes_a_character(self):
+        """This ships inside the one page that carries the notice, under the
+        same ceiling as everything else on it."""
+        self.assertIn("—", script_of(render_german(german({"message": self.DEFAULT_DE}))))
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_a_german_browser_reads_the_translated_notice_with_the_app_named(self):
+        """End to end, against a DOM: the language block picks German and sets
+        documentElement.lang, then the notice reads it. The `{app}` assertion
+        above proves the token reached the page; this proves it still resolves
+        to the application name once it has."""
+        cfg = german({"message": self.DEFAULT_DE, "categories": {"streaming-media": self.VIDEO_DE}})
+        html = render_german(cfg)
+        self.assertEqual(self._run(html, "streaming-media")["message"], "Sieh es auf Company Video an.")
+        self.assertEqual(
+            self._run(html, "social-networking")["message"],
+            "Weiterleitung zu Company Engage — die freigegebene Alternative.",
+            "an untranslated category fell back to English instead of to the translated default",
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_an_english_browser_still_reads_the_configured_notice(self):
+        """The other direction. The swap is keyed on documentElement.lang, which
+        the language block only assigns when it matched -- so a browser that
+        matched nothing must keep the sentence the page was served with."""
+        cfg = german({"message": self.DEFAULT_DE})
+        got = self._run(render_german(cfg), "social-networking", lang="en")["message"]
+        self.assertEqual(got, "Taking you to Company Engage — the approved alternative for this.")
+
+    def _run(self, html: str, category: str, lang: str = "de") -> dict:
+        return run_notice(self, html, category, lang)
+
+
+def run_notice(test: unittest.TestCase, html: str, category: str, lang: str = "de") -> dict:
+    """Run a built page's two scripts against the stub DOM and report the notice.
+
+    Module level because two classes need it: the sentence and the furniture
+    around it are swapped by the same script from the same table, and running
+    them under two different harnesses would let the two drift.
+    """
+    blocks = re.findall(r"<script>\(function\(\)\{(.*?)\}\)\(\);</script>", html, re.S)
+    cat_js = next(b for b in blocks if "var M=" in b)
+    # `var R={`, for the reason script_of() gives: the language block has a
+    # `var R=Q('#rep')` of its own, and this page carries both scripts.
+    rx_js = next(b for b in blocks if "var R={" in b)
+    # defineProperty, not assignment: `navigator` is a read-only accessor on
+    # modern Node, so `global.navigator = {...}` fails SILENTLY and the page
+    # would be selected against the host's own locale instead of this one.
+    script = (
+        f"const RAW={json.dumps(category)};"
+        f"Object.defineProperty(global,'navigator',"
+        f"{{value:{{languages:[{json.dumps(lang)}]}},configurable:true,writable:true}});"
+        f"{TestTheNoticeActuallyArms.HARNESS}"
+        f"(function(){{{cat_js}}})();(function(){{{rx_js}}})();"
+        "console.log(JSON.stringify({hidden:els.rx.hidden,message:els.rxm.textContent,"
+        "go:els.rxg.textContent,stay:els.rxs.textContent,cancelled:els.rxo.textContent,"
+        "announce:els.rxl.textContent}));"
+    )
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
+        f.write(script)
+        path = pathlib.Path(f.name)
+    try:
+        r = subprocess.run(["node", str(path)], capture_output=True, text=True, check=False)  # noqa: S603,S607
+        test.assertEqual(r.returncode, 0, r.stderr)
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    finally:
+        path.unlink()
+
+
+class TestTheNoticeFurnitureIsTranslated(unittest.TestCase):
+    """The other half of the notice: its two buttons, its cancelled line, and the
+    two sentences a screen reader is read.
+
+    Task 8b translated the MESSAGE and stopped. A German build then read "Sie
+    werden zu Company Drive weitergeleitet" above buttons labelled "Go now" and
+    "Stay", and read the whole English announcement out to a screen reader --
+    half-translated output from a clean build, which is the failure this project
+    exists to refuse. They are shipped copy, so they live in the strings document
+    and ride the same table as the sentence.
+    """
+
+    DEFAULT_DE = "Weiterleitung zu {app} — die freigegebene Alternative."
+
+    def test_the_base_language_words_are_markup(self):
+        """The markup IS the base language, here as everywhere else: a browser
+        with no JavaScript, and every browser that matches nothing, reads them."""
+        html = render(configured())
+        for word in ("Go now", "Stay", "Staying on this page."):
+            self.assertIn(word, html, f"the notice lost its base-language {word!r}")
+
+    def test_every_language_carries_the_furniture_translated_or_not(self):
+        """Shipped copy, so it is there whether or not the customer wrote a
+        sentence of their own -- otherwise a customer who enabled the redirect
+        and translated nothing would get German copy under English buttons."""
+        table = lang_table(render_german(german({})))
+        self.assertEqual(table["de"]["g"], "de:Go now")
+        self.assertEqual(table["de"]["s"], "de:Stay")
+        self.assertEqual(table["de"]["o"], "de:Staying on this page.")
+        self.assertNotIn("m", table["de"], "nobody translated the sentence")
+
+    def test_a_single_language_build_carries_none_of_it(self):
+        """The byte-identity rule this whole feature is built under: one language
+        has nothing to select between, so it pays for no table and no swap."""
+        script = script_of(render(configured()))
+        self.assertNotIn("X.g", script)
+        self.assertNotIn("var X=", script)
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_a_german_browser_gets_german_buttons_and_announcement(self):
+        html = render_german(german({"message": self.DEFAULT_DE}))
+        got = run_notice(self, html, "social-networking")
+        self.assertEqual(got["go"], "de:Go now")
+        self.assertEqual(got["stay"], "de:Stay")
+        self.assertEqual(got["cancelled"], "de:Staying on this page.")
+        # The announcement is a sentence with two tokens, not a concatenation:
+        # the app name and the countdown are values only the browser has, and a
+        # translation has to be free to put them where its grammar wants.
+        self.assertEqual(
+            got["announce"],
+            "de:You will be sent to Company Engage in 10 seconds. "
+            "Choose Stay, or press Escape, to remain on this page.",
+        )
+
+    @unittest.skipUnless(shutil.which("node"), "node not installed")
+    def test_an_unmatched_browser_is_announced_the_base_language_sentence(self):
+        """The other direction, and the token substitution with no table in play:
+        a browser that matched nothing keeps the page it was served."""
+        cfg = german({"message": self.DEFAULT_DE})
+        got = run_notice(self, render_german(cfg), "social-networking", lang="en")
+        self.assertEqual(
+            got["announce"],
+            "You will be sent to Company Engage in 10 seconds. Choose Stay, or press Escape, to remain on this page.",
+        )
+        self.assertEqual(got["go"], "", "the served markup was overwritten for a language nothing matched")
+
+
+class TestTheReportLabelPrefersItsOwnButton(unittest.TestCase):
+    """`Q('a.btn#rep')||Q('a.btn')`, pinned against the page that made it matter.
+
+    The language block writes the report label into the first `a.btn` it finds.
+    With the redirect on, the notice's "Go now" anchor is an `a.btn` and it comes
+    FIRST in document order -- so the bare selector writes "Report to IT" into
+    the Go button and leaves the real report button in the base language. This
+    was a long comment and no test; it is a live combination, not a theoretical
+    one, so it is asserted against a built page.
+    """
+
+    BTN_RE = re.compile(r"<a\b[^>]*\bclass=\"[^\"]*\bbtn\b[^\"]*\"[^>]*>")
+
+    def buttons(self, html):
+        """Every `a.btn` on the page, in document order -- what querySelector walks."""
+        return self.BTN_RE.findall(html)
+
+    def first(self, html, require_rep):
+        """querySelector's answer for `a.btn#rep` (require_rep) or for `a.btn`."""
+        for tag in self.buttons(html):
+            if not require_rep or 'id="rep"' in tag:
+                return tag
+        return ""
+
+    def html(self):
+        cfg = german({"message": TestTheNoticeFurnitureIsTranslated.DEFAULT_DE})
+        return render_german(cfg, theme=SUPPORTING[0])
+
+    def test_the_bare_selector_would_hit_the_redirect_button(self):
+        """The premise. If this ever fails because the notice moved below the
+        actions, the comment in scripts.py is what needs re-reading -- not this."""
+        html = self.html()
+        self.assertGreater(len(self.buttons(html)), 1, "the page carries only one a.btn; nothing is being pinned")
+        self.assertIn('id="rxg"', self.first(html, require_rep=False), "the redirect anchor is no longer first")
+
+    def test_the_pinned_selector_hits_the_report_button(self):
+        html = self.html()
+        self.assertIn('id="rep"', self.first(html, require_rep=True))
+
+    def test_the_page_emits_the_pinned_selector(self):
+        """The two halves together: the selector the page ships is the one that
+        picks the report button, and reverting it to `Q('a.btn')` would write the
+        report label into the Go button on this exact page."""
+        self.assertIn("var B=Q('a.btn#rep')||Q('a.btn');", self.html())
 
 
 class TestPreviewDemoIsNotShipped(unittest.TestCase):

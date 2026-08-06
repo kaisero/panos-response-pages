@@ -10,11 +10,11 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
-from collections.abc import Container, Mapping
+from collections.abc import Container, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from panos_response_pages import datadir, logs, redirect
+from panos_response_pages import datadir, i18n, logs, redirect
 from panos_response_pages.config import customer_keys, load_config
 from panos_response_pages.emit import strip_output
 from panos_response_pages.errors import BuildError
@@ -22,7 +22,7 @@ from panos_response_pages.gallery import build_gallery
 from panos_response_pages.page import build_page
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.palettes import select as palettes_select
-from panos_response_pages.portal.page import FRAMES, build_portal_page
+from panos_response_pages.portal.page import FRAMES, build_portal_page, preview_dicts
 from panos_response_pages.portal.splice import LOGIN_PREVIEWS, splice_home, splice_login
 from panos_response_pages.portal.validate import MAX_ENCODED, SOFT_MAX, encoded_size, validate_portal
 from panos_response_pages.templates import read
@@ -34,10 +34,17 @@ from panos_response_pages.validate import MAX_BYTES, PAGE_TOKENS, validate
 # there are.
 PORTAL_PAGES = tuple(FRAMES)
 
-# What a preview of the portal family consists of. The four login states are one
-# import rendered four ways -- PAN-OS decides which by what it writes into
-# loadPage() -- and getsoftware is that same import with the other form in it.
-PORTAL_PREVIEWS = (*LOGIN_PREVIEWS, "getsoftware", "logout")
+# What a preview of the portal family consists of, and which import each one is a
+# rendering of. The four login states are one import rendered four ways -- PAN-OS
+# decides which by what it writes into loadPage() -- and getsoftware is that same
+# import with the other form in it.
+#
+# Stated as a map because the gallery's Language control needs the second half:
+# a frame's translations are the surface's, and `portal:login-error` has to be
+# able to say that it is a login. _splice() below builds exactly these names from
+# exactly these imports, so the two cannot say different things for long.
+PREVIEW_SURFACE = {**dict.fromkeys(LOGIN_PREVIEWS, "login"), "getsoftware": "login", "logout": "home"}
+PORTAL_PREVIEWS = tuple(PREVIEW_SURFACE)
 
 # Where the captured asset tree is written, relative to the preview root, and
 # how to reach it from each of the two places a preview renders.
@@ -104,6 +111,13 @@ class BuildResult:
     # and its length is asserted against PAGE_TOKENS. A second family appearing
     # in it would break an invariant that has nothing to do with the portal.
     portal_results: list[PortalResult] = field(default_factory=list)
+    # What the CONFIG asked for, and what each style actually compiled. Two
+    # fields rather than one because the report's job is to show where they
+    # differ: a style that declares `"i18n": false` ships the base language
+    # alone, and a table that printed only the second list would show a shorter
+    # set with nothing saying it was ever meant to be longer.
+    languages: list[str] = field(default_factory=list)
+    theme_languages: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def failed(self) -> bool:
@@ -174,6 +188,25 @@ def build_all(
     what most tests want.
     """
     cfg = load_config(customer, data_dir / "config")
+    # Validated once per build, before any page is composed. Both checks are
+    # cheap and neither depends on a theme or a palette, so running them per
+    # page would just repeat the same failure 364 times.
+    #
+    # Wired here rather than in page.py deliberately: check_complete compares
+    # the configured languages against each other, which is a property of the
+    # configuration, not of any one page -- and page.py never sees more than the
+    # base language. Without this call site every rule either module enforces is
+    # dead code, and a language configuration that cannot produce a correct page
+    # instead surfaces as a KeyError from inside substitution, or not at all.
+    i18n.check(cfg, data_dir)
+    i18n.check_complete(cfg, data_dir)
+    # Every language this tree ships, which is what the gallery's Language
+    # control offers -- see i18n.previewable. Resolved once per build rather than
+    # per page: it reads every strings file in the directory, and the answer
+    # cannot differ between two pages of the same build.
+    #
+    # Empty on a deploy-only build, so build_page's guard has nothing to refuse.
+    preview_langs = tuple(i18n.previewable(cfg, data_dir)) if preview else ()
     chosen = customer_keys(customer, data_dir / "config")
     palette_dir = data_dir / "palettes"
 
@@ -254,13 +287,28 @@ def build_all(
                 # measured are the bytes that ship. It must not run any earlier:
                 # parse_sections() needs the <!--@SLOT--> markers intact.
                 deployable = strip_output(build_page(page, th, cfg, th_palette, False, template_dir))
-                size, errors, warnings = validate(page, deployable)
+                # The language set this page was BUILT with, not the one the
+                # config lists. On an opted-out style they differ, and a size
+                # error that named languages the page does not carry would send
+                # the reader to delete a translation that is not on it.
+                size, errors, warnings = validate(page, deployable, languages=i18n.shipped(cfg, th))
                 emit(deploy_dir / f"{page}.html", deployable)
 
                 if preview:
-                    pv = strip_output(build_page(page, th, cfg, th_palette, True, template_dir))
-                    blobs[th["name"], pname, page] = pv
+                    # Twice, and they are not the same page. The file on disk is
+                    # opened directly -- `--accept-lang` and the browser's own
+                    # negotiation is the documented way to look at a language --
+                    # so it compiles every one of them. The gallery's frame
+                    # compiles NONE: its dictionary arrives from a sibling file
+                    # when a reader picks a language, which is what stops
+                    # index.html growing by every language the tree ships.
+                    pv = strip_output(
+                        build_page(page, th, cfg, th_palette, True, template_dir, preview_languages=preview_langs)
+                    )
                     emit(prev_dir / f"{page}.html", pv)
+                    blobs[th["name"], pname, page] = strip_output(
+                        build_page(page, th, cfg, th_palette, True, template_dir, preview_swap=True)
+                    )
 
                     # The second url-block blob the gallery's Redirect toggle switches
                     # to. Built unconditionally so the toggle can demonstrate the
@@ -273,19 +321,70 @@ def build_all(
                     # own colour must demonstrate the notice in the colour it wears.
                     if page == redirect.PAGE and redirect.supported(th):
                         demo = strip_output(
-                            build_page(page, th, cfg, th_palette, True, template_dir, redirect_demo=True)
+                            build_page(
+                                page,
+                                th,
+                                cfg,
+                                th_palette,
+                                True,
+                                template_dir,
+                                redirect_demo=True,
+                                preview_languages=preview_langs,
+                            )
                         )
-                        blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = demo
                         emit(prev_dir / f"{page}{redirect.PREVIEW_SUFFIX}.html", demo)
+                        blobs[th["name"], pname, f"{page}{redirect.PREVIEW_SUFFIX}"] = strip_output(
+                            build_page(
+                                page,
+                                th,
+                                cfg,
+                                th_palette,
+                                True,
+                                template_dir,
+                                redirect_demo=True,
+                                preview_swap=True,
+                            )
+                        )
 
                 results.append(PageResult(th["name"], page, size, errors, warnings, pname))
 
             imports: dict[str, str] = {}
+            # The same two imports built with the gallery's language set and its
+            # swap hook. A SECOND build rather than a doctored copy of the first,
+            # for the reason the block pages build twice: the deploy import is
+            # what is measured, validated and written, and anything that could
+            # reach it from here is a preview construct one refactor away from a
+            # customer's firewall.
+            preview_imports: dict[str, str] = {}
+            # The gallery's own copy, with no language compiled into it -- the
+            # same split the block pages take, and for the same reason.
+            gallery_imports: dict[str, str] = {}
             for page in PORTAL_PAGES:
                 # build_portal_page strips on the way out, so these are already the
                 # bytes the firewall receives; nothing may touch them afterwards.
                 imports[page] = build_portal_page(page, th, cfg, th_palette, portal_templates)
-                size, errors, warnings = validate_portal(imports[page])
+                if preview:
+                    preview_imports[page] = build_portal_page(
+                        page,
+                        th,
+                        cfg,
+                        th_palette,
+                        portal_templates,
+                        preview=True,
+                        preview_languages=preview_langs,
+                    )
+                    gallery_imports[page] = build_portal_page(
+                        page,
+                        th,
+                        cfg,
+                        th_palette,
+                        portal_templates,
+                        preview=True,
+                        preview_swap=True,
+                    )
+                # The same argument, for the same reason, as the block-page call
+                # above: what the IMPORT carries, not what the config asked for.
+                size, errors, warnings = validate_portal(imports[page], languages=i18n.shipped(cfg, th))
                 encoded = encoded_size(imports[page])
                 if write:
                     # A subdirectory, not a portal-login.html prefix: the two
@@ -303,12 +402,12 @@ def build_all(
                 portal_blobs.update(
                     {
                         (th["name"], pname, name): text
-                        for name, text in _splice(imports, ASSETS_FROM_GALLERY, fixtures).items()
+                        for name, text in _splice(gallery_imports, ASSETS_FROM_GALLERY, fixtures).items()
                     }
                 )
                 if write:
                     (prev_dir / "portal").mkdir(parents=True, exist_ok=True)
-                    for name, text in _splice(imports, ASSETS_FROM_PAGE, fixtures).items():
+                    for name, text in _splice(preview_imports, ASSETS_FROM_PAGE, fixtures).items():
                         emit(prev_dir / "portal" / f"{name}.html", text)
 
     if preview and write:
@@ -318,13 +417,74 @@ def build_all(
         shutil.copytree(fixtures / "portal", out_dir / "preview" / PREVIEW_ASSETS, dirs_exist_ok=True)
         result_palettes = [loaded[n] for n in palette_names]
         gallery, sidecars = build_gallery(
-            themes, pages, blobs, cfg, palette, result_palettes, portal_blobs, PORTAL_PREVIEWS
+            themes,
+            pages,
+            blobs,
+            cfg,
+            palette,
+            result_palettes,
+            portal_blobs,
+            PORTAL_PREVIEWS,
+            # Friendly names, never codes: the control says "German", not "de".
+            # They come out of the strings documents themselves, so a language
+            # cannot ship without one -- see i18n.NAME_KEY.
+            languages=[(code, i18n.display_name(code, data_dir)) for code in preview_langs],
+            base_language=i18n.base_language(cfg),
+            language_blobs=_language_blobs(cfg, data_dir, pages, portal_templates, palette, preview_langs),
         )
         (out_dir / "preview" / "index.html").write_bytes(gallery.encode("utf-8"))
         for name, text in sidecars.items():
             (out_dir / "preview" / name).write_bytes(text.encode("utf-8"))
 
-    return BuildResult(results, palette, portal_results)
+    return BuildResult(
+        results,
+        palette,
+        portal_results,
+        i18n.languages(cfg),
+        {th["name"]: i18n.shipped(cfg, th) for th in themes},
+    )
+
+
+def _language_blobs(
+    cfg: Mapping[str, Any],
+    data_dir: pathlib.Path,
+    pages: Sequence[str],
+    portal_templates: pathlib.Path,
+    palette: Mapping[str, Any],
+    langs: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+    """The gallery's translations: {language: {frame key: dictionary}}.
+
+    PREVIEW ONLY. The gallery's frames compile no language at all, so this is
+    where the words are -- one file per language, fetched when a reader picks it.
+    Keyed exactly as the gallery keys a frame, which is why the redirect demo and
+    the portal previews appear here under their own names rather than their
+    pages'.
+
+    Neither the style nor the palette reaches any of it: the block-page
+    dictionary is a function of the page and the config, and the portal one of
+    the surface and the config. So this is computed once for the whole gallery
+    rather than once per frame, which is the difference between eleven documents
+    and eleven documents times seven styles times four palettes.
+    """
+    base = i18n.base_language(cfg)
+    out: dict[str, dict[str, Any]] = {}
+    for lang in langs:
+        if lang == base:
+            continue
+        pair = [base, lang]
+        frames: dict[str, Any] = {p: i18n.runtime_dict(cfg, p, data_dir, langs=pair)[lang] for p in pages}
+        # The redirect demo is the URL block page with the notice forced on. Its
+        # copy is the page's own -- runtime_dict() reads the configured strings,
+        # not the demo config -- so it takes the same dictionary under its own key.
+        frames[f"{redirect.PAGE}{redirect.PREVIEW_SUFFIX}"] = frames[redirect.PAGE]
+        surfaces = {
+            surface: preview_dicts(cfg, palette, surface, portal_templates, pair)[lang]
+            for surface in set(PREVIEW_SURFACE.values())
+        }
+        frames.update({f"portal:{name}": surfaces[surface] for name, surface in PREVIEW_SURFACE.items()})
+        out[lang] = frames
+    return out
 
 
 def _splice(imports: Mapping[str, str], assets: str, fixtures: pathlib.Path) -> dict[str, str]:
@@ -384,6 +544,26 @@ def _flagged(rows: list[Any], all_clear: str | None = None) -> list[str]:
     return lines
 
 
+def _language_cell(result: BuildResult, theme: str) -> str:
+    """What this style's rows say about languages.
+
+    A style that declares `"i18n": false` ships fewer languages than the config
+    listed. That is invisible in the output -- the page looks complete, it is
+    simply in one language -- so it is named here, on the rows it is true of.
+    Silence would be the same class of failure as an oversize page: correct
+    input, plausible output, and a promise quietly not kept.
+
+    The marker is derived from the two lists differing rather than from the flag
+    itself, so a single-language build -- where an opted-out style drops nothing
+    -- carries no marker to read as a missing language.
+    """
+    shipped = result.theme_languages.get(theme) or result.languages
+    cell = ",".join(shipped)
+    if len(shipped) < len(result.languages):
+        cell += " (base only -- i18n:false)"
+    return cell
+
+
 def format_report(result: BuildResult) -> str:
     """The size table. This is the tool's product, not chatter, so it goes to
     stdout as plain text and stays parseable by eye.
@@ -393,15 +573,24 @@ def format_report(result: BuildResult) -> str:
     carries that page, and anything that warns or fails is then named in full
     underneath, where a short list is read and a long table is not.
     """
+    worst = _worst_rows(result.results)
+    cells = {theme: _language_cell(result, theme) for theme, _palette in worst}
+    # Sized to the content rather than pinned, because the widest cell is the
+    # opted-out one and it is three times the width of a plain `en,de`. A fixed
+    # rule would either float past the end of every ordinary build's table or
+    # stop short of the one row that matters most.
+    # 79 is every column before this one; `languages` is the header, and so the
+    # floor on the last column's width.
+    rule = "  " + "-" * (79 + max(len("languages"), *(len(c) for c in cells.values()), 0))
     lines = [
-        f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  status",
-        "  " + "-" * 78,
+        f"\n  {'theme':10} {'palette':14} {'largest page':24} {'bytes':>7}  {'of limit':>9}  {'status':6}  languages",
+        rule,
     ]
-    for (theme, palette), r in _worst_rows(result.results).items():
+    for (theme, palette), r in worst.items():
         status = _status(result.results, theme, palette)
         pct = f"{r.size / MAX_BYTES * 100:.0f}%"
-        lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status}")
-    lines.append("  " + "-" * 78)
+        lines.append(f"  {theme:10} {palette:14} {r.page:24} {r.size:>7}  {pct:>9}  {status:6}  {cells[theme]}")
+    lines.append(rule)
     lines.append(
         f"  ceiling {MAX_BYTES} B  |  largest page {result.largest} B  |  headroom {MAX_BYTES - result.largest} B"
     )
@@ -430,17 +619,39 @@ def _portal_report(result: BuildResult) -> list[str]:
 
     The encoded column is there because that is the only number PAN-OS ever
     says out loud: "page can be at most 21845 characters, but current length: N".
+
+    The languages column is there for the reason _language_cell() gives, and it
+    is needed MORE here: this family is what runs out of room first, so a style
+    that opted out has dropped something the reader is more likely to be looking
+    for. Without the column, nyan's opt-out was visible in only one of the two
+    tables the same build prints.
+
+    Measured with the shipped translations, the portal takes English plus three
+    to five others depending which -- six with the cheapest set, four once two
+    are Cyrillic -- and it is always the family that breaks first. It also breaks
+    differently: PAN-OS REFUSES an oversize import outright, where an oversize
+    block page is accepted and then silently never displayed. The louder failure
+    is the one that arrives first, which is the right way round but only if this
+    table says which languages produced the size.
     """
+    worst = _worst_rows(result.portal_results)
+    cells = {theme: _language_cell(result, theme) for theme, _palette in worst}
+    # Sized to the content, and 88 is every column before this one -- the same
+    # arithmetic format_report does, for the same reason.
+    rule = "  " + "-" * (88 + max(len("languages"), *(len(c) for c in cells.values()), 0))
     lines = [
         "",
-        f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  {'of ceiling':>10}  status",
-        "  " + "-" * 88,
+        f"  {'theme':10} {'palette':14} {'portal import':16} {'bytes':>7}  {'encoded':>7}  "
+        f"{'of ceiling':>10}  {'status':6}  languages",
+        rule,
     ]
-    for (theme, palette), r in _worst_rows(result.portal_results).items():
+    for (theme, palette), r in worst.items():
         status = _status(result.portal_results, theme, palette)
         pct = f"{r.size / SOFT_MAX * 100:.0f}%"
-        lines.append(f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status}")
-    lines.append("  " + "-" * 88)
+        lines.append(
+            f"  {theme:10} {palette:14} {r.page:16} {r.size:>7}  {r.encoded:>7}  {pct:>10}  {status:6}  {cells[theme]}"
+        )
+    lines.append(rule)
     lines.append(
         f"  import ceiling {SOFT_MAX} B ({MAX_ENCODED} encoded)  |  "
         f"largest import {result.portal_largest} B  |  headroom {SOFT_MAX - result.portal_largest} B"

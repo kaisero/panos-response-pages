@@ -7,32 +7,32 @@
   The stock wording ("proceed to the page") understates what the user authorises.
 -->
 
-<!--@TITLE-->Continue to this site?<!--/@TITLE-->
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
 
 <!--@TONE-->warn<!--/@TONE-->
 
 <!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 21 19H3Z"/><path d="M12 10v3.4"/><path d="M12 16.4h.01"/></svg><!--/@MARK-->
 
-<!--@HEADLINE-->Continue to this site?<!--/@HEADLINE-->
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
 
-<!--@GLOSS-->This category is restricted by company policy.<!--/@GLOSS-->
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
 
 <!--@FACTS-->
-<div class="f"><dt>Address</dt><dd class="mono"><url/></dd></div>
-<div class="f"><dt>Category</dt><dd id="cat"><category/></dd></div>
-<div class="f"><dt>User</dt><dd><user/></dd></div>
-<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<div class="f"><dt>{{T_FACT1}}</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd id="cat"><category/></dd></div>
+<div class="f"><dt>{{T_FACT3}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT4}}</dt><dd id="ts"></dd></div>
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
 <pan_form/>
-<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Category warning - continue page"
-   data-intro="I was warned before continuing." data-prompt="Why I think the category is wrong:"
-   href="{{CONTACT_HREF}}">Report to IT</a>
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}" data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{T_REPORT_LABEL}}</a>
 <!--/@ACTIONS-->
 
 <!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
 
 <!--@EXTRA-->
-<p class="infobox">{{INFO_MARK}}<span>Continuing grants access to <strong>every site in this category</strong> for {{CONTINUE_GRANT}}.</span></p>
+<p class="infobox">{{INFO_MARK}}<span>{{T_EXTRA1}}<strong>{{T_EXTRA2}}</strong>{{T_EXTRA3}}</span></p>
 <!--/@EXTRA-->

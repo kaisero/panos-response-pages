@@ -74,6 +74,31 @@ class TestPanOsGuards(unittest.TestCase):
         _size, errors, _warnings = build.validate("safe-search-block-page", page)
         self.assertTrue(any("not available on safe-search-block-page" in e for e in errors), errors)
 
+    def test_direction_is_rejected_off_the_data_filtering_page(self):
+        """<direction/> is provided only on data-filter-block-page.
+
+        Written against a token no other page carries, because that is the case
+        the dict alone does not cover: if `direction` were missing from TOKEN_RE
+        the loop would never scan it, this page would pass, and the firewall
+        would render nothing where the field was.
+        """
+        page = self.HEAD.format("<p><direction/></p>")
+        _size, errors, _warnings = build.validate("file-block-page", page)
+        self.assertTrue(any("not available on file-block-page" in e for e in errors), errors)
+
+    def test_certificate_tokens_are_rejected_off_the_ssl_page(self):
+        """The four certificate tokens are provided only on ssl-cert-status-page.
+
+        All four are checked, not one: the plausible slip is a partial edit to
+        TOKEN_RE, and a token missing from it is never scanned at all -- so its
+        own page would build green while rendering a blank row.
+        """
+        for token in ("certname", "issuer", "status", "reason"):
+            with self.subTest(token=token):
+                page = self.HEAD.format(f"<p><{token}/></p>")
+                _size, errors, _warnings = build.validate("url-block-page", page)
+                self.assertTrue(any("not available on url-block-page" in e for e in errors), errors)
+
     def test_rejects_missing_doctype(self):
         _size, errors, _warnings = build.validate("url-block-page", "<html></html>")
         self.assertTrue(any("DOCTYPE" in e for e in errors), errors)

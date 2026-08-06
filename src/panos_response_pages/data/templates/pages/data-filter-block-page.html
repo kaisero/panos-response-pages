@@ -1,0 +1,60 @@
+<!--
+  Data Filtering Block Page
+  API category: data-filter-block-page
+  Tokens available: <user/> <fname/> <appname/> <direction/>   -- NO url, NO category
+
+  <direction/> is unique to this page: no other block page provides it. It is
+  registered in TOKEN_RE as well as in PAGE_TOKENS for that reason -- a token
+  missing from the regex is never scanned, so the legality check would pass on a
+  page that renders a blank field.
+
+  VERIFY ON A LIVE FIREWALL: the rendered value and casing of <direction/> are
+  not documented. The shipped PAN-OS default uses it sentence-initially
+  ("<direction/> of the file <fname/> has been blocked"), which implies
+  "Upload"/"Download" capitalised. It is used here only as a fact-row value,
+  where either casing reads correctly.
+
+  Tone is warn, not crit: this is a policy restriction on a transfer, not a
+  threat verdict. COPY_LOCK because there is no category token to derive
+  severity or a gloss from.
+
+  The copy describes the transfer that was stopped, never where the data did or
+  did not get to. This page is exactly where "nothing you sent left your device"
+  is tempting, and it is a claim nothing here can substantiate -- the browser may
+  well have transmitted before the policy matched.
+-->
+
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
+
+<!--@TONE-->warn<!--/@TONE-->
+
+<!--@COPY_LOCK-->1<!--/@COPY_LOCK-->
+
+<!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5h6"/><path d="M3.5 12h4"/><path d="M3.5 15.5h6"/><path d="M12 12h5"/><path d="m14.5 9.2 2.8 2.8-2.8 2.8"/><path d="M20.5 6v12"/></svg><!--/@MARK-->
+
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
+
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
+
+<!--@FACTS-->
+<div class="f"><dt>{{T_FACT1}}</dt><dd><direction/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd class="mono"><fname/></dd></div>
+<div class="f"><dt>{{T_FACT3}}</dt><dd class="mono"><appname/></dd></div>
+<div class="f"><dt>{{T_FACT4}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT5}}</dt><dd id="ts"></dd></div>
+<!--/@FACTS-->
+
+<!--@ACTIONS-->
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}" data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{T_REPORT_LABEL}}</a>
+{{CONTACT_ALT}}
+<!--/@ACTIONS-->
+
+<!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
+
+<!--@CONTACT_ALT--><p class="plain">{{T_CONTACT_ALT1}}<a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>{{T_CONTACT_ALT2}}</p><!--/@CONTACT_ALT-->
+
+<!--@EXTRA-->
+<p class="infobox">{{INFO_MARK}}<span>{{T_EXTRA}}</span></p>
+<!--/@EXTRA-->
