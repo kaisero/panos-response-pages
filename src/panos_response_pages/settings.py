@@ -34,8 +34,27 @@ class LogSettings:
 
 
 @dataclass
+class ScmSettings:
+    """Strata Cloud Manager credentials and defaults.
+
+    Storing client_secret here is supported but not encouraged: the environment
+    is the better home for it, and resolve() in importer/scm/config.py takes the
+    environment over this file. The URLs are settings rather than constants
+    because the auth and instance hosts differ on non-production tenants.
+    """
+
+    client_id: str | None = None
+    client_secret: str | None = None
+    tsg_id: str | None = None
+    auth_url: str = "https://auth.apps.paloaltonetworks.com"
+    mfe_url: str = "https://api.apps.paloaltonetworks.com/mfe/instances"
+    folder: str = "Prisma Access"
+
+
+@dataclass
 class Settings:
     log: LogSettings = field(default_factory=LogSettings)
+    scm: ScmSettings = field(default_factory=ScmSettings)
     source: pathlib.Path | None = None
 
 
@@ -76,4 +95,28 @@ def load(path: pathlib.Path | None = None) -> Settings:
         max_bytes=int(rotate.get("max_bytes", defaults.max_bytes)),
         backups=int(rotate.get("backups", defaults.backups)),
     )
-    return Settings(log=log, source=path)
+    scm_raw = raw.get("scm") or {}
+    if not isinstance(scm_raw, dict):
+        raise ValueError(f"{path}: 'scm' must be a mapping")
+
+    scm_defaults = ScmSettings()
+    known = {"client_id", "client_secret", "tsg_id", "auth_url", "mfe_url", "folder"}
+    unknown_scm = set(scm_raw) - known
+    if unknown_scm:
+        raise ValueError(f"{path}: unknown scm setting(s): {', '.join(sorted(unknown_scm))}")
+
+    def _str_or_none(key: str) -> str | None:
+        value = scm_raw.get(key)
+        return None if value is None else str(value)
+
+    scm = ScmSettings(
+        client_id=_str_or_none("client_id"),
+        client_secret=_str_or_none("client_secret"),
+        # str(): YAML reads a bare tsg id as an int, and it is a scope suffix.
+        tsg_id=_str_or_none("tsg_id"),
+        auth_url=str(scm_raw.get("auth_url", scm_defaults.auth_url)),
+        mfe_url=str(scm_raw.get("mfe_url", scm_defaults.mfe_url)),
+        folder=str(scm_raw.get("folder", scm_defaults.folder)),
+    )
+
+    return Settings(log=log, scm=scm, source=path)
