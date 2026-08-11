@@ -9,5 +9,6 @@ and only the Target knows about hosts, scopes and auth.
 from __future__ import annotations
 
 from panos_response_pages.importer.catalogue import CATALOGUE, PORTAL, RESPONSE, PageSpec
+from panos_response_pages.importer.source import ImportItem, load
 
-__all__ = ["CATALOGUE", "PORTAL", "RESPONSE", "PageSpec"]
+__all__ = ["CATALOGUE", "PORTAL", "RESPONSE", "ImportItem", "PageSpec", "load"]

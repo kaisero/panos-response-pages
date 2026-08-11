@@ -15,3 +15,13 @@ class BuildError(Exception):
     page, an unavailable token, an unresolved placeholder. PAN-OS accepts all of
     them without complaint, so the build is the only thing that can object.
     """
+
+
+class ImportFailed(Exception):  # noqa: N818 -- "ImportError" is a builtin; this must not shadow it
+    """A condition that must stop an import.
+
+    Separate from BuildError because the failures are unrelated: a build fails
+    on what a page contains, an import fails on what a management plane says
+    back. Sharing one type would make `except` clauses in the CLI lie about
+    which half went wrong.
+    """
