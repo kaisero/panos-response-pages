@@ -60,11 +60,22 @@ class TokenSource:
                 f"authentication failed ({response.status_code}) for {self._config.client_id}: {response.text[:200]}"
             )
 
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ImportFailed(f"authentication response from {url} was not valid JSON") from exc
+        if not isinstance(payload, dict):
+            raise ImportFailed(f"authentication response from {url} was not a JSON object")
+
         token = payload.get("access_token")
         if not token:
             raise ImportFailed(f"authentication response from {url} carried no access_token")
 
+        try:
+            ttl = float(payload.get("expires_in", 899))
+        except (TypeError, ValueError) as exc:
+            raise ImportFailed(f"authentication response from {url} had a non-numeric expires_in") from exc
+
         self._token = str(token)
-        self._expires_at = self._clock() + float(payload.get("expires_in", 899)) - REFRESH_MARGIN
+        self._expires_at = self._clock() + ttl - REFRESH_MARGIN
         return self._token

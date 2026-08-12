@@ -79,3 +79,19 @@ def test_transport_failure_is_reported_as_an_import_failure():
 
     with pytest.raises(ImportFailed, match=r"auth\.example"):
         source(handler).token()
+
+
+def test_non_json_200_body_raises_import_failed_not_a_json_decode_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>not json</html>")
+
+    with pytest.raises(ImportFailed, match="not valid JSON"):
+        source(handler).token()
+
+
+def test_non_numeric_expires_in_raises_import_failed_not_a_value_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"access_token": "tok-1", "expires_in": "soon"})
+
+    with pytest.raises(ImportFailed, match="non-numeric expires_in"):
+        source(handler).token()

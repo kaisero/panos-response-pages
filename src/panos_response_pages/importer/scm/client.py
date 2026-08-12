@@ -1,7 +1,7 @@
 """The Strata Cloud Manager config API, as it actually behaves.
 
 This endpoint is undocumented and was reverse-engineered from the Strata Cloud
-Manager UI; prototype/NOTES.md records the evidence for each rule below. Four
+Manager UI; prototype/NOTES.md records the evidence for each rule below. Five
 things about it are counter-intuitive enough to be worth stating here, because
 every one of them produced a wrong implementation first:
 
@@ -17,6 +17,11 @@ every one of them produced a wrong implementation first:
 4. Reads return *effective* config. A child folder inherits from its parent and
    says so in `@loc`, so matching content does not prove the value lives in the
    folder you wrote to.
+5. Error bodies are inconsistent even within one `errorCode`: the field that
+   actually carries the human-readable reason is sometimes `errorMessage` and
+   sometimes `message`. Treat every response body as untrusted shape, not just
+   untrusted content -- this endpoint has been observed returning arrays,
+   strings, and objects with the wrong nesting where a JSON object was expected.
 """
 
 from __future__ import annotations
@@ -33,8 +38,10 @@ from panos_response_pages.importer.scm.config import ScmConfig
 
 CONFIG_PATH = "/api/config/v9.2/Device/BlockPage"
 
-# Folders whose scope type is not the default. Mobile Users is the GlobalProtect
-# folder and is the only `cloud` scope this tool writes to.
+# This is an exception table, not the set of folders that exist: it holds only
+# the one folder whose scope type differs from the default, and must not be
+# iterated to enumerate folders. Mobile Users is the GlobalProtect folder and
+# is the only `cloud` scope this tool writes to.
 SCOPE_TYPES = {"Mobile Users": "cloud"}
 DEFAULT_SCOPE_TYPE = "container"
 
@@ -83,12 +90,26 @@ class ScmClient:
             raise ImportFailed(f"{self._config.mfe_url} did not return a list of instances")
 
         for instance in payload:
-            if instance.get("app_id") != "prisma_access":
+            if not isinstance(instance, dict) or instance.get("app_id") != "prisma_access":
                 continue
-            paas = (instance.get("runtime_attributes") or {}).get("paas_api_url")
-            if paas:
-                self._host = urlparse(paas).netloc
-                return self._host
+            runtime_attributes = instance.get("runtime_attributes")
+            if not isinstance(runtime_attributes, dict):
+                continue
+            paas = runtime_attributes.get("paas_api_url")
+            if not paas:
+                continue
+            host = urlparse(paas).netloc
+            if not host:
+                # Do not cache an empty host: that would make every subsequent
+                # config call fail with an opaque "unknown url type" instead of
+                # this clear message.
+                raise ImportFailed(
+                    f"paas_api_url {paas!r} for the Prisma Access instance in tenant "
+                    f"{self._config.tsg_id} has no host; expected a full URL such as "
+                    "https://paas-4.example.com/"
+                )
+            self._host = host
+            return self._host
 
         raise ImportFailed(
             f"no Prisma Access instance with a paas_api_url in tenant {self._config.tsg_id}. "
@@ -106,8 +127,14 @@ class ScmClient:
         # entry[] before info: a portal page carries an empty `info` placeholder
         # alongside its real content, so info-first reports a good write as a no-op.
         entries = node.get("entry")
+        if entries is not None and not isinstance(entries, list):
+            raise ImportFailed(f"{page}: expected 'entry' to be a list, got {type(entries).__name__}")
         if entries:
-            content = entries[0].get("page")
+            first = entries[0]
+            if not isinstance(first, dict):
+                raise ImportFailed(f"{page}: expected entry[0] to be a JSON object, got {type(first).__name__}")
+            page_value = first.get("page")
+            content = page_value if isinstance(page_value, str) else None
         else:
             info = node.get("info")
             content = info if isinstance(info, str) and info.strip() else None
@@ -129,7 +156,11 @@ class ScmClient:
             content=json.dumps({"fileContent": encoded}).encode(),
             params=self._params(page, folder),
         )
-        result = payload.get("result") or {}
+        if not isinstance(payload, dict):
+            raise ImportFailed(f"{page}: expected a JSON object in the write response, got {type(payload).__name__}")
+        result = payload.get("result")
+        if not isinstance(result, dict):
+            raise ImportFailed(f"{page}: write response had no usable result: {json.dumps(payload)[:200]}")
         if result.get("@status") != "success":
             raise ImportFailed(f"{page}: write was not accepted: {json.dumps(result)[:200]}")
         return str(result.get("@mutationid", ""))
@@ -150,8 +181,20 @@ class ScmClient:
         return {"x-auth-jwt": token, "Authorization": f"Bearer {token}", "Accept": "*/*"}
 
     @staticmethod
-    def _node(payload: dict[str, Any], page: str) -> dict[str, Any] | None:
-        node = ((payload.get("result") or {}).get("result") or {}).get(page)
+    def _node(payload: Any, page: str) -> dict[str, Any] | None:
+        if not isinstance(payload, dict):
+            raise ImportFailed(f"{page}: expected a JSON object in the response, got {type(payload).__name__}")
+        outer = payload.get("result")
+        if outer is None:
+            return None
+        if not isinstance(outer, dict):
+            raise ImportFailed(f"{page}: expected 'result' to be a JSON object, got {type(outer).__name__}")
+        inner = outer.get("result")
+        if inner is None:
+            return None
+        if not isinstance(inner, dict):
+            raise ImportFailed(f"{page}: expected 'result.result' to be a JSON object, got {type(inner).__name__}")
+        node = inner.get(page)
         return node if isinstance(node, dict) else None
 
     def _call(
@@ -184,21 +227,32 @@ class ScmClient:
         is strict. API_I00013 means the name is real but wrong here: wrong scope,
         or a name already taken elsewhere in the folder tree.
         """
+        status = response.status_code
         try:
             body = response.json()
         except ValueError:
-            return f"HTTP {response.status_code}: {response.text[:200]}"
+            return f"HTTP {status}: {response.text[:200]}"
+        if not isinstance(body, dict):
+            return f"HTTP {status}: {json.dumps(body)[:200]}"
 
         code = body.get("errorCode")
         if code == "API_I00035":
-            return f"HTTP 400: not a page SCM recognises in this scope ({body.get('message', '')})"
+            return f"HTTP {status}: not a page SCM recognises in this scope ({body.get('message', '')})"
         if code == "API_I00013":
-            entries = ((body.get("extra") or {}).get("errors") or {}).get("entry") or []
+            raw_entries = ((body.get("extra") or {}).get("errors") or {}).get("entry")
+            entries = [e for e in raw_entries if isinstance(e, dict)] if isinstance(raw_entries, list) else []
             if any(e.get("@type") == "UNIQUEIN_ERROR" for e in entries):
                 return (
-                    "HTTP 400: this page already exists in another folder. GlobalProtect portal page "
+                    f"HTTP {status}: this page already exists in another folder. GlobalProtect portal page "
                     "names must be unique across the folder tree, and the existing object has to be "
                     "removed before it can be written here."
                 )
-            return f"HTTP 400: SCM rejected the configuration: {body.get('errorMessage', '')}"
-        return f"HTTP {response.status_code}: {json.dumps(body)[:200]}"
+            # errorMessage is the documented field name, but real responses carry
+            # the reason under `message`; entry[].{@type,msg} is where the actual
+            # cause of a crossed folder/type 400 lives.
+            reason = body.get("errorMessage") or body.get("message") or ""
+            detail = "; ".join(f"{e.get('@type', 'error')}: {e.get('msg', '')}" for e in entries if e.get("msg"))
+            if detail:
+                reason = f"{reason} ({detail})" if reason else detail
+            return f"HTTP {status}: SCM rejected the configuration: {reason}"
+        return f"HTTP {status}: {json.dumps(body)[:200]}"
