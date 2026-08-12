@@ -2,7 +2,7 @@
 
 import pytest
 
-from panos_response_pages.importer.report import ImportReport, PageResult, format_report
+from panos_response_pages.importer.report import STAGED, ImportReport, PageResult, format_report
 
 pytestmark = pytest.mark.unit
 
@@ -38,3 +38,18 @@ def test_a_dry_run_says_nothing_was_sent():
     text = format_report(report(PageResult("url-block-page", "Prisma Access", True), dry_run=True))
     assert "dry run" in text.lower()
     assert "nothing was sent" in text
+
+
+def test_a_failed_run_does_not_claim_staged():
+    text = format_report(report(PageResult("url-block-page", "Prisma Access", False, detail="HTTP 400: nope")))
+    assert STAGED not in text
+
+
+def test_a_dry_run_does_not_claim_staged():
+    text = format_report(report(PageResult("url-block-page", "Prisma Access", True), dry_run=True))
+    assert STAGED not in text
+
+
+def test_an_empty_report_does_not_claim_staged():
+    text = format_report(report())
+    assert STAGED not in text

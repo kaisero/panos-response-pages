@@ -63,6 +63,10 @@ def format_report(report: ImportReport) -> str:
     lines.append(f"\n  {verb} {report.ok_count}/{len(report.results)} page(s)")
     if report.dry_run:
         lines.append("  dry run: nothing was sent.")
-    elif not report.failed:
+    # STAGED only holds when something was actually written: a dry run never touched
+    # candidate config, a failure means at least one page wasn't staged, and an empty
+    # result set (unreachable today, but cheap to guard) staged nothing at all. Do not
+    # collapse these guards to `else` -- that would claim success on a lie.
+    elif report.results and not report.failed:
         lines.append(f"  {STAGED}")
     return "\n".join(lines) + "\n"
