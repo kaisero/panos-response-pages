@@ -74,10 +74,11 @@ class ScmTarget:
     def close(self) -> None:
         """Release the underlying HTTP connection pool.
 
-        `_scm_target` in cli.py is the only place that constructs one of these
+        `connect()` below is the only place that constructs one of these
         against a real network client, and it has no other handle to close it
-        with -- so the CLI closes the target it built, and the close travels
-        down to the `httpx.Client` from here.
+        with -- so `importer.run.run_import` closes whatever `connect()` handed
+        it, on every path, and the close travels down to the `httpx.Client`
+        from here.
         """
         self._client.close()
 
