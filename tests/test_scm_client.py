@@ -145,6 +145,41 @@ def test_whitespace_only_info_reads_as_absent():
     assert state.content is None
 
 
+def test_whitespace_only_entry_page_reads_as_absent():
+    # The 'info' path already treated whitespace-only content as absent; the
+    # 'entry[0].page' path did not, so a whitespace-only page value used to
+    # read as present=True. The two paths must agree.
+    body = {
+        "result": {
+            "result": {
+                "global-protect-portal-custom-home-page": {"entry": [{"@name": "x", "@uuid": "u", "page": "  \n "}]}
+            }
+        }
+    }
+
+    def handler(request):
+        if "mfe" in str(request.url):
+            return httpx.Response(200, json=INSTANCES)
+        return httpx.Response(200, json=body)
+
+    state = make(handler).get_page("global-protect-portal-custom-home-page", "Mobile Users")
+    assert state.present is False
+    assert state.content is None
+
+
+def test_unknown_page_name_error_omits_empty_parens_when_no_message():
+    def handler(request):
+        if "mfe" in str(request.url):
+            return httpx.Response(200, json=INSTANCES)
+        return httpx.Response(400, json={"errorCode": "API_I00035"})
+
+    with pytest.raises(ImportFailed) as exc:
+        make(handler).put_page("nope", "Prisma Access", "QUJD")
+    message = str(exc.value)
+    assert "not a page SCM recognises in this scope" in message
+    assert "()" not in message
+
+
 def test_inherited_values_are_flagged_with_their_source_folder():
     body = {
         "result": {
@@ -376,6 +411,62 @@ def test_runtime_attributes_as_a_string_is_skipped_not_a_crash():
 
     with pytest.raises(ImportFailed, match="no Prisma Access instance"):
         make(handler).config_host()
+
+
+def test_get_result_as_an_empty_string_reads_as_absent():
+    # Pre-hardening, `(payload.get("result") or {})` treated any falsy value
+    # -- including "" (an empty XML element's usual JSON serialisation, per
+    # fact 5) -- as "nothing here". The hardened isinstance-first version must
+    # not regress this: a falsy 'result' is absence, not a broken response.
+    def handler(request):
+        if "mfe" in str(request.url):
+            return httpx.Response(200, json=INSTANCES)
+        return httpx.Response(200, json={"result": ""})
+
+    state = make(handler).get_page("url-block-page", "Prisma Access")
+    assert state.present is False
+    assert state.content is None
+
+
+def test_malformed_paas_api_url_is_rejected_not_raised_as_valueerror():
+    # urlparse() itself can raise ValueError (e.g. an unterminated IPv6
+    # literal) before the empty-netloc guard ever runs. That must still
+    # surface as ImportFailed, not a raw ValueError escaping to the CLI.
+    instances = [
+        {
+            "app_id": "prisma_access",
+            "runtime_attributes": {"paas_api_url": "https://[abc"},
+        }
+    ]
+
+    def handler(request):
+        return httpx.Response(200, json=instances)
+
+    with pytest.raises(ImportFailed, match="has no host"):
+        make(handler).config_host()
+
+
+def test_crossed_scope_error_falls_back_to_message_with_no_entry_detail():
+    # errorMessage does not appear in the recorded evidence; message is the
+    # field that actually carries the reason. This body has no `extra` at
+    # all, so the entry-detail half of the fix contributes nothing -- if this
+    # test passes, it can only be because of the errorMessage-or-message
+    # fallback itself.
+    body = {
+        "errorCode": "API_I00013",
+        "message": "the folder and type do not match for this object",
+    }
+
+    def handler(request):
+        if "mfe" in str(request.url):
+            return httpx.Response(200, json=INSTANCES)
+        return httpx.Response(400, json=body)
+
+    with pytest.raises(ImportFailed) as exc:
+        make(handler).put_page("url-block-page", "Prisma Access", "QUJD")
+    message = str(exc.value)
+    assert "HTTP 400" in message
+    assert "the folder and type do not match for this object" in message
 
 
 def test_schemeless_paas_api_url_is_rejected_not_cached():

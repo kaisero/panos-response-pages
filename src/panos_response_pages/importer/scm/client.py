@@ -98,7 +98,13 @@ class ScmClient:
             paas = runtime_attributes.get("paas_api_url")
             if not paas:
                 continue
-            host = urlparse(paas).netloc
+            try:
+                host = urlparse(paas).netloc
+            except ValueError:
+                # urlparse itself can raise on a malformed URL (e.g. an
+                # unterminated IPv6 literal) before the empty-netloc check
+                # below ever runs. Same failure, same message either way.
+                host = ""
             if not host:
                 # Do not cache an empty host: that would make every subsequent
                 # config call fail with an opaque "unknown url type" instead of
@@ -127,19 +133,22 @@ class ScmClient:
         # entry[] before info: a portal page carries an empty `info` placeholder
         # alongside its real content, so info-first reports a good write as a no-op.
         entries = node.get("entry")
-        if entries is not None and not isinstance(entries, list):
+        # Same falsy-vs-truthy split as _node: a falsy 'entry' (e.g. "") is
+        # absent, not broken, and falls through to the 'info' branch below.
+        if entries and not isinstance(entries, list):
             raise ImportFailed(f"{page}: expected 'entry' to be a list, got {type(entries).__name__}")
         if entries:
             first = entries[0]
             if not isinstance(first, dict):
                 raise ImportFailed(f"{page}: expected entry[0] to be a JSON object, got {type(first).__name__}")
             page_value = first.get("page")
-            content = page_value if isinstance(page_value, str) else None
+            content = page_value if isinstance(page_value, str) and page_value.strip() else None
         else:
             info = node.get("info")
             content = info if isinstance(info, str) and info.strip() else None
 
-        loc = node.get("@loc")
+        loc_value = node.get("@loc")
+        loc = loc_value if isinstance(loc_value, str) else None
         return PageState(
             present=content is not None,
             content=content,
@@ -185,12 +194,16 @@ class ScmClient:
         if not isinstance(payload, dict):
             raise ImportFailed(f"{page}: expected a JSON object in the response, got {type(payload).__name__}")
         outer = payload.get("result")
-        if outer is None:
+        # A falsy value here (e.g. "" -- how an empty XML element serialises
+        # for this endpoint, per fact 5) carries no information: read it as
+        # "nothing here", the same as a missing key. Only a *truthy* value of
+        # the wrong type is a genuinely broken response worth raising on.
+        if not outer:
             return None
         if not isinstance(outer, dict):
             raise ImportFailed(f"{page}: expected 'result' to be a JSON object, got {type(outer).__name__}")
         inner = outer.get("result")
-        if inner is None:
+        if not inner:
             return None
         if not isinstance(inner, dict):
             raise ImportFailed(f"{page}: expected 'result.result' to be a JSON object, got {type(inner).__name__}")
@@ -237,7 +250,9 @@ class ScmClient:
 
         code = body.get("errorCode")
         if code == "API_I00035":
-            return f"HTTP {status}: not a page SCM recognises in this scope ({body.get('message', '')})"
+            message = body.get("message")
+            detail = f" ({message})" if message else ""
+            return f"HTTP {status}: not a page SCM recognises in this scope{detail}"
         if code == "API_I00013":
             raw_entries = ((body.get("extra") or {}).get("errors") or {}).get("entry")
             entries = [e for e in raw_entries if isinstance(e, dict)] if isinstance(raw_entries, list) else []
