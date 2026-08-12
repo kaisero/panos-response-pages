@@ -66,6 +66,16 @@ class TestSettings(unittest.TestCase):
         self.assertTrue(s.log.dir.is_absolute())
         self.assertNotIn("~", str(s.log.dir))
 
+    def test_explicit_null_yields_defaults(self):
+        # A present key with value None is not the same as an absent key --
+        # dict.get(key, default) only supplies the default in the latter case.
+        # A settings file rendered from a template with an unset variable
+        # produces exactly this shape.
+        s = settings.load(write("log:\n  level: null\n  rotate:\n    max_bytes: null\n    backups: null\n"))
+        self.assertEqual(s.log.level, "warning")
+        self.assertEqual(s.log.max_bytes, 1_048_576)
+        self.assertEqual(s.log.backups, 5)
+
 
 class TestLevelPrecedence(unittest.TestCase):
     def _with(self, level):

@@ -177,6 +177,16 @@ class TestValidateCommand(unittest.TestCase):
         self.assertEqual(r.exit_code, 1)
         self.assertIn("No recognised page types", r.output)
 
+    def test_log_json_suppresses_the_summary_line(self):
+        # Same promise as build: --log-json means exactly one machine-readable
+        # stream, so the "checked N page(s)" summary must not land on stdout
+        # alongside the JSON log lines.
+        out = Path(tempfile.mkdtemp())
+        runner.invoke(app, ["build", "--theme", "assist", "--no-preview", "-o", str(out), "--config-dir", str(DATA)])
+        r = runner.invoke(app, ["--log-json", "validate", str(out)])
+        self.assertEqual(r.exit_code, 0, r.output)
+        self.assertNotIn("would fail", r.output)
+
 
 class TestValidateReachesThePortal(unittest.TestCase):
     """Before this, the loop skipped anything whose stem was not a block page.

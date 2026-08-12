@@ -1,6 +1,6 @@
 [project]
 name = "panos-response-pages"
-version = "0.1.2"
+version = "0.1.3"
 description = "Self-contained PAN-OS URL Filtering and Anti-Phishing response pages, generated from templates"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,6 +19,7 @@ dependencies = [
     "typer>=0.12",
     "rich>=13",
     "pyyaml>=6",
+    "httpx>=0.27",
 ]
 
 [project.urls]
@@ -70,8 +71,10 @@ src = ["src", "tests"]
 select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "S", "ASYNC", "PTH", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-# S101 assert is pytest's whole idiom.
-"tests/**" = ["S101"]
+# S101 assert is pytest's whole idiom. S105/S106 fire on the fake client_secret
+# values the import tests must pass around; they are literals in a test, not a
+# credential in shipped code.
+"tests/**" = ["S101", "S105", "S106"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["panos_response_pages"]

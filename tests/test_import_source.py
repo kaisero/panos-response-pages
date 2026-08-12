@@ -1,0 +1,127 @@
+"""Loading a built directory into the exact bytes an import will send."""
+
+import base64
+import pathlib
+import tempfile
+
+import pytest
+
+from panos_response_pages.errors import ImportFailed
+from panos_response_pages.importer import source
+
+pytestmark = pytest.mark.unit
+
+GOOD = "<html><body><p>blocked <user/> <url/> <category/></p></body></html>"
+
+
+def build_dir(pages: dict[str, str]) -> pathlib.Path:
+    root = pathlib.Path(tempfile.mkdtemp())
+    for rel, text in pages.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    return root
+
+
+def test_loads_known_pages_and_encodes_them():
+    root = build_dir({"url-block-page.html": GOOD})
+    items = source.load(root)
+    assert [i.spec.remote for i in items] == ["url-block-page"]
+    assert items[0].payload == GOOD.encode("utf-8")
+    assert base64.b64decode(items[0].encoded) == GOOD.encode("utf-8")
+
+
+def test_ignores_files_that_are_not_importable_pages():
+    root = build_dir({"url-block-page.html": GOOD, "notes.html": "<html></html>", "readme.txt": "hi"})
+    assert [i.spec.remote for i in source.load(root)] == ["url-block-page"]
+
+
+def test_finds_portal_pages_in_their_subdirectory():
+    root = build_dir({"portal/home.html": "<script>var logo='';</script>"})
+    assert [i.spec.remote for i in source.load(root, check=False)] == ["global-protect-portal-custom-home-page"]
+
+
+def test_only_filters_by_remote_name():
+    root = build_dir({"url-block-page.html": GOOD, "file-block-page.html": GOOD})
+    items = source.load(root, only={"url-block-page"})
+    assert [i.spec.remote for i in items] == ["url-block-page"]
+
+
+def test_empty_directory_is_an_error_naming_the_path():
+    root = build_dir({"readme.txt": "hi"})
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root)
+    assert str(root) in str(exc.value)
+
+
+def test_missing_directory_is_an_error():
+    with pytest.raises(ImportFailed):
+        source.load(pathlib.Path(tempfile.mkdtemp()) / "nope")
+
+
+def test_unknown_only_name_is_rejected_with_the_available_names():
+    root = build_dir({"url-block-page.html": GOOD})
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root, only={"url-block-pge"})
+    assert "url-block-page" in str(exc.value)
+
+
+def test_guard_failures_are_carried_on_the_item():
+    # An <a href> to somewhere other than the contact anchor is a documented
+    # PAN-OS failure the build already rejects; import must see it too.
+    root = build_dir({"url-block-page.html": "<html><body><a href='https://x'>x</a> <user/></body></html>"})
+    items = source.load(root)
+    assert items[0].errors, "a page that would fail on PAN-OS must be flagged"
+
+
+def test_check_false_skips_the_guards():
+    root = build_dir({"url-block-page.html": "<html><body><a href='https://x'>x</a></body></html>"})
+    assert source.load(root, check=False)[0].errors == []
+
+
+def test_missing_catalogue_pages_are_warned_about_not_silently_skipped(caplog):
+    # A stale or partial build directory used to yield a green "would import
+    # 1/1 page(s)" with no hint that the other catalogue entries were absent
+    # -- the denominator hid it. This is what makes the absence visible.
+    root = build_dir({"url-block-page.html": GOOD})
+    with caplog.at_level("DEBUG", logger="panos_response_pages"):
+        items = source.load(root)
+    assert [i.spec.remote for i in items] == ["url-block-page"]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "not found" in warnings[0].message
+    debugs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any("file-block-page" in m for m in debugs), "the missing names should be listed at debug level"
+
+
+def test_a_fully_populated_directory_warns_about_nothing(caplog):
+    root = build_dir(dict.fromkeys(source.BY_LOCAL, GOOD))
+    with caplog.at_level("WARNING", logger="panos_response_pages"):
+        source.load(root, check=False)
+    assert not [r for r in caplog.records if "not found" in r.message]
+
+
+def test_only_naming_a_page_missing_from_the_directory_names_it_in_the_error():
+    # Before this fix the message was the generic "no importable pages under
+    # <dir>", which does not tell an operator which page they actually asked
+    # for. --only names a page that exists in the catalogue but has no file
+    # here.
+    root = build_dir({"url-block-page.html": GOOD})
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root, only={"file-block-page"})
+    assert "file-block-page" in str(exc.value)
+
+
+def test_non_utf8_file_is_reported_as_import_failed_not_a_traceback():
+    # A genuinely latin-1-encoded file: the byte 0xe9 ('é') is not valid UTF-8
+    # on its own, so read_text(encoding="utf-8") raises UnicodeDecodeError.
+    # cli.py only catches ImportFailed -- anything else reaches the operator
+    # as a raw traceback instead of the one-line error every other failure
+    # in this tool produces.
+    root = pathlib.Path(tempfile.mkdtemp())
+    path = root / "file-block-page.html"
+    path.write_bytes("blocked \xe9".encode("latin-1"))
+
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root)
+    assert "file-block-page.html" in str(exc.value)

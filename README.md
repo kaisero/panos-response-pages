@@ -34,6 +34,10 @@ Use `panos-response-pages` to generate response pages that
 - Link to the IT service desk via mail or link
 - Support 7 themes across 4 colour palettes
 
+Utilise the `import` functionality to...
+
+- Import Response Pages into Strata Cloud Manager (Prisma Access)
+
 ## Quickstart
 
 Install it:
@@ -65,6 +69,57 @@ PAN-OS tokens.
 Seven styles ship, all supporting both colour schemes. Six wear any of the three
 brand palettes: `assist`, `record`, `banner`, `glass`, `beacon`, `mesh`. `nyan`
 pins a palette of its own. See [Styles](https://kaisero.github.io/panos-response-pages/styles/).
+
+### Import into Strata Cloud Manager
+
+Point a service account at a built variant, preview it, then import:
+
+```bash
+export SCM_CLIENT_ID='automation@1234567890.iam.panserviceaccount.com'
+export SCM_CLIENT_SECRET='...'
+export SCM_TSG_ID='1234567890'
+
+panos-response-pages import scm --from out/deploy/beacon/prisma-blue --dry-run
+panos-response-pages import scm --from out/deploy/beacon/prisma-blue
+```
+
+`--dry-run` contacts nothing. It lists all 13 pages and the folder each would be
+written to, so the plan can be checked before anything is sent:
+
+```
+  scm: tenant 1234567890 (not contacted)
+
+  ok   application-block-page                    7,594 B  Prisma Access
+  ok   credential-block-page                     8,123 B  Prisma Access
+  ...
+  ok   url-block-page                           10,681 B  Prisma Access
+  ok   global-protect-portal-custom-home-page    6,550 B  Mobile Users
+  ok   global-protect-portal-custom-login-page  12,119 B  Mobile Users
+
+  would import 13/13 page(s)
+  dry run: nothing was sent.
+```
+
+Because nothing is sent, the credentials only have to be *set* for a dry run —
+they are never used, so it works before a service account exists.
+
+Two things worth knowing before the first real run:
+
+- **Import stages, it does not push.** Writes land in the tenant's *candidate*
+  configuration. Making them live is a separate step outside this tool, so a
+  successful import does not mean the firewalls are serving the new pages yet.
+- **Portal pages ignore `--folder`.** The 11 response pages go to `Prisma Access`
+  (or wherever `--folder` says); the two GlobalProtect portal pages always go to
+  `Mobile Users`. That is deliberate — a portal page is a named object that must
+  be unique across the whole folder tree, and writing one to the wrong folder
+  succeeds and then blocks the right folder until it is removed by hand.
+
+The exit code is `1` if any page failed, so a partial import fails a pipeline
+rather than passing quietly. Use `--only <page>` to import a single page and
+`--folder` to target a different folder; credentials can also live in
+`settings.yaml` under `scm:` instead of the environment. See the
+[CLI reference](https://kaisero.github.io/panos-response-pages/cli/) for the
+full set.
 
 ### Customise
 
