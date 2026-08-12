@@ -294,6 +294,37 @@ def test_crossed_scope_error_names_the_reason():
     assert "type does not match folder scope" in message
 
 
+# ---- _call's own error wrapping -------------------------------------------
+#
+# Both branches below pass the suite even if their `except` clause is deleted
+# entirely -- removing either one still leaves 548 tests green. They matter
+# beyond coverage: upload() and the CLI only catch ImportFailed, so an
+# unwrapped httpx.HTTPError or ValueError would abort the whole run and
+# discard the report of pages already written. auth.py's equivalent wrapping
+# is tested (test_scm_auth.py); this closes the same gap here.
+
+
+def test_transport_failure_is_reported_as_import_failed_not_raised_raw():
+    # A network blip during discovery -- the likeliest real-world failure --
+    # must not escape as a raw httpx.HTTPError.
+    def handler(request):
+        raise httpx.ConnectError("no route to host")
+
+    with pytest.raises(ImportFailed, match="could not reach"):
+        make(handler).config_host()
+
+
+def test_non_json_200_body_is_reported_as_import_failed_not_raised_raw():
+    # A proxy returning an HTML error page with a 200 status -- the other
+    # likeliest real-world failure -- must not escape as a raw ValueError from
+    # response.json().
+    def handler(request):
+        return httpx.Response(200, text="<html>proxy error</html>")
+
+    with pytest.raises(ImportFailed, match="non-JSON body"):
+        make(handler).config_host()
+
+
 # ---- malformed response bodies -------------------------------------------
 
 
