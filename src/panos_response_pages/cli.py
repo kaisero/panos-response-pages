@@ -11,24 +11,18 @@ from __future__ import annotations
 
 import pathlib
 import shutil
-from typing import Annotated
+from typing import Annotated, Any
 
-import httpx
 import typer
 
 from panos_response_pages import __version__, datadir, logs, settings
 from panos_response_pages.builder import build_all, load_themes
 from panos_response_pages.builder import format_report as format_build_report
 from panos_response_pages.errors import BuildError, ImportFailed
+from panos_response_pages.importer import TARGETS, Backend, run_import
 from panos_response_pages.importer import format_report as format_import_report
 from panos_response_pages.importer import load as load_import
-from panos_response_pages.importer.report import ImportReport, PageResult
-from panos_response_pages.importer.scm import ScmTarget
-from panos_response_pages.importer.scm.auth import TokenSource
-from panos_response_pages.importer.scm.client import ScmClient
-from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.scm.config import resolve as resolve_scm
-from panos_response_pages.importer.scm.target import folder_for
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS, detect_kind, validate_portal
 from panos_response_pages.templates import read
@@ -60,12 +54,6 @@ import_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(import_app, name="import")
-
-
-def _scm_target(config: ScmConfig) -> ScmTarget:
-    """Build a live SCM target. Patched out in tests, and never called by --dry-run."""
-    client = httpx.Client()
-    return ScmTarget(config, ScmClient(config, TokenSource(config, client), client))
 
 
 # ---- discovery --------------------------------------------------------------
@@ -326,6 +314,69 @@ def validate_cmd(
         raise typer.Exit(1)
 
 
+def _import(
+    ctx: typer.Context,
+    backend: Backend[Any],
+    config: Any,
+    source: pathlib.Path,
+    *,
+    only: list[str] | None,
+    skip_validate: bool,
+    dry_run: bool,
+) -> None:
+    """Everything an `import <backend>` command does once its own flags are resolved.
+
+    Load, warn, refuse anything PAN-OS would reject, run, report, exit. None of
+    it is backend-specific, so a second backend's command is its flags, its
+    config resolution and a call to this -- not a copy of this.
+
+    `config` is typed `Any` because `backend` came out of the `TARGETS` table,
+    which erases each backend's own config type (see the note there); the two
+    are checked against each other where the backend is registered.
+    """
+    log = logs.get()
+    try:
+        items = load_import(source, only=set(only) if only else None, check=not skip_validate)
+    except ImportFailed as exc:
+        log.error("%s", exc)
+        raise typer.Exit(1) from exc
+
+    for item in items:
+        for warning in item.warnings:
+            log.warning("%s: %s", item.path, warning)
+
+    # A page that would fail on PAN-OS is refused rather than sent, unless the
+    # operator explicitly opts out: the API accepts the write and then silently
+    # fails to render it, so the guard is the only thing standing between "sent"
+    # and "actually works".
+    blocked = [i for i in items if i.errors]
+    if blocked:
+        for item in blocked:
+            for error in item.errors:
+                log.error("%s: %s", item.path, error)
+        log.error(
+            "%d page(s) would fail silently on PAN-OS. Fix them, or pass --skip-validate to import anyway.",
+            len(blocked),
+        )
+        raise typer.Exit(1)
+
+    try:
+        report = run_import(backend, config, items, dry_run=dry_run, json_logs=ctx.obj["json"])
+    except ImportFailed as exc:
+        log.error("%s", exc)
+        raise typer.Exit(1) from exc
+
+    # Same split as build: the human report is one channel, JSON lines are the
+    # other, and --log-json means exactly one of them runs.
+    if not ctx.obj["json"]:
+        typer.echo(format_import_report(report))
+    # One mutation per page, so a run can half-succeed. Reporting success while
+    # any page failed would be the one outcome an operator cannot recover from
+    # by re-reading the output -- exit non-zero so scripts and CI notice too.
+    if report.failed:
+        raise typer.Exit(1)
+
+
 @import_app.command("scm")
 def import_scm(
     ctx: typer.Context,
@@ -356,7 +407,6 @@ def import_scm(
 
     Writes land in candidate configuration. Nothing here pushes them.
     """
-    log = logs.get()
     try:
         config = resolve_scm(
             ctx.obj["settings"].scm,
@@ -365,95 +415,10 @@ def import_scm(
             tsg_id=tsg_id,
             folder=folder,
         )
-        items = load_import(source, only=set(only) if only else None, check=not skip_validate)
     except ImportFailed as exc:
-        log.error("%s", exc)
+        logs.get().error("%s", exc)
         raise typer.Exit(1) from exc
 
-    for item in items:
-        for warning in item.warnings:
-            log.warning("%s: %s", item.path, warning)
-
-    # A page that would fail on PAN-OS is refused rather than sent, unless the
-    # operator explicitly opts out: the API accepts the write and then silently
-    # fails to render it, so the guard is the only thing standing between "sent"
-    # and "actually works".
-    blocked = [i for i in items if i.errors]
-    if blocked:
-        for item in blocked:
-            for error in item.errors:
-                log.error("%s: %s", item.path, error)
-        log.error(
-            "%d page(s) would fail silently on PAN-OS. Fix them, or pass --skip-validate to import anyway.",
-            len(blocked),
-        )
-        raise typer.Exit(1)
-
-    if dry_run:
-        report = ImportReport(
-            target=ScmTarget.name,
-            describe=f"tenant {config.tsg_id} (not contacted)",
-            results=[
-                PageResult(
-                    page=i.spec.remote,
-                    folder=folder_for(config, i),
-                    ok=True,
-                    size=len(i.payload),
-                )
-                for i in items
-            ],
-            dry_run=True,
-        )
-        # Same split as build: the human report is one channel, JSON lines are
-        # the other, and --log-json means exactly one of them runs. Every dry
-        # run item is ok=True by construction, so there is nothing to escalate
-        # to warning/error here -- the debug line is the JSON-mode record.
-        for r in report.results:
-            log.debug("%s -> %s: dry_run size=%d", r.page, r.folder, r.size)
-        if not ctx.obj["json"]:
-            typer.echo(format_import_report(report))
-        return
-
-    # Closed once the uploads are done rather than left for process exit: this
-    # command is a one-shot CLI invocation today, where it makes no practical
-    # difference, but the target is built here and this is the only place with
-    # a handle to close it -- so it is released the moment it is no longer
-    # needed rather than relying on that staying true. The try starts at
-    # construction, not after describe(): describe() calls config_host(),
-    # which makes a network request, so a bad credential or an unreachable
-    # tenant must close the client too, not just a failure during upload.
-    target: ScmTarget | None = None
-    try:
-        target = _scm_target(config)
-        report = ImportReport(target=target.name, describe=target.describe())
-        for item in items:
-            result = target.upload(item)
-            log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
-            # As in build: the human report is the channel for a page's outcome
-            # in text mode, so escalating it to warning/error there would print
-            # it twice. In JSON mode there is no report (see below), so a
-            # failure has to be raised to error here or it would never appear
-            # in the one stream --log-json promises.
-            if ctx.obj["json"] and not result.ok:
-                log.error(
-                    "%s -> %s: %s",
-                    result.page,
-                    result.folder,
-                    result.detail,
-                    extra={"mutation_id": result.mutation_id} if result.mutation_id else {},
-                )
-            report.results.append(result)
-    except ImportFailed as exc:
-        log.error("%s", exc)
-        raise typer.Exit(1) from exc
-    finally:
-        if target is not None:
-            target.close()
-
-    if not ctx.obj["json"]:
-        typer.echo(format_import_report(report))
-    # One mutation per page, so a run can half-succeed. Reporting success while
-    # any page failed would be the one outcome an operator cannot recover from
-    # by re-reading the output -- exit non-zero so scripts and CI notice too.
-    if report.failed:
-        raise typer.Exit(1)
+    # Credentials are the only SCM-specific part of an import. Everything after
+    # this line is the same for every backend, and lives in _import().
+    _import(ctx, TARGETS["scm"], config, source, only=only, skip_validate=skip_validate, dry_run=dry_run)

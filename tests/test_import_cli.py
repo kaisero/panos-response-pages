@@ -9,7 +9,9 @@ from typer.testing import CliRunner
 
 from panos_response_pages import cli
 from panos_response_pages.importer.report import PageResult
+from panos_response_pages.importer.scm import SCM
 from panos_response_pages.importer.scm.config import ScmConfig
+from panos_response_pages.importer.scm.target import connect
 
 pytestmark = pytest.mark.cli
 
@@ -46,7 +48,7 @@ def test_dry_run_lists_pages_without_building_a_client(monkeypatch):
     def boom(*args, **kwargs):
         raise AssertionError("a dry run must not open a connection")
 
-    monkeypatch.setattr(cli, "_scm_target", boom)
+    monkeypatch.setattr(SCM, "connect", boom)
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir()), "--dry-run"])
     assert result.exit_code == 0
     assert "url-block-page" in result.output
@@ -69,7 +71,7 @@ def test_successful_import_reports_and_exits_zero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(cli, "_scm_target", lambda cfg: FakeTarget())
+    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 0
     assert "imported 1/1" in result.output
@@ -92,7 +94,7 @@ def test_a_failed_page_exits_nonzero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(cli, "_scm_target", lambda cfg: FakeTarget())
+    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
     assert "HTTP 400" in result.output
@@ -120,7 +122,7 @@ def test_a_mixed_run_reports_both_pages_and_exits_nonzero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(cli, "_scm_target", lambda cfg: FakeTarget())
+    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
     root = pathlib.Path(tempfile.mkdtemp())
     (root / "url-block-page.html").write_text(GOOD, encoding="utf-8")
     (root / "credential-block-page.html").write_text(GOOD, encoding="utf-8")
@@ -174,7 +176,7 @@ def test_a_failure_during_describe_still_closes_the_client(monkeypatch):
             self.closed = True
 
     target = FakeTarget()
-    monkeypatch.setattr(cli, "_scm_target", lambda cfg: target)
+    monkeypatch.setattr(SCM, "connect", lambda cfg: target)
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
     assert target.closed is True
@@ -238,7 +240,7 @@ def test_log_json_suppresses_the_final_report_and_logs_failures_as_events(monkey
         def close(self):
             pass
 
-    monkeypatch.setattr(cli, "_scm_target", lambda cfg: FakeTarget())
+    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
     result = runner.invoke(cli.app, ["--log-json", "import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
 
@@ -251,7 +253,7 @@ def test_log_json_suppresses_the_final_report_and_logs_failures_as_events(monkey
 
 
 def test_scm_target_shares_one_httpx_client_between_the_token_source_and_the_config_api():
-    # Every other test in this file patches _scm_target out, so nothing else
+    # Every other test in this file substitutes SCM.connect, so nothing else
     # exercises it. It is the only place that constructs TokenSource and
     # ScmClient against the same httpx.Client -- the precondition both
     # ScmClient.close() and ScmTarget.close() docstrings rely on, since it is
@@ -268,7 +270,7 @@ def test_scm_target_shares_one_httpx_client_between_the_token_source_and_the_con
     )
     # Constructing these objects makes no network request -- only close()
     # touches the connection, and that is called below.
-    target = cli._scm_target(config)
+    target = connect(config)
     try:
         assert target._client._client is target._client._tokens._client
     finally:
