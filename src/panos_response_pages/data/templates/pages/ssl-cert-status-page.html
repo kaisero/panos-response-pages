@@ -29,7 +29,7 @@
   and the fact rows are sized on a guess at their length.
 -->
 
-<!--@TITLE-->Certificate problem<!--/@TITLE-->
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
 
 <!--@TONE-->warn<!--/@TONE-->
 
@@ -37,32 +37,32 @@
 
 <!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2.5H6.5a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h4"/><path d="M13 2.5 18.5 8v3"/><path d="M8 9h4"/><path d="M8 12.5h3"/><circle cx="17" cy="16.5" r="3"/><path d="M15 18.6 14.4 22l2.6-1.4 2.6 1.4-.6-3.4"/></svg><!--/@MARK-->
 
-<!--@HEADLINE-->This site's certificate could not be verified<!--/@HEADLINE-->
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
 
-<!--@GLOSS-->The server presented a certificate that could not be checked, so the connection was stopped.<!--/@GLOSS-->
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
 
 <!--@FACTS-->
-<div class="f"><dt>Server</dt><dd class="mono"><url/></dd></div>
-<div class="f"><dt>Certificate</dt><dd class="mono"><certname/></dd></div>
-<div class="f"><dt>Issuer</dt><dd class="mono"><issuer/></dd></div>
-<div class="f"><dt>Status</dt><dd><status/></dd></div>
-<div class="f"><dt>Reason</dt><dd><reason/></dd></div>
-<div class="f"><dt>Category</dt><dd id="cat"><category/></dd></div>
-<div class="f"><dt>User</dt><dd><user/></dd></div>
-<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<div class="f"><dt>{{T_FACT1}}</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd class="mono"><certname/></dd></div>
+<div class="f"><dt>{{T_FACT3}}</dt><dd class="mono"><issuer/></dd></div>
+<div class="f"><dt>{{T_FACT4}}</dt><dd><status/></dd></div>
+<div class="f"><dt>{{T_FACT5}}</dt><dd><reason/></dd></div>
+<div class="f"><dt>{{T_FACT6}}</dt><dd id="cat"><category/></dd></div>
+<div class="f"><dt>{{T_FACT7}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT8}}</dt><dd id="ts"></dd></div>
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Certificate error"
-   data-intro="A certificate could not be verified on this connection." data-prompt="What I was trying to reach:"
-   href="{{CONTACT_HREF}}">Report to IT</a>
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}" data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{T_REPORT_LABEL}}</a>
 {{CONTACT_ALT}}
 <!--/@ACTIONS-->
 
 <!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
 
-<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
+<!--@CONTACT_ALT--><p class="plain">{{T_CONTACT_ALT1}}<a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>{{T_CONTACT_ALT2}}</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
-<p class="warnline">{{WARN_MARK}}<span>Do not sign in or enter personal details on this site until IT has looked at it.</span></p>
+<p class="warnline">{{WARN_MARK}}<span>{{T_EXTRA}}</span></p>
 <!--/@EXTRA-->

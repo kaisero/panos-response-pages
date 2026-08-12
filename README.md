@@ -29,6 +29,7 @@ Use `panos-response-pages` to generate response pages that
 
 - Provide responsive design for desktop and mobile
 - Automatically serve light or dark mode depending on OS settings
+- Detect the browser's language and render the page in it (13x supported languages)
 - Automatically redirect users to sanctioned apps based on URL category match
 - Link to the IT service desk via mail or link
 - Support 7 themes across 4 colour palettes
@@ -67,7 +68,7 @@ PAN-OS tokens.
 
 Seven styles ship, all supporting both colour schemes. Six wear any of the three
 brand palettes: `assist`, `record`, `banner`, `glass`, `beacon`, `mesh`. `nyan`
-pins a palette of its own. See [Styles].
+pins a palette of its own. See [Styles](https://kaisero.github.io/panos-response-pages/styles/).
 
 ### Import into Strata Cloud Manager
 
@@ -137,6 +138,8 @@ Put your own settings in `config/<customer>.json`. It is deep-merged over
   "supportUrl": "https://servicedesk.example.com/new-ticket",
   "supportEmail": "",
   "supportLabel": "the Service Desk",
+  "baseLanguage": "en",
+  "languages": ["en", "de"],
   "redirect": {
     "enabled": true,
     "categories": {
@@ -159,19 +162,38 @@ Put your own settings in `config/<customer>.json`. It is deep-merged over
   the other, or the build stops. `supportLabel` names the queue for the places
   that print the contact inline — in email mode those print the address itself,
   so it applies to `supportUrl` mode only.
+- **`languages`** compiles each listed language into every page, and the browser
+  picks one at load. `["en"]` is the default. See [Languages](#languages).
 - **`redirect`** hands a user over to a sanctioned app after a countdown when the
   blocked category has an approved equivalent. It applies to the URL block page
-  only. A category needs no entry in `categories` to redirect — that map lists
-  only the ones whose tone or wording differs, and anything absent from it is
-  calm — but a category listed there as `warn` or `critical` is refused, because
-  a user must never be forwarded off a security block. Make sure your security
-  policy actually permits the target, or the redirect lands on another block page.
+  only — no other page carries a category token to key on, and the two coach
+  pages already have a Continue action a countdown would race.
 
 Then build against it:
 
 ```bash
 panos-response-pages build --customer <name>
 ```
+
+### Languages
+
+Every configured language is compiled into the page, and one is picked
+from `navigator.languages` at load.
+
+Thirteen languages ship — English, German, Spanish, Italian, French, Dutch,
+Danish, Swedish, Japanese, Chinese (Simplified), Vietnamese, Russian and
+Ukrainian. `languages` selects which of them a given build compiles:
+
+```json
+"baseLanguage": "en",
+"languages": ["en", "de"]
+```
+
+`["en"]` is the default, and it is byte-identical to a build from before any of
+this existed — no dictionary, no selector, the suite compares the bytes.
+
+Full detail — the per-language cost table, how many fit, translating your own
+copy, and what a translator must not change — is in [Customising](https://kaisero.github.io/panos-response-pages/customising/#languages).
 
 ## Development
 

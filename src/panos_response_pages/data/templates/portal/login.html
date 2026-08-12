@@ -48,11 +48,13 @@ var error_text_color='';
   character must not appear outside a real tag anywhere in this file.
 -->
 <!--@FOOT_SCRIPT-->
+{{PORTAL_I18N}}
 <script>
 if(document.getElementById('getsoftwarepage_form')){document.documentElement.setAttribute('data-page','sw');}
 </script>
 <script>
 (function(){
+{{DL_T}}
 var box=document.getElementById('taGetSofewarePage'),dl=document.getElementById('dl');
 if(!box||!dl){return;}
 var links=[].slice.call(box.querySelectorAll('p a'));
@@ -67,16 +69,16 @@ var h=a.getAttribute('href')||'',
 mac=h.indexOf('platform=mac')!==-1,
 win=h.indexOf('platform=windows')!==-1,
 w64=h.indexOf('version=64')!==-1;
-a.textContent=mac?'macOS':win?'Windows '+(w64?'64-bit':'32-bit'):(a.textContent||'').trim();
+a.textContent=mac?{{DL_MACOS}}:win?{{DL_WINDOWS}}+(w64?{{DL_BIT64}}:{{DL_BIT32}}):(a.textContent||'').trim();
 a.className='dlitem';
 menu.appendChild(a);
 if(!pick&&((isMac&&mac)||(isWin&&win&&w64===x64))){pick=a;}
 });
 if(pick){
 main.setAttribute('href',pick.getAttribute('href'));
-lab.textContent='Download for '+pick.textContent;
+lab.textContent={{DL_DOWNLOADFOR}}+pick.textContent;
 }else{
-lab.textContent='Choose your download';
+lab.textContent={{DL_CHOOSEDOWNLOAD}};
 main.setAttribute('href','#');
 main.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();toggle(menu.hidden);});
 }
@@ -90,6 +92,11 @@ document.documentElement.setAttribute('data-dl','on');
 </script>
 <!--/@FOOT_SCRIPT-->
 <!--
+  The language runtime comes FIRST, and is empty in a single-language build. It
+  needs the parsed body and the substituted form -- it swaps PAN-OS' own
+  placeholders as well as ours -- so it cannot go in the head, and it has to
+  precede the download block below, which reads the dictionary it publishes.
+
   Emitted at the end of the body, after the form has been substituted and
   parsed. Placed in the head it would run before the download form exists,
   getElementById would return null, and the download page would show login
@@ -110,8 +117,16 @@ document.documentElement.setAttribute('data-dl','on');
   - No counting loop, for the same reason -- `i < n` is a raw '<'. slice.call
     turns the NodeList into a real array and forEach does the rest.
   - Bit-ness is only detectable on Windows, via Win64|WOW64|x64|x86_64. An
-    unrecognised platform gets 'Choose your download' and the open menu rather
-    than a guess.
+    unrecognised platform gets the "choose your download" wording and the open
+    menu rather than a guess.
+  - Its six visible strings are the only copy in this family that is a JS
+    LITERAL rather than markup, so they cannot be swapped from the DOM after the
+    fact -- the button's text is computed here, from the user agent. The DL_
+    placeholders fill them from the strings file instead: the base language's
+    quoted literal in a single-language build, and that same literal as the
+    fallback arm of a lookup into the published dictionary where there is one.
+    So a load that matches no compiled language behaves byte for byte as this
+    file did before it was translated.
   - data-dl is set LAST. Everything that hides PAN-OS' own links and description
     rows hangs off it, so if any line above throws, or the script never runs at
     all, the stock page is still sitting there working.

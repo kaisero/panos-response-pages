@@ -221,20 +221,20 @@ a:focus-visible,input:focus-visible{outline:3px solid var(--at);outline-offset:3
 <div class="pane"><div class="panein">
 <div id="logo"><span class="mk" aria-hidden="true"></span><span>{{COMPANY}}</span></div>
 <div id="activearea">
-<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">Sign in</span><span class="ps">Get Agent Software</span></div>
-<p class="gloss"><span class="pl">Use your company account to sign in.</span><span class="ps">Download the agent for your operating system, then sign in from the app.</span></p>
+<div id="heading"><span class="pn">{{PORTAL_NAME}}</span><span class="pl">{{T_SIGNIN}}</span><span class="ps">{{T_GETSOFTWARE}}</span></div>
+<p class="gloss"><span class="pl">{{T_GLOSSSIGNIN}}</span><span class="ps">{{T_GLOSSSOFTWARE}}</span></p>
 <div id="formdiv">
 <pan_form/>
 </div>
 <div class="dl" id="dl" hidden>
 <div class="dlrow">
-<a class="dlmain" id="dlmain"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg><span id="dllab">Download</span></a>
-<button class="dlcar" id="dlcar" type="button" aria-expanded="false" aria-haspopup="true" aria-label="Other platforms"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></button>
+<a class="dlmain" id="dlmain"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 20h16"/></svg><span id="dllab">{{T_DOWNLOAD}}</span></a>
+<button class="dlcar" id="dlcar" type="button" aria-expanded="false" aria-haspopup="true" aria-label="{{T_OTHERPLATFORMS}}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9.5 6 6 6-6"/></svg></button>
 </div>
 <div class="dlmenu" id="dlmenu" hidden></div>
 </div>
 </div>
-<p class="note">Need help? Contact <a id="rep" href="{{CONTACT_HREF}}">{{CONTACT_NAME}}</a>.</p>
+<p class="note">{{T_NOTE1}}<a id="rep" href="{{CONTACT_HREF}}">{{CONTACT_NAME}}</a>{{T_NOTE2}}</p>
 </div></div>
 </div>
 <!--/@BODY-->

@@ -35,9 +35,11 @@ from __future__ import annotations
 
 import copy
 import json
+import pathlib
 from collections.abc import Mapping
 from typing import Any
 
+from panos_response_pages import i18n
 from panos_response_pages.errors import BuildError
 from panos_response_pages.scripts import CATEGORY_KEY_ATTR
 
@@ -65,12 +67,13 @@ DEMO_CATEGORY = "online-storage-and-backup"
 DEMO_APP = {"app": "Company Drive", "url": "https://drive.example.com/"}
 DEMO_GLOSS = "Personal file-storage services are not available on the company network."
 
-# Copy that is not per-category, and so is not worth a config key each. Kept
-# together here so it is findable when someone wants to change the wording.
-STAY_LABEL = "Stay"
-GO_LABEL = "Go now"
-CANCELLED = "Staying on this page."
-CANCELLED_ANNOUNCE = "Cancelled. You are staying on this page."
+# The notice's own copy -- the two buttons, the line that replaces the sentence
+# when the user stays, and the two things a screen reader is told -- lives in the
+# strings document under `shared.redirect`, and reaches this module through
+# i18n.notice_strings() and i18n.redirect_strings(). It used to be four Python
+# constants, which is the one place no language can reach: a German build read
+# "Sie werden zu Company Drive weitergeleitet" above buttons labelled "Go now"
+# and "Stay", and read the whole English sentence out to a screen reader.
 
 # The notice itself. Structural only -- every colour comes from the shell's own
 # custom properties, so a theme styles this by existing rather than by opting in.
@@ -103,15 +106,21 @@ overflow:hidden;background:linear-gradient(var(--aw),var(--aw)) 0 100%/100% 3px 
 @media(prefers-reduced-motion:reduce){.rx-p span{transition:none}}
 """
 
+
 # hidden until the script has decided the category qualifies: an unstyled notice
 # flashing before the countdown starts is worse than no notice.
-HTML = f"""
+#
+# The three words in here are the BASE language's, because the markup IS the base
+# language -- the same rule the rest of the page is built on. Every other
+# compiled language swaps them from the table in _script().
+def _markup(notice: Mapping[str, str]) -> str:
+    return f"""
 <div class="rx" id="rx" hidden>
 <div class="rx-b"><i class="rx-i" id="rxi" aria-hidden="true"></i>
-<span class="rx-t"><span id="rxm"></span><span id="rxo" hidden>{CANCELLED}</span>
+<span class="rx-t"><span id="rxm"></span><span id="rxo" hidden>{notice["cancelled"]}</span>
 <span class="rx-sr" id="rxl" role="status" aria-live="polite"></span></span>
-<span class="rx-c"><a class="btn" id="rxg" href="#">{GO_LABEL}</a>
-<button type="button" id="rxs">{STAY_LABEL}</button></span></div>
+<span class="rx-c"><a class="btn" id="rxg" href="#">{notice["go"]}</a>
+<button type="button" id="rxs">{notice["stay"]}</button></span></div>
 <div class="rx-p"><span id="rxp"></span></div>
 </div>
 """
@@ -239,6 +248,33 @@ def check(cfg: Mapping[str, Any]) -> None:
         if "seconds" in entry:
             _check_seconds(entry["seconds"], f"{where}.seconds")
 
+    _check_translations(cfg)
+
+
+def _check_translations(cfg: Mapping[str, Any]) -> None:
+    """A language may not translate the per-category sentences and skip the default.
+
+    The same rule as `redirect.message is empty; it is the fallback for every
+    category`, one level down. The runtime's fallback chain is
+    `X.c[y] || X.m || <English>`: with per-category sentences translated and no
+    translated default, a category nobody wrote copy for falls out of the German
+    branch entirely and lands on the English sentence -- inside a German page,
+    for exactly the categories the customer did NOT single out.
+
+    Checked against the mapped categories, like _langs() trims against them: a
+    sentence for a category `redirect.categories` does not map is bytes no page
+    can reach, so it cannot be what makes a missing default fatal.
+    """
+    entries = _entries(cfg)
+    for lang, written in (cfg.get("translations") or {}).items():
+        block = (written or {}).get("redirect") or {}
+        if not str(block.get("message", "")).strip() and any(k in entries for k in block.get("categories") or {}):
+            raise BuildError(
+                f"translations.{lang}.redirect has per-category sentences but no `message`. "
+                "It is the fallback for every category in that language: without it a category "
+                f"nobody translated shows the English sentence inside a {lang} page."
+            )
+
 
 def _check_seconds(value: Any, where: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
@@ -270,8 +306,107 @@ def _map(cfg: Mapping[str, Any]) -> dict[str, list[Any]]:
     return out
 
 
-def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
+def _langs(cfg: Mapping[str, Any], translations: Mapping[str, Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    """language -> {furniture, m: default notice, c: {category: override}}, trimmed.
+
+    Single-letter keys and absent-means-untranslated, for the same reason _map()
+    drops trailing defaults: this rides on the one page that carries the notice,
+    under the same byte ceiling as everything else on it.
+
+    `m` and `c` are the CUSTOMER's sentences and are absent until they write
+    them. The five furniture strings are shipped copy and are always here: they
+    exist in every language whether or not the customer translated anything, and
+    a language row carrying only them is what keeps "Go now" and "Stay" from
+    sitting under a German sentence.
+
+    Trimmed to the categories `redirect.categories` actually maps. The lookup is
+    keyed on that table, so a sentence written for anything else has nothing to
+    key on -- it would be bytes no page can reach.
+    """
+    entries = _entries(cfg)
+    out: dict[str, dict[str, Any]] = {}
+    for lang, block in translations.items():
+        # KeyError is not reachable: i18n.redirect_strings() runs i18n.notice()
+        # over every block it returns, which names the language and the key.
+        row: dict[str, Any] = {
+            "g": block["go"],
+            "s": block["stay"],
+            "o": block["cancelled"],
+            "n": block["cancelledAnnounce"],
+            "a": block["announce"],
+        }
+        message = str(block.get("message") or "")
+        if message.strip():
+            row["m"] = message
+        cats = {k: str(v) for k, v in (block.get("categories") or {}).items() if k in entries and str(v).strip()}
+        if cats:
+            row["c"] = cats
+        out[lang] = row
+    return out
+
+
+def _script(
+    cfg: Mapping[str, Any],
+    translations: Mapping[str, Mapping[str, Any]],
+    notice: Mapping[str, str],
+    *,
+    loop: bool = False,
+) -> str:
     red = cfg["redirect"]
+    # Every language-aware fragment below is emitted ONLY when the page compiles
+    # a second language. A single-language build has to be the bytes it was
+    # before this existed, and there is nothing for it to select between.
+    #
+    # "a second language", not "a translated sentence": the notice's furniture is
+    # shipped copy and exists in every language, so a customer who compiled German
+    # and translated none of their own copy still gets German buttons.
+    langs = _langs(cfg, translations)
+    key = f"e.getAttribute('{CATEGORY_KEY_ATTR}')"
+    # The category key is only named when something reads it twice. `y` and not
+    # `k`: the loop guard below is a `for(var k in R)`, which is function-scoped
+    # and leaves `k` bound to the last host in the table -- a translated notice
+    # keyed on that would show the wrong category's sentence, or none.
+    lookup = f"var y={key},r=R[y];" if langs else f"var r=R[{key}];"
+    # ensure_ascii=False, unlike the tables above: this is the only value here
+    # that is not English, and an escaped "a-umlaut" costs six bytes where the
+    # character itself costs two, on the page with the least headroom.
+    pick = (
+        (
+            "var X="
+            + json.dumps(langs, separators=(",", ":"), ensure_ascii=False)
+            # Set by the language block, which runs first and assigns it only
+            # when it matched a compiled language. A browser that matched
+            # nothing leaves the base language there, which is absent from this
+            # table -- so it keeps the sentence the page was served with.
+            + "[document.documentElement.lang]||0;"
+        )
+        if langs
+        else ""
+    )
+    # Every fallback is to the TRANSLATED default, never to the English one: a
+    # category whose override nobody translated would otherwise put an English
+    # sentence into a German page for exactly the categories a customer cared
+    # enough about to write their own copy for.
+    #
+    # `X.m` is what makes that true, and it is optional in the table -- so the
+    # claim rests on _check_translations(), which refuses at BUILD time the one
+    # config that reaches the English tail with a German `X` in hand: per-category
+    # sentences translated, the default left behind. `r[3]||D` past a truthy `X`
+    # is otherwise reachable only when the customer translated none of the notice
+    # at all, where the English sentence is the only sentence there is.
+    message = "X&&(X.c&&X.c[y]||X.m)||r[3]||D" if langs else "r[3]||D"
+    # The furniture, swapped from the same table. Emitted only alongside it: a
+    # single-language build has nothing to select between and pays nothing.
+    furniture = "if(X){g.textContent=X.g;s.textContent=X.s;o.textContent=X.o}" if langs else ""
+    # The two announcements. Sentences rather than concatenations now, because a
+    # translation cannot reorder a concatenation: German puts the countdown
+    # before the application name, and the {app}/{n} tokens are what let it.
+    #
+    # Parenthesised because the announce sentence is the receiver of a .split()
+    # chain: without them the method would bind to the string literal alone and
+    # the translated sentence would reach the page with its tokens intact.
+    announce = "(" + ("X&&X.a||" if langs else "") + json.dumps(notice["announce"]) + ")"
+    cancelled = "(" + ("X&&X.n||" if langs else "") + json.dumps(notice["cancelledAnnounce"]) + ")"
     # The one line that differs in a preview build. Shipped, reaching zero hands
     # the user over exactly once. In the gallery there is nobody to hand over --
     # the frame is a srcdoc iframe on file://, so navigating it would leave the
@@ -290,10 +425,10 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
         # a friendly label ("Online Storage and Backup") before this runs, so the
         # text no longer matches anything in R -- it parks the raw PAN-OS name in
         # CATEGORY_KEY_ATTR for exactly this lookup.
-        f"var r=R[e.getAttribute('{CATEGORY_KEY_ATTR}')];"
+        + lookup
         # The tone the category map just resolved, not the one config claims: a
         # page repainted critical at runtime must not then forward anyone.
-        "if(!r||document.documentElement.getAttribute('data-tone')!=='calm')return;"
+        + "if(!r||document.documentElement.getAttribute('data-tone')!=='calm')return;"
         "var u=r[1],h=document.createElement('a');"
         # The loop guard. A response page is served AS the blocked site, so
         # location.host is the host the user was refused. If that is the host of
@@ -306,42 +441,64 @@ def _script(cfg: Mapping[str, Any], *, loop: bool = False) -> str:
         "var m=document.getElementById('rxm'),o=document.getElementById('rxo');"
         "var i=document.getElementById('rxi'),p=document.getElementById('rxp');"
         "var v=document.getElementById('rxl'),g=document.getElementById('rxg');"
+        "var s=document.getElementById('rxs');"
+        + pick
+        + furniture
         # split/join, not .replace(): .replace() only substitutes the first
         # occurrence, and when the second argument is a plain string it still
         # interprets $&, $', $` and $n as replacement patterns -- an app name
         # containing one of those would corrupt the message. split/join
         # replaces every occurrence and treats the app name as a literal.
-        "m.textContent=(r[3]||D).split('{app}').join(n);g.href=u;b.hidden=false;"
+        #
+        # `{app}` is this module's own token, in its own syntax. substitute()
+        # never sees it and assert_resolved() cannot miss it, so a translation
+        # that drops it renders a notice naming no application with a clean
+        # build behind it -- which is why the suite asserts it survives.
+        + "m.textContent=("
+        + message
+        + ").split('{app}').join(n);g.href=u;b.hidden=false;"
         "function w(){i.textContent=l;p.style.width=((t-l)/t*100)+'%'}"
         "function q(){if(z){clearInterval(z);z=null}}"
         "function go(){" + go + "}"
         "function no(){if(d)return;d=true;q();b.setAttribute('data-off','1');"
-        "m.hidden=true;o.hidden=false;v.textContent=" + json.dumps(CANCELLED_ANNOUNCE) + "}"
+        "m.hidden=true;o.hidden=false;v.textContent=" + cancelled + "}"
         "w();"
         # Announced once, as a sentence. The per-second number is aria-hidden --
-        # a screen reader must not be read a countdown. STAY_LABEL is a Python
-        # constant spliced into a JS string; json.dumps quotes and escapes it,
-        # the same as CANCELLED_ANNOUNCE above, so a future edit that gives it
-        # an apostrophe cannot emit broken JavaScript.
-        "v.textContent='You will be sent to '+n+' in '+t+' seconds. Choose '+"
-        + json.dumps(STAY_LABEL)
-        + "+', or press Escape, to remain on this page.';"
+        # a screen reader must not be read a countdown. Every string spliced into
+        # this script goes through json.dumps, so copy that gains an apostrophe
+        # -- or a translation that is nothing but apostrophes -- cannot emit
+        # broken JavaScript.
+        #
+        # {n} as well as {app}: the countdown is a value only the browser has,
+        # and a translation has to be free to put it wherever its grammar wants.
+        "v.textContent=" + announce + ".split('{app}').join(n).split('{n}').join(t);"
         # A hidden tab pauses rather than counting: a background tab that
         # navigates itself is indistinguishable from a hijack.
         "z=setInterval(function(){if(document.hidden)return;l--;w();if(l<=0)go()},1000);"
         "g.addEventListener('click',function(x){x.preventDefault();go()});"
-        "document.getElementById('rxs').addEventListener('click',no);"
+        "s.addEventListener('click',no);"
         "document.addEventListener('keydown',function(x){if(x.key==='Escape'||x.key==='Esc')no()});"
         "})();</script>"
     )
 
 
-def emit(cfg: Mapping[str, Any], page: str, theme: Mapping[str, Any], *, loop: bool = False) -> tuple[str, str, str]:
+def emit(
+    cfg: Mapping[str, Any],
+    page: str,
+    theme: Mapping[str, Any],
+    *,
+    data_dir: pathlib.Path,
+    loop: bool = False,
+) -> tuple[str, str, str]:
     """(css, markup, script) for this page. Three empty strings when it does not apply.
 
     Validation runs for every page and every style, not just the one that renders
     the notice, so a bad redirect config fails the build rather than quietly
     doing nothing on the one combination that would have shown it.
+
+    `data_dir` is required rather than optional because the thing it buys is
+    invisible when it is missing: without it the notice is the one sentence on a
+    translated page still in the base language, and the page builds clean.
 
     `loop` is the gallery's demo build and must never be set for anything written
     under `deploy/` -- see `_script`.
@@ -349,4 +506,19 @@ def emit(cfg: Mapping[str, Any], page: str, theme: Mapping[str, Any], *, loop: b
     check(cfg)
     if page != PAGE or not enabled(cfg) or not supported(theme):
         return "", "", ""
-    return CSS, HTML, _script(cfg, loop=loop)
+    # Read after the gate, not before: a single-language build resolves to an
+    # empty mapping without opening a file, and every other page never asks.
+    #
+    # A style that opted out of the extra languages gets the empty mapping too.
+    # Nothing on such a page ever assigns `documentElement.lang` -- the selector
+    # that would is exactly what the opt-out drops -- so the notice's own
+    # language table could only ever miss, and it would miss having spent its
+    # bytes on the style that had none to spare. The two flags are independent
+    # by design (nyan declares `"redirect": false` as well, so this branch is
+    # unreachable from the shipped tree today), and independence is precisely
+    # why the dependency has to be written down rather than assumed.
+    translations = i18n.redirect_strings(cfg, data_dir) if i18n.enabled(theme) else {}
+    # The base language's furniture. Read unconditionally, unlike the table
+    # above: the markup renders these words on every build, translated or not.
+    notice = i18n.notice_strings(cfg, data_dir)
+    return CSS, _markup(notice), _script(cfg, translations, notice, loop=loop)

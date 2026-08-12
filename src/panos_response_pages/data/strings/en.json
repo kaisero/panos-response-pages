@@ -1,0 +1,194 @@
+{
+  "lang": "en",
+  "name": "English",
+  "shared": {
+    "reportLabel": "Report to IT",
+    "contactAlt": ["Or email ", " with the details above."],
+    "severity": { "calm": "", "warn": "Caution", "crit": "Security risk" },
+    "defaultGloss": "This category is restricted by company policy.",
+    "riskGloss": "This site was blocked because it presents a security risk.",
+    "continueGrantText": "15 minutes",
+    "supportLabel": "IT support",
+    "redirect": {
+      "go": "Go now",
+      "stay": "Stay",
+      "cancelled": "Staying on this page.",
+      "cancelledAnnounce": "Cancelled. You are staying on this page.",
+      "announce": "You will be sent to {app} in {n} seconds. Choose Stay, or press Escape, to remain on this page."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Application blocked",
+      "headline": "This application is blocked",
+      "gloss": "Company policy restricts this application on the network.",
+      "facts": ["Application", "User", "Time"],
+      "extra": "If you need this application for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked application report",
+        "intro": "Please review this application block.",
+        "prompt": "Why I need this application:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Credential submission blocked",
+      "headline": "Credential submission blocked",
+      "gloss": "You just tried to send your work username and password to a site we do not recognise as trusted.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "contactAlt": ["Or email ", " straight away."],
+      "extra": "{{COMPANY}} will never ask for your password on a page like this one. If a site asks you to sign in and something feels off, close the tab and go to the service directly from your bookmarks.",
+      "report": {
+        "subject": "Possible phishing page - credential submission blocked",
+        "intro": "A credential submission was blocked.",
+        "prompt": "What I was doing:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Are you sure this is a company sign-in page?",
+      "headline": "Are you sure this is a company sign-in page?",
+      "gloss": "You are about to send your work username and password to a site we do not recognise as one of ours.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": "Check the address above carefully — look for small misspellings of a name you know. Continuing sends your credentials and is recorded against your name.",
+      "report": {
+        "subject": "Possible phishing page - credential prompt",
+        "intro": "I was warned before submitting credentials.",
+        "prompt": "What I was doing:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Data transfer blocked",
+      "headline": "Data transfer blocked",
+      "gloss": "Company policy restricts transferring this content, so the transfer was stopped.",
+      "facts": ["Direction", "File", "Application", "User", "Time"],
+      "extra": "If you need to send this for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked data transfer",
+        "intro": "A data transfer was blocked by policy.",
+        "prompt": "Why I need to send this:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Continue with this download?",
+      "headline": "Continue with this download?",
+      "gloss": "Downloading files of this type is restricted by company policy. You can continue if you need this file for your work.",
+      "facts": ["File", "User", "Time"],
+      "extra": "Only continue if you know what this file is and where it came from.",
+      "report": {
+        "subject": "File download warning",
+        "intro": "I was warned before downloading a restricted file type.",
+        "prompt": "What I was doing:"
+      }
+    },
+    "file-block-page": {
+      "title": "This file type is blocked",
+      "headline": "This file type is blocked",
+      "gloss": "Transferring files of this type is restricted by company policy, so the transfer was stopped.",
+      "facts": ["File", "User", "Time"],
+      "extra": "If you need this file for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked file transfer",
+        "intro": "A file transfer was blocked by policy.",
+        "prompt": "Why I need this file:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Turn on SafeSearch to continue",
+      "headline": "Turn on SafeSearch to continue",
+      "gloss": "Your search was blocked because SafeSearch is not switched on. Company policy requires SafeSearch on the search engines it covers.",
+      "facts": ["User", "Time"],
+      "action2": "Open search settings",
+      "extra": [
+        "Set SafeSearch to its strictest option, then run your search again. If you are signed in to the search engine, lock the setting as well.",
+        "Still blocked after turning SafeSearch on? Contact ",
+        " and IT will take a look."
+      ],
+      "report": {
+        "subject": "SafeSearch still blocked",
+        "intro": "SafeSearch is enabled but my search is still blocked.",
+        "prompt": "What I searched for:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Certificate problem",
+      "headline": "This site's certificate could not be verified",
+      "gloss": "The server presented a certificate that could not be checked, so the connection was stopped.",
+      "facts": ["Server", "Certificate", "Issuer", "Status", "Reason", "Category", "User", "Time"],
+      "extra": "Do not sign in or enter personal details on this site until IT has looked at it.",
+      "report": {
+        "subject": "Certificate error",
+        "intro": "A certificate could not be verified on this connection.",
+        "prompt": "What I was trying to reach:"
+      }
+    },
+    "url-block-page": {
+      "title": "This site is blocked",
+      "headline": "This site is blocked",
+      "gloss": "This category is restricted by company policy.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": "If you believe this site is needed for your work, send the report above and IT will review it.",
+      "report": {
+        "subject": "Blocked site report",
+        "intro": "Please review this block.",
+        "prompt": "Why I need access:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Continue to this site?",
+      "headline": "Continue to this site?",
+      "gloss": "This category is restricted by company policy.",
+      "facts": ["Address", "Category", "User", "Time"],
+      "extra": ["Continuing grants access to ", "every site in this category", " for {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Category warning - continue page",
+        "intro": "I was warned before continuing.",
+        "prompt": "Why I think the category is wrong:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Download blocked",
+      "headline": "Download blocked",
+      "gloss": "Antivirus scanning found malware in this file, so the download was stopped.",
+      "facts": ["File", "User", "Time"],
+      "contactAlt": ["Or email ", " straight away."],
+      "extra": "If you have opened a copy of this file from somewhere else, tell IT — it may already be on your device.",
+      "report": {
+        "subject": "Malware detected in a download",
+        "intro": "A download was blocked by antivirus scanning.",
+        "prompt": "What I was doing:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Sign in",
+      "getSoftware": "Get Agent Software",
+      "glossSignIn": "Use your company account to sign in.",
+      "glossSoftware": "Download the agent for your operating system, then sign in from the app.",
+      "download": "Download",
+      "otherPlatforms": "Other platforms",
+      "note": ["Need help? Contact ", "."],
+      "downloadFor": "Download for ",
+      "chooseDownload": "Choose your download",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bit",
+      "bit32": "32-bit",
+      "formUser": "Username",
+      "formPassword": "Password",
+      "formNewPassword": "New Password",
+      "formConfirmPassword": "confirm New Password",
+      "formSubmit": "Log In"
+    },
+    "home": {
+      "logoutMessages": [
+        "You have successfully logged out of GlobalProtect portal.",
+        "The GlobalProtect portal is not licensed. Purchase or activate the license for your GlobalProtect subscription.",
+        "User not authenticated to GlobalProtect portal.",
+        "System error. Contact {{CONTACT_REACHABLE}}.",
+        "System error, failed to delete user session. Contact {{CONTACT_REACHABLE}}.",
+        "Cannot create user session, maximum capacity reached. Contact {{CONTACT_REACHABLE}}.",
+        "Your login session has expired and you have been logged out for security reasons. Please log in again if you wish to continue."
+      ]
+    }
+  }
+}

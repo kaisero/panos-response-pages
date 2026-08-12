@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import base64
 import re
+from collections.abc import Sequence
 
-from panos_response_pages.validate import external_refs
+from panos_response_pages.validate import built_with, external_refs
 
 # Measured, not guessed. PAN-OS rejected a 24_000 B import with:
 #
@@ -105,8 +106,32 @@ def detect_kind(text: str) -> str:
     return "home" if "logout_text_array" in text else "login"
 
 
-def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
-    """Returns (size, errors, warnings), mirroring validate.validate()."""
+# What a style over the portal ceiling can actually give back.
+#
+# NOT the block pages' recovery. That one offers the optional per-language
+# `categories` block first and keeps the language; this dictionary has no
+# optional block -- every key in it is a word the login form or the logout page
+# renders -- so the only thing to drop is the whole feature. Quoting the
+# categories block here would send a reader looking for a block that is not in
+# the file.
+#
+# It matters more here than there. The block pages fit five extra languages
+# before the warn band; the portal imports fit two.
+RECOVERY = (
+    ' A style with no room for them declares "i18n": false and ships the base language alone --'
+    " this dictionary has no optional block to drop first."
+)
+
+
+def validate_portal(text: str, languages: Sequence[str] = ()) -> tuple[int, list[str], list[str]]:
+    """Returns (size, errors, warnings), mirroring validate.validate().
+
+    `languages` is what the import was BUILT with, which on a style declaring
+    `"i18n": false` is not what the config lists. Like the block-page guard, it
+    only ever appears in the two size messages: the file is too big, so what is
+    in it that could come out. Optional for the same reason too -- the CLI runs
+    this over already-built files where no config is in hand.
+    """
     raw = text.encode("utf-8")
     errors: list[str] = []
     warnings: list[str] = []
@@ -114,13 +139,15 @@ def validate_portal(text: str) -> tuple[int, list[str], list[str]]:
     # Report the encoded length too -- that is the number PAN-OS quotes back.
     size = len(raw)
     encoded = encoded_size(text)
+    langs = built_with(languages)
+    recovery = RECOVERY if langs else ""
     if size > SOFT_MAX:
         errors.append(
             f"{size} B encodes to {encoded} chars, over the {MAX_ENCODED} limit "
-            f"(max file size {SOFT_MAX} B) -- PAN-OS will refuse the import"
+            f"(max file size {SOFT_MAX} B) --{langs} PAN-OS will refuse the import.{recovery}"
         )
     elif size > WARN_AT:
-        warnings.append(f"{size} B of {SOFT_MAX} B ({encoded}/{MAX_ENCODED} encoded)")
+        warnings.append(f"{size} B of {SOFT_MAX} B ({encoded}/{MAX_ENCODED} encoded){langs}{recovery}")
 
     kind = detect_kind(text)
 

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from panos_response_pages import contact, redirect
+from panos_response_pages import contact, i18n, redirect
 from panos_response_pages.errors import BuildError
-from panos_response_pages.scripts import FRAME_BUSTER, SEV_LABEL, category_js
+from panos_response_pages.scripts import FRAME_BUSTER, PREVIEW_SWAP, category_js
 from panos_response_pages.templates import assert_resolved, parse_sections, read, substitute
 from panos_response_pages.validate import TOKEN_RE
 
@@ -75,6 +76,8 @@ def build_page(
     preview: bool,
     template_dir: pathlib.Path,
     redirect_demo: bool = False,
+    preview_languages: Sequence[str] = (),
+    preview_swap: bool = False,
 ) -> str:
     shell = read(template_dir / "shells" / f"{theme['shell']}.html")
     # Kept whole for the gallery, dropped for the firewall. Either way the
@@ -95,8 +98,20 @@ def build_page(
     # otherwise surfaces as a KeyError from inside substitution, naming a
     # template token instead of the config key the author got wrong.
     contact.check(cfg)
+    # The base language is written into the markup as real text. Resolved before
+    # the sections are substituted, because a translated string may itself carry
+    # {{COMPANY}} or {{CONTINUE_GRANT}} -- re.sub does not rescan replacement
+    # text, so a value inserted in a later pass would ship as literal braces.
+    strings = i18n.load(i18n.base_language(cfg), template_dir.parent)
     base = {
         "COMPANY": cfg["company"],
+        # <html lang>. The markup IS the base language, so this is the only
+        # honest value for it -- and the runtime depends on that being true:
+        # the selection loop breaks on the base language WITHOUT assigning
+        # documentElement.lang, so a German-base page served to a German browser
+        # would keep whatever the shell hardcoded and format its timestamp to
+        # that locale instead. Renders "en" for every existing config.
+        "BASE_LANG": i18n.base_language(cfg),
         # Empty in URL mode. The token still has to resolve: it appears in
         # sections URL mode discards, and substitute() raises on an unknown key
         # whether or not the text survives.
@@ -109,6 +124,14 @@ def build_page(
         "WARN_MARK": cfg["marks"]["warning"],
         "INFO_MARK": cfg["marks"]["info"],
     }
+    # Copy is resolved against the values above, not alongside them: a
+    # placeholder inside a translated string has to be substituted BEFORE that
+    # string becomes a replacement, because re.sub will not rescan it.
+    #
+    # Unconditional: a page with no entry in the strings document has no copy at
+    # all, and page_values says which page rather than letting the build fail
+    # later as an unresolved {{T_TITLE}} that names a token instead.
+    base.update(i18n.page_values(strings, page, base))
     # The two contact sections are resolved first and on their own: they carry
     # {{SUPPORT_EMAIL}} and nothing else, and their results ARE the values the
     # {{CONTACT_*}} tokens in ACTIONS and EXTRA resolve to. Folding them into
@@ -139,6 +162,18 @@ def build_page(
     demo = redirect_demo and page == redirect.PAGE and redirect.supported(theme)
     if demo and not preview:
         raise BuildError("redirect_demo is a preview-only build; it must never reach deploy/")
+
+    # The gallery's Language control, which offers every language this data
+    # directory ships rather than the ones `languages` turned on -- the shipped
+    # default is `languages: ["en"]`, so a config-driven list would be empty and
+    # nobody could look at the German in this tree. Guarded exactly as
+    # redirect_demo is, and for the same reason: these are pages a firewall would
+    # serve, and a deploy build carrying a dictionary the config never asked for
+    # is a page whose language a customer cannot account for.
+    if preview_languages and not preview:
+        raise BuildError("preview_languages is a preview-only build; it must never reach deploy/")
+    if preview_swap and not preview:
+        raise BuildError("preview_swap is a preview-only build; it must never reach deploy/")
     # Everything downstream reads the demo config, not just the redirect: the
     # category the notice keys on needs a tone and a gloss from the same map, or
     # the page renders a redirect for a category it cannot describe.
@@ -148,11 +183,69 @@ def build_page(
     # room for the notice, and a customer opted in -- so every other page, every
     # style without it, and every build with the feature off is byte-identical to
     # one from before it existed.
-    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, loop=demo)
+    redirect_css, redirect_html, redirect_js = redirect.emit(eff, page, theme, data_dir=template_dir.parent, loop=demo)
 
     # One read, two uses: the static tone and the label derived from it must not
     # be able to disagree about what the template declared.
     tone = parts.get("TONE", "calm")
+
+    # The severity labels are `shared` copy like every other string in the file,
+    # so they get the same treatment: resolved against the fully-populated
+    # `base`, once, and used resolved at both sites below. Skipping this would
+    # not fail loudly -- a label reaches the page as a {{SEVERITY}} replacement
+    # and as JSON handed to textContent, and re.sub does not rescan replacement
+    # text, so a `{{COMPANY}}` written into a severity label would ship to a
+    # user as literal braces with a clean build behind it. Today's three labels
+    # carry no placeholder, which is exactly why the asymmetry has to be closed
+    # here rather than relied upon to surface later.
+    severity = i18n.resolve(strings["shared"]["severity"], base)
+
+    # The runtime dictionary, and the empty string on the single-language builds
+    # that are every existing customer. It carries the base language's
+    # translations of nothing, because the base language IS the markup -- so a
+    # config that lists one language compiles no dictionary and emits no
+    # selector, and its pages are byte-identical to pages from before this
+    # existed.
+    #
+    # A style that declares `"i18n": false` takes the same branch on any config.
+    # Not a preference: the dictionary and its runtime are ~1200 B plus ~750 B a
+    # language, and nyan's URL block page is 15108 B against a 17999 B ceiling
+    # that PAN-OS enforces by SILENTLY serving its own default page instead.
+    # Refusing the whole build there would punish the customer for a style they
+    # may not use; shipping it and overflowing would look, from the outside,
+    # exactly like the page had never been imported. The third answer is this
+    # one -- that style renders `baseLanguage` and nothing else -- and it is the
+    # only one of the three that is both safe and visible, because
+    # `format_report` prints the shortfall on that style's rows.
+    #
+    # ensure_ascii=False matters: "ä" costs two bytes where "ä" costs six,
+    # and this dictionary ships on every page of every style.
+    #
+    # A preview build compiles `preview_languages` instead, but only where the
+    # style carries the feature at all: an opted-out style ships one language, and
+    # a preview that swapped anyway would show a page no firewall will ever serve.
+    # That is also what the gallery keys its Language control off, so the control
+    # disappears on exactly the styles whose frames would not answer it.
+    #
+    # `preview_swap` is the gallery's own form and compiles NO language at all:
+    # the dictionary arrives as an argument to the swap, out of a sibling file
+    # the gallery fetches when a reader asks for that language. The page still
+    # carries the selector and the apply half -- an empty `T` simply never
+    # matches, so the frame renders the base language until it is handed one --
+    # and that is what keeps index.html the same size however many languages the
+    # tree ships. It follows the same opt-out as the list: a style that declares
+    # `"i18n": false` gets no hook, because the gallery hides the control for it.
+    compiled = list(preview_languages) if preview_languages and i18n.enabled(theme) else i18n.shipped(cfg, theme)
+    external = preview_swap and i18n.enabled(theme)
+    lang_dict = (
+        json.dumps(
+            i18n.runtime_dict(cfg, page, template_dir.parent, langs=compiled),
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        if len(compiled) > 1
+        else ("{}" if external else "")
+    )
 
     values = dict(base)
     values.update(
@@ -164,7 +257,7 @@ def build_page(
             "ACTIONS": parts["ACTIONS"],
             "EXTRA": parts.get("EXTRA", ""),
             "TONE": tone,
-            "SEVERITY": SEV_LABEL.get(tone, ""),
+            "SEVERITY": severity.get(tone, ""),
             "MARK": parts.get("MARK", cfg["marks"]["shield"]),
             "REDIRECT_CSS": redirect_css,
             "REDIRECT": redirect_html,
@@ -183,8 +276,14 @@ def build_page(
                 eff["defaultGloss"],
                 eff["riskGloss"],
                 lock_copy=parts.get("COPY_LOCK", "").strip() == "1",
+                severity=severity,
                 has_category='id="cat"' in parts["FACTS"],
                 email_mode=contact.mode(cfg) == contact.EMAIL,
+                lang_dict=lang_dict,
+                base_lang=i18n.base_language(cfg),
+                # Only where a language was compiled that the browser will not
+                # ask for. Derived from `preview` so it cannot be set on its own.
+                swap_global=PREVIEW_SWAP if preview and (preview_languages or preview_swap) else "",
             )
             + redirect_js,
         }

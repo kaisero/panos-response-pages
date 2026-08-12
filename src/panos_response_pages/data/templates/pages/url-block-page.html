@@ -4,27 +4,27 @@
   Tokens available: <user/> <url/> <category/>
 -->
 
-<!--@TITLE-->This site is blocked<!--/@TITLE-->
+<!--@TITLE-->{{T_TITLE}}<!--/@TITLE-->
 
 <!--@TONE-->calm<!--/@TONE-->
 
 <!--@MARK--><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5 12 3l8 4.5v5.2c0 4.6-3.3 8.5-8 9.3-4.7-.8-8-4.7-8-9.3Z"/><path d="m9 12.3 2.1 2.1 4-4.3"/></svg><!--/@MARK-->
 
-<!--@HEADLINE-->This site is blocked<!--/@HEADLINE-->
+<!--@HEADLINE-->{{T_HEADLINE}}<!--/@HEADLINE-->
 
-<!--@GLOSS-->This category is restricted by company policy.<!--/@GLOSS-->
+<!--@GLOSS-->{{T_GLOSS}}<!--/@GLOSS-->
 
 <!--@FACTS-->
-<div class="f"><dt>Address</dt><dd class="mono"><url/></dd></div>
-<div class="f"><dt>Category</dt><dd id="cat"><category/></dd></div>
-<div class="f"><dt>User</dt><dd><user/></dd></div>
-<div class="f"><dt>Time</dt><dd id="ts"></dd></div>
+<div class="f"><dt>{{T_FACT1}}</dt><dd class="mono"><url/></dd></div>
+<div class="f"><dt>{{T_FACT2}}</dt><dd id="cat"><category/></dd></div>
+<div class="f"><dt>{{T_FACT3}}</dt><dd><user/></dd></div>
+<div class="f"><dt>{{T_FACT4}}</dt><dd id="ts"></dd></div>
 <!--/@FACTS-->
 
 <!--@ACTIONS-->
-<a class="btn" id="rep"{{CONTACT_TO}} data-subject="Blocked site report"
-   data-intro="Please review this block." data-prompt="Why I need access:"
-   href="{{CONTACT_HREF}}">Report to IT</a>
+<a class="btn" id="rep"{{CONTACT_TO}} data-subject="{{T_REPORT_SUBJECT}}"
+   data-intro="{{T_REPORT_INTRO}}" data-prompt="{{T_REPORT_PROMPT}}"
+   href="{{CONTACT_HREF}}">{{T_REPORT_LABEL}}</a>
 {{CONTACT_ALT}}
 <!--/@ACTIONS-->
 
@@ -41,8 +41,8 @@
 -->
 <!--@CONTACT_MAILTO-->mailto:{{SUPPORT_EMAIL}}<!--/@CONTACT_MAILTO-->
 
-<!--@CONTACT_ALT--><p class="plain">Or email <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a> with the details above.</p><!--/@CONTACT_ALT-->
+<!--@CONTACT_ALT--><p class="plain">{{T_CONTACT_ALT1}}<a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>{{T_CONTACT_ALT2}}</p><!--/@CONTACT_ALT-->
 
 <!--@EXTRA-->
-<p class="infobox">{{INFO_MARK}}<span>If you believe this site is needed for your work, send the report above and IT will review it.</span></p>
+<p class="infobox">{{INFO_MARK}}<span>{{T_EXTRA}}</span></p>
 <!--/@EXTRA-->

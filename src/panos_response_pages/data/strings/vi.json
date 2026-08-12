@@ -1,0 +1,194 @@
+{
+  "lang": "vi",
+  "name": "Vietnamese",
+  "shared": {
+    "reportLabel": "Báo cho IT",
+    "contactAlt": ["Hoặc gửi email tới ", " kèm theo thông tin ở trên."],
+    "severity": { "calm": "", "warn": "Chú ý", "crit": "Rủi ro bảo mật" },
+    "defaultGloss": "Chính sách công ty hạn chế danh mục này.",
+    "riskGloss": "Trang web này bị chặn vì có rủi ro bảo mật.",
+    "continueGrantText": "15 phút",
+    "supportLabel": "Hỗ trợ IT",
+    "redirect": {
+      "go": "Đi ngay",
+      "stay": "Ở lại",
+      "cancelled": "Bạn đang ở lại trang này.",
+      "cancelledAnnounce": "Đã hủy. Bạn đang ở lại trang này.",
+      "announce": "Bạn sẽ được chuyển tới {app} sau {n} giây. Chọn Ở lại hoặc nhấn Escape để ở lại trang này."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Ứng dụng bị chặn",
+      "headline": "Ứng dụng này bị chặn",
+      "gloss": "Chính sách công ty hạn chế ứng dụng này trên mạng.",
+      "facts": ["Ứng dụng", "Người dùng", "Thời gian"],
+      "extra": "Bạn cần ứng dụng này cho công việc? Hãy gửi báo cáo ở trên, bộ phận IT sẽ xem xét.",
+      "report": {
+        "subject": "Báo cáo ứng dụng bị chặn",
+        "intro": "Vui lòng xem xét việc chặn ứng dụng này.",
+        "prompt": "Lý do tôi cần ứng dụng này:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Đã chặn việc gửi thông tin đăng nhập",
+      "headline": "Đã chặn việc gửi thông tin đăng nhập",
+      "gloss": "Bạn vừa cố gửi tên người dùng và mật khẩu công việc tới trang web này. Chúng tôi không nhận diện đây là trang web đáng tin cậy.",
+      "facts": ["Địa chỉ", "Danh mục", "Người dùng", "Thời gian"],
+      "contactAlt": ["Hoặc gửi email ngay tới ", "."],
+      "extra": "{{COMPANY}} không bao giờ hỏi mật khẩu của bạn trên trang như thế này. Nếu một trang web yêu cầu đăng nhập và bạn thấy có gì đó bất thường, hãy đóng thẻ và vào dịch vụ trực tiếp từ dấu trang.",
+      "report": {
+        "subject": "Có thể là trang lừa đảo - đã chặn việc gửi thông tin đăng nhập",
+        "intro": "Một lần gửi thông tin đăng nhập đã bị chặn.",
+        "prompt": "Việc tôi đang làm:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Đây có thật là trang đăng nhập của công ty không?",
+      "headline": "Đây có thật là trang đăng nhập của công ty không?",
+      "gloss": "Bạn sắp gửi tên người dùng và mật khẩu công việc tới trang web này. Chúng tôi không nhận diện đây là trang web của công ty.",
+      "facts": ["Địa chỉ", "Danh mục", "Người dùng", "Thời gian"],
+      "extra": "Hãy kiểm tra kỹ địa chỉ ở trên — chú ý những lỗi chính tả nhỏ trong một tên bạn quen thuộc. Nếu tiếp tục, thông tin đăng nhập của bạn sẽ được gửi đi và được ghi lại dưới tên bạn.",
+      "report": {
+        "subject": "Có thể là trang lừa đảo - lời nhắc nhập thông tin đăng nhập",
+        "intro": "Tôi đã được cảnh báo trước khi gửi thông tin đăng nhập.",
+        "prompt": "Việc tôi đang làm:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Đã chặn việc truyền dữ liệu",
+      "headline": "Đã chặn việc truyền dữ liệu",
+      "gloss": "Chính sách công ty hạn chế truyền nội dung này, nên việc truyền đã bị dừng.",
+      "facts": ["Hướng", "Tệp", "Ứng dụng", "Người dùng", "Thời gian"],
+      "extra": "Bạn cần gửi nội dung này cho công việc? Hãy gửi báo cáo ở trên, bộ phận IT sẽ xem xét.",
+      "report": {
+        "subject": "Đã chặn việc truyền dữ liệu",
+        "intro": "Một lần truyền dữ liệu đã bị chặn theo chính sách.",
+        "prompt": "Lý do tôi cần gửi nội dung này:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Tiếp tục tải tệp này?",
+      "headline": "Tiếp tục tải tệp này?",
+      "gloss": "Chính sách công ty hạn chế tải tệp thuộc loại này. Bạn có thể tiếp tục nếu cần tệp này cho công việc.",
+      "facts": ["Tệp", "Người dùng", "Thời gian"],
+      "extra": "Chỉ tiếp tục nếu bạn biết tệp này là gì và đến từ đâu.",
+      "report": {
+        "subject": "Cảnh báo khi tải tệp",
+        "intro": "Tôi đã được cảnh báo trước khi tải một loại tệp bị hạn chế.",
+        "prompt": "Việc tôi đang làm:"
+      }
+    },
+    "file-block-page": {
+      "title": "Loại tệp này bị chặn",
+      "headline": "Loại tệp này bị chặn",
+      "gloss": "Chính sách công ty hạn chế truyền tệp thuộc loại này, nên việc truyền đã bị dừng.",
+      "facts": ["Tệp", "Người dùng", "Thời gian"],
+      "extra": "Bạn cần tệp này cho công việc? Hãy gửi báo cáo ở trên, bộ phận IT sẽ xem xét.",
+      "report": {
+        "subject": "Đã chặn việc truyền tệp",
+        "intro": "Một lần truyền tệp đã bị chặn theo chính sách.",
+        "prompt": "Lý do tôi cần tệp này:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Bật SafeSearch để tiếp tục",
+      "headline": "Bật SafeSearch để tiếp tục",
+      "gloss": "Tìm kiếm của bạn bị chặn vì SafeSearch chưa được bật. Chính sách công ty yêu cầu bật SafeSearch trên các công cụ tìm kiếm mà chính sách áp dụng.",
+      "facts": ["Người dùng", "Thời gian"],
+      "action2": "Mở cài đặt tìm kiếm",
+      "extra": [
+        "Hãy đặt SafeSearch ở mức nghiêm ngặt nhất, rồi tìm kiếm lại. Nếu bạn đã đăng nhập vào công cụ tìm kiếm, hãy khóa luôn cài đặt này.",
+        "Vẫn bị chặn sau khi bật SafeSearch? Hãy liên hệ ",
+        " và bộ phận IT sẽ xem giúp bạn."
+      ],
+      "report": {
+        "subject": "Đã bật SafeSearch nhưng vẫn bị chặn",
+        "intro": "SafeSearch đã bật nhưng tìm kiếm của tôi vẫn bị chặn.",
+        "prompt": "Nội dung tôi đã tìm:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Sự cố chứng chỉ",
+      "headline": "Không xác minh được chứng chỉ của trang web này",
+      "gloss": "Máy chủ đưa ra một chứng chỉ không kiểm tra được, nên kết nối đã bị dừng.",
+      "facts": ["Máy chủ", "Chứng chỉ", "Bên cấp", "Trạng thái", "Lý do", "Danh mục", "Người dùng", "Thời gian"],
+      "extra": "Đừng đăng nhập hay nhập thông tin cá nhân trên trang web này cho tới khi bộ phận IT xem xét.",
+      "report": {
+        "subject": "Lỗi chứng chỉ",
+        "intro": "Không xác minh được chứng chỉ trên kết nối này.",
+        "prompt": "Trang tôi muốn truy cập:"
+      }
+    },
+    "url-block-page": {
+      "title": "Trang web này bị chặn",
+      "headline": "Trang web này bị chặn",
+      "gloss": "Chính sách công ty hạn chế danh mục này.",
+      "facts": ["Địa chỉ", "Danh mục", "Người dùng", "Thời gian"],
+      "extra": "Bạn cho rằng cần trang web này cho công việc? Hãy gửi báo cáo ở trên, bộ phận IT sẽ xem xét.",
+      "report": {
+        "subject": "Báo cáo trang web bị chặn",
+        "intro": "Vui lòng xem xét việc chặn này.",
+        "prompt": "Lý do tôi cần truy cập:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Tiếp tục tới trang web này?",
+      "headline": "Tiếp tục tới trang web này?",
+      "gloss": "Chính sách công ty hạn chế danh mục này.",
+      "facts": ["Địa chỉ", "Danh mục", "Người dùng", "Thời gian"],
+      "extra": ["Tiếp tục sẽ mở quyền truy cập vào ", "mọi trang web trong danh mục này", " trong {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Cảnh báo danh mục - trang tiếp tục",
+        "intro": "Tôi đã được cảnh báo trước khi tiếp tục.",
+        "prompt": "Lý do tôi cho rằng danh mục bị sai:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Đã chặn việc tải xuống",
+      "headline": "Đã chặn việc tải xuống",
+      "gloss": "Quá trình quét virus phát hiện mã độc trong tệp này, nên việc tải xuống đã bị dừng.",
+      "facts": ["Tệp", "Người dùng", "Thời gian"],
+      "contactAlt": ["Hoặc gửi email ngay tới ", "."],
+      "extra": "Nếu bạn đã mở một bản sao của tệp này từ nơi khác, hãy báo cho bộ phận IT — tệp có thể đã có trên thiết bị của bạn.",
+      "report": {
+        "subject": "Phát hiện mã độc trong một tệp tải xuống",
+        "intro": "Một lượt tải xuống đã bị chặn bởi quá trình quét virus.",
+        "prompt": "Việc tôi đang làm:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Đăng nhập",
+      "getSoftware": "Tải phần mềm agent",
+      "glossSignIn": "Hãy dùng tài khoản công ty của bạn để đăng nhập.",
+      "glossSoftware": "Hãy tải agent cho hệ điều hành của bạn, rồi đăng nhập từ ứng dụng.",
+      "download": "Tải xuống",
+      "otherPlatforms": "Nền tảng khác",
+      "note": ["Cần trợ giúp? Hãy liên hệ ", "."],
+      "downloadFor": "Tải xuống cho ",
+      "chooseDownload": "Chọn bản tải xuống",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bit",
+      "bit32": "32-bit",
+      "formUser": "Tên người dùng",
+      "formPassword": "Mật khẩu",
+      "formNewPassword": "Mật khẩu mới",
+      "formConfirmPassword": "xác nhận Mật khẩu mới",
+      "formSubmit": "Đăng nhập"
+    },
+    "home": {
+      "logoutMessages": [
+        "Bạn đã đăng xuất khỏi cổng GlobalProtect.",
+        "Cổng GlobalProtect chưa có giấy phép. Hãy mua hoặc kích hoạt giấy phép cho gói đăng ký GlobalProtect của bạn.",
+        "Người dùng chưa được xác thực với cổng GlobalProtect.",
+        "Lỗi hệ thống. Hãy liên hệ {{CONTACT_REACHABLE}}.",
+        "Lỗi hệ thống, không xóa được phiên người dùng. Hãy liên hệ {{CONTACT_REACHABLE}}.",
+        "Không tạo được phiên người dùng, đã đạt số lượng tối đa. Hãy liên hệ {{CONTACT_REACHABLE}}.",
+        "Phiên đăng nhập của bạn đã hết hạn và bạn đã bị đăng xuất vì lý do bảo mật. Hãy đăng nhập lại nếu muốn tiếp tục."
+      ]
+    }
+  }
+}

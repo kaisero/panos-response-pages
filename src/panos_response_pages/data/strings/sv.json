@@ -1,0 +1,194 @@
+{
+  "lang": "sv",
+  "name": "Swedish",
+  "shared": {
+    "reportLabel": "Anmäl till IT",
+    "contactAlt": ["Eller mejla ", " med uppgifterna ovan."],
+    "severity": { "calm": "", "warn": "Varning", "crit": "Säkerhetsrisk" },
+    "defaultGloss": "Företagets policy begränsar den här kategorin.",
+    "riskGloss": "Den här webbplatsen är blockerad eftersom den utgör en säkerhetsrisk.",
+    "continueGrantText": "15 minuter",
+    "supportLabel": "IT-support",
+    "redirect": {
+      "go": "Gå nu",
+      "stay": "Stanna kvar",
+      "cancelled": "Du stannar kvar på den här sidan.",
+      "cancelledAnnounce": "Avbrutet. Du stannar kvar på den här sidan.",
+      "announce": "Du skickas till {app} om {n} sekunder. Välj Stanna kvar eller tryck på Escape för att stanna på den här sidan."
+    }
+  },
+  "pages": {
+    "application-block-page": {
+      "title": "Program blockerat",
+      "headline": "Det här programmet är blockerat",
+      "gloss": "Företagets policy begränsar det här programmet i nätverket.",
+      "facts": ["Program", "Användare", "Tidpunkt"],
+      "extra": "Behöver du det här programmet i ditt arbete? Skicka rapporten ovan, så tittar IT på det.",
+      "report": {
+        "subject": "Rapport: blockerat program",
+        "intro": "Se gärna över den här blockeringen av ett program.",
+        "prompt": "Därför behöver jag det här programmet:"
+      }
+    },
+    "credential-block-page": {
+      "title": "Sändning av inloggning blockerad",
+      "headline": "Sändning av inloggning blockerad",
+      "gloss": "Du försökte just skicka ditt användarnamn och lösenord från jobbet till den här webbplatsen. Vi känner inte igen den som betrodd.",
+      "facts": ["Adress", "Kategori", "Användare", "Tidpunkt"],
+      "contactAlt": ["Eller mejla direkt till ", "."],
+      "extra": "{{COMPANY}} ber dig aldrig om ditt lösenord på en sida som den här. Om en webbplats ber dig logga in och något känns fel: stäng fliken och gå direkt till tjänsten via dina bokmärken.",
+      "report": {
+        "subject": "Möjlig nätfiskesida - sändning av inloggningsuppgifter blockerad",
+        "intro": "En sändning av inloggningsuppgifter blockerades.",
+        "prompt": "Det här höll jag på med:"
+      }
+    },
+    "credential-coach-text": {
+      "title": "Är det här verkligen företagets inloggningssida?",
+      "headline": "Är det här verkligen företagets inloggningssida?",
+      "gloss": "Du är på väg att skicka ditt användarnamn och lösenord från jobbet till den här webbplatsen. Vi känner inte igen den som en av våra.",
+      "facts": ["Adress", "Kategori", "Användare", "Tidpunkt"],
+      "extra": "Kontrollera adressen ovan noga — leta efter små stavfel i ett namn du känner igen. Om du fortsätter skickas dina inloggningsuppgifter, och det registreras i ditt namn.",
+      "report": {
+        "subject": "Möjlig nätfiskesida - begäran om inloggning",
+        "intro": "Jag varnades innan jag skickade mina inloggningsuppgifter.",
+        "prompt": "Det här höll jag på med:"
+      }
+    },
+    "data-filter-block-page": {
+      "title": "Dataöverföring blockerad",
+      "headline": "Dataöverföring blockerad",
+      "gloss": "Företagets policy begränsar överföring av det här innehållet. Överföringen stoppades därför.",
+      "facts": ["Riktning", "Fil", "Program", "Användare", "Tidpunkt"],
+      "extra": "Behöver du skicka det här i ditt arbete? Skicka rapporten ovan, så tittar IT på det.",
+      "report": {
+        "subject": "Blockerad dataöverföring",
+        "intro": "En dataöverföring blockerades av policyn.",
+        "prompt": "Därför behöver jag skicka det här:"
+      }
+    },
+    "file-block-continue-page": {
+      "title": "Vill du fortsätta med nedladdningen?",
+      "headline": "Vill du fortsätta med nedladdningen?",
+      "gloss": "Företagets policy begränsar nedladdning av den här filtypen. Du kan fortsätta om du behöver filen i ditt arbete.",
+      "facts": ["Fil", "Användare", "Tidpunkt"],
+      "extra": "Fortsätt bara om du vet vad filen är och varifrån den kommer.",
+      "report": {
+        "subject": "Varning vid nedladdning",
+        "intro": "Jag varnades innan jag laddade ned en begränsad filtyp.",
+        "prompt": "Det här höll jag på med:"
+      }
+    },
+    "file-block-page": {
+      "title": "Den här filtypen är blockerad",
+      "headline": "Den här filtypen är blockerad",
+      "gloss": "Företagets policy begränsar överföring av den här filtypen. Överföringen stoppades därför.",
+      "facts": ["Fil", "Användare", "Tidpunkt"],
+      "extra": "Behöver du den här filen i ditt arbete? Skicka rapporten ovan, så tittar IT på det.",
+      "report": {
+        "subject": "Blockerad filöverföring",
+        "intro": "En filöverföring blockerades av policyn.",
+        "prompt": "Därför behöver jag den här filen:"
+      }
+    },
+    "safe-search-block-page": {
+      "title": "Slå på SafeSearch för att fortsätta",
+      "headline": "Slå på SafeSearch för att fortsätta",
+      "gloss": "Din sökning blockerades eftersom SafeSearch inte är påslaget. Företagets policy kräver SafeSearch på de sökmotorer den omfattar.",
+      "facts": ["Användare", "Tidpunkt"],
+      "action2": "Öppna sökinställningar",
+      "extra": [
+        "Ställ in SafeSearch på den strängaste nivån och gör om din sökning. Är du inloggad hos sökmotorn, lås även inställningen.",
+        "Fortfarande blockerad efter att du slagit på SafeSearch? Kontakta ",
+        ", så tittar IT på det."
+      ],
+      "report": {
+        "subject": "SafeSearch påslaget, sökning fortfarande blockerad",
+        "intro": "SafeSearch är påslaget men min sökning blockeras fortfarande.",
+        "prompt": "Det här sökte jag efter:"
+      }
+    },
+    "ssl-cert-status-page": {
+      "title": "Certifikatproblem",
+      "headline": "Webbplatsens certifikat kunde inte verifieras",
+      "gloss": "Servern visade ett certifikat som inte gick att kontrollera. Anslutningen stoppades därför.",
+      "facts": ["Server", "Certifikat", "Utfärdare", "Status", "Orsak", "Kategori", "Användare", "Tidpunkt"],
+      "extra": "Logga inte in och fyll inte i personuppgifter på den här webbplatsen förrän IT har tittat på den.",
+      "report": {
+        "subject": "Certifikatfel",
+        "intro": "Ett certifikat kunde inte verifieras på den här anslutningen.",
+        "prompt": "Sidan jag ville öppna:"
+      }
+    },
+    "url-block-page": {
+      "title": "Den här webbplatsen är blockerad",
+      "headline": "Den här webbplatsen är blockerad",
+      "gloss": "Företagets policy begränsar den här kategorin.",
+      "facts": ["Adress", "Kategori", "Användare", "Tidpunkt"],
+      "extra": "Tror du att du behöver den här webbplatsen i ditt arbete? Skicka rapporten ovan, så tittar IT på det.",
+      "report": {
+        "subject": "Rapport: blockerad webbplats",
+        "intro": "Se gärna över den här blockeringen.",
+        "prompt": "Därför behöver jag åtkomst:"
+      }
+    },
+    "url-coach-text": {
+      "title": "Vill du fortsätta till webbplatsen?",
+      "headline": "Vill du fortsätta till webbplatsen?",
+      "gloss": "Företagets policy begränsar den här kategorin.",
+      "facts": ["Adress", "Kategori", "Användare", "Tidpunkt"],
+      "extra": ["Om du fortsätter får du åtkomst till ", "alla webbplatser i den här kategorin", " i {{CONTINUE_GRANT}}."],
+      "report": {
+        "subject": "Kategorivarning - sida med fortsätt-val",
+        "intro": "Jag varnades innan jag fortsatte.",
+        "prompt": "Därför tror jag att kategorin är fel:"
+      }
+    },
+    "virus-block-page": {
+      "title": "Nedladdning blockerad",
+      "headline": "Nedladdning blockerad",
+      "gloss": "Virusskanningen hittade skadlig kod i filen. Nedladdningen stoppades därför.",
+      "facts": ["Fil", "Användare", "Tidpunkt"],
+      "contactAlt": ["Eller mejla direkt till ", "."],
+      "extra": "Har du öppnat en kopia av filen från något annat ställe? Säg till IT — den kan redan finnas på din enhet.",
+      "report": {
+        "subject": "Skadlig kod hittad i en nedladdning",
+        "intro": "En nedladdning blockerades av virusskanningen.",
+        "prompt": "Det här höll jag på med:"
+      }
+    }
+  },
+  "portal": {
+    "login": {
+      "signIn": "Logga in",
+      "getSoftware": "Hämta agentprogram",
+      "glossSignIn": "Logga in med ditt företagskonto.",
+      "glossSoftware": "Hämta agenten för ditt operativsystem och logga sedan in i appen.",
+      "download": "Hämta",
+      "otherPlatforms": "Andra plattformar",
+      "note": ["Behöver du hjälp? Kontakta ", "."],
+      "downloadFor": "Hämta för ",
+      "chooseDownload": "Välj nedladdning",
+      "macos": "macOS",
+      "windows": "Windows ",
+      "bit64": "64-bitars",
+      "bit32": "32-bitars",
+      "formUser": "Användarnamn",
+      "formPassword": "Lösenord",
+      "formNewPassword": "Nytt lösenord",
+      "formConfirmPassword": "bekräfta nytt lösenord",
+      "formSubmit": "Logga in"
+    },
+    "home": {
+      "logoutMessages": [
+        "Du har loggat ut från GlobalProtect-portalen.",
+        "GlobalProtect-portalen saknar licens. Köp eller aktivera licensen för din GlobalProtect-prenumeration.",
+        "Användaren är inte autentiserad mot GlobalProtect-portalen.",
+        "Systemfel. Kontakta {{CONTACT_REACHABLE}}.",
+        "Systemfel: användarsessionen kunde inte tas bort. Kontakta {{CONTACT_REACHABLE}}.",
+        "Det går inte att skapa en användarsession, maxkapaciteten är nådd. Kontakta {{CONTACT_REACHABLE}}.",
+        "Din session har gått ut och du har loggats ut av säkerhetsskäl. Logga in igen om du vill fortsätta."
+      ]
+    }
+  }
+}

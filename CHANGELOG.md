@@ -4,41 +4,71 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.2]
 
 ### Added
 
-- **A tenth page type, `data-filter-block-page`** — the Data Filtering block,
-  served when a transfer matches a Data Filtering profile. It surfaces every
-  token PAN-OS provides on that page: the transfer direction, the file, the
-  application and the user.
-- `<direction/>` joins the token registry. It is provided on the data filtering
-  page alone, and it is the first token whose rendered value is not documented
-  anywhere — it appears in the shipped PAN-OS default but in none of the
-  published variable lists. The default uses it sentence-initially, implying a
-  capitalised `Upload`/`Download`, so the page uses it only as a fact-row value,
-  where either casing reads correctly. Confirm it on live hardware before
-  relying on it in prose.
-- **An eleventh page type, `ssl-cert-status-page`** — the certificate error a
-  user meets on a decrypted session. It is the first page whose subject is the
-  *server* rather than the organisation: it explains that a certificate could
-  not be verified, and its advice is to not sign in, rather than to ask for the
-  site to be allowed. Tone is `warn` rather than `crit` deliberately — an expired
-  certificate and an active interception arrive here identically, and rendering
-  every one as a security risk teaches people to click through the ones that
-  matter.
-- Four more tokens: `<certname/>`, `<issuer/>`, `<status/>` and `<reason/>`, all
-  provided on the certificate page alone. They appear in the shipped PAN-OS
-  default and are corroborated as a group by the community variable list; no
-  official source documents them, and nothing documents what `<status/>` and
-  `<reason/>` contain. `<badcert/>` is named in that same community list but does
-  *not* appear in the vendor default, so it is deliberately left unregistered.
-- `<url/>` is documented as rendering the **destination IP** on the decryption
-  path, which is what it does on the certificate page — the vendor default labels
-  that row `IP:`. The page labels it `Server` so it reads correctly whether an
-  address or a hostname arrives, and the preview gallery now substitutes an
-  address there rather than the shared long-URL sample — `SAMPLE` is keyed by
-  token, so a new `PAGE_SAMPLE` map carries the per-page exceptions.
+- **Multi-language response pages.** Every configured language is compiled into
+  the page and the browser picks one from `navigator.languages` at load time.
+  Two new config keys: `baseLanguage` (rendered as real text, and what a browser
+  without JavaScript shows) and `languages`. Two-letter primary subtags only, so
+  `de` matches `de-AT`, `de-CH` and `de-DE`. A build with the default
+  `languages: ["en"]` is byte-identical to before.
+- **Thirteen shipped languages** — English, German, Spanish, Italian, French,
+  Dutch, Danish, Swedish, Japanese, Chinese (Simplified), Vietnamese, Russian
+  and Ukrainian, each a complete `data/strings/<code>.json`. **Everything beyond
+  English and German is model-drafted and unreviewed by a native speaker**; have
+  one read the pages you intend to serve.
+- **Not all thirteen fit in one build.** The GlobalProtect portal's 16,170 B
+  import ceiling is the binding constraint: roughly English plus three to five
+  others, depending which. Cost is driven by character count, not bytes per
+  character — Chinese is cheapest at 651 B per page, Russian dearest at
+  1,185 B, plus a one-off 1,197 B runtime.
+- **`translations`, for your own copy** — `defaultGloss`, `riskGloss`,
+  `continueGrantText`, `supportLabel`, `logoutMessages` and the redirect
+  sentence. Your block beats the shipped strings file; a key you omit falls back
+  to that language's shipped translation, not to the base language.
+- **A theme may decline extra languages with `"i18n": false`.** `nyan` does, for
+  lack of headroom. Any other style that overflows fails the build.
+- **Guards for translation failures**: exact key parity in both directions, no
+  empty strings, no `<` or `>` in any copy (a PAN-OS token inside JSON would be
+  expanded by the firewall and break the page script), and a per-language
+  `facts` count against the template. The copy audit runs over every language
+  file.
+- **PAN-OS's own injected login form is translated** — `#user`, `#passwd`,
+  `#submit` and the two change-password fields. Re-applied on `window.onload`
+  and individually guarded, so a renamed id degrades to English.
+- **A tenth page type, `data-filter-block-page`**, plus the `<direction/>`
+  token it provides.
+- **An eleventh page type, `ssl-cert-status-page`**, plus `<certname/>`,
+  `<issuer/>`, `<status/>` and `<reason/>`. Tone is `warn`, not `crit`.
+
+### Changed
+
+- **Page copy has moved out of the templates into `data/strings/<lang>.json`.**
+  **If you forked the templates with `init` to reword a page, that wording now
+  lives in `strings/en.json`** and your edited template is no longer used.
+  `SEV_LABEL` moves from Python into `shared.severity`.
+- **If you forked the data directory with `init`, refresh it: `init --force`**
+  (back up your `config/` first). A tree without `strings/` now fails every
+  build, including single-language ones.
+- The redirect notice is translatable: its furniture lives in
+  `shared.redirect`, its sentence in `translations.<lang>.redirect`. A language
+  translating the per-category sentences but not the default `message` is now
+  refused.
+- The preview gallery loads languages on demand from `preview/lang-<code>.js`
+  instead of inlining them, so `index.html` no longer grows with the language
+  count.
+
+### Known limitations
+
+- German plus an enabled redirect puts `url-block-page` over the 16,000 B warn
+  line on `beacon`, `glass` and `mesh` (by 202, 494 and 84 B). Well under the
+  17,999 B hard ceiling, so the build warns rather than fails.
+- The copy-rule guard matches English and German phrases only.
+- `zh` is served to Traditional readers too, since keys are two-letter subtags.
+- In `supportUrl` mode the portal's logout messages assemble `"<name> at <url>"`
+  in code, so that `at` stays English.
 
 ## [0.1.1]
 

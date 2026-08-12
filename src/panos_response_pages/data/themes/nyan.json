@@ -3,5 +3,9 @@
   "label": "Nyan Runway",
   "shell": "nyan",
   "palette": "nyan",
+  "_redirect": "Whether this style can carry the sanctioned-app redirect notice. False here, and written down rather than omitted: `redirect.declares` reads an ABSENT key as a data directory copied out before the flag existed and warns about it, so leaving it out made a deliberate opt-out look like a stale tree to every customer who turned the redirect on.",
+  "redirect": false,
+  "_i18n": "Whether this style compiles the configured languages beyond the base one. False here alone. The runtime and its dictionary cost ~1200 B once plus ~750 B per extra language, and this page is 15108 B against a 17999 B ceiling before either -- German alone lands it at 17370 B, 629 B short of the point where PAN-OS silently serves its own default instead. The star field and the sprite are half the file and they are what this style IS, so trimming them to fit a dictionary would leave nothing worth shipping. A config listing more languages still builds here; this style renders `baseLanguage` and the build table says so on its rows.",
+  "i18n": false,
   "_note": "A pixel cat flying across a sky beside the notice, laying the trail it is known for; its legs and tail animate as a frame swap, the way the original's do. The notice is held out of the lane so the two never overlap, and the card is glass so the trail passes behind it rather than through the words. The one style that pins its own palette: its colour is the point of it, and a customer's brand palette would leave nothing of it behind. Tone still reaches the pill, the mark and the glow -- a critical verdict is not softened here either."
 }

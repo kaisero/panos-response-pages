@@ -1,6 +1,6 @@
 [project]
 name = "panos-response-pages"
-version = "0.1.1"
+version = "0.1.2"
 description = "Self-contained PAN-OS URL Filtering and Anti-Phishing response pages, generated from templates"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -99,10 +99,79 @@ docstring-code-format = true
 # English misspelling dictionary reads ordinary German function words as typos
 # for English ones. Skipped for what they contain, not for being drafts:
 # docs/ proper stays checked.
-skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures"
+#
+# data/strings/de.json is skipped for that same reason, and by FILE rather than
+# by directory: en.json is English prose and stays checked, which is where a
+# real typo in the shipped copy would be. One page of German copy trips 77
+# entries, every one of them a pronoun, article or preposition that happens to
+# be an English misspelling as well. Enumerating those in ignore-words-list
+# instead would switch the same corrections off for en.json and for every Python
+# file in the tree -- a far larger hole than one skipped translation. Matched
+# with a leading glob so the skip holds whether codespell walks the tree (the
+# hook, with pass_filenames: false) or is handed the directory by hand.
+#
+# es.json, it.json and fr.json are skipped for exactly the same reason, and each
+# by name rather than by a `strings/*.json` glob: the glob would take en.json
+# with it, and en.json is the one file in that directory where a real typo in
+# the shipped copy would live. The Romance function words are the worst offenders
+# of all -- their pronouns, articles and prepositions are ordinary words in one
+# language and English misspellings in the dictionary, and there are more of them
+# per sentence than in German.
+#
+# nl.json, da.json and sv.json join them for the same reason, again by name. The
+# Germanic languages collide for a different reason than the Romance ones: they
+# are close enough to English that ordinary Dutch, Danish and Swedish function
+# words -- pronouns, conjunctions, short verb forms -- are themselves live
+# entries in the English misspelling dictionary, so every sentence trips several.
+# The comment cannot list examples: naming them here would trip the same check on
+# this file.
+#
+# ja.json, zh.json and vi.json are listed the same way, by name, though the
+# collision they risk is not the same one. Japanese and Chinese are written in
+# scripts the dictionary cannot match at all; what they do carry is the Latin
+# fragments the copy keeps verbatim -- product names, platform names, the two
+# placeholder tokens -- and a checker walking a file it otherwise skips over is
+# a false positive waiting to happen rather than a check worth keeping.
+# Vietnamese is Latin script and collides the ordinary way: its short, very
+# frequent function words are live entries in the English misspelling
+# dictionary, and stripping diacritics for comparison, which the checker does,
+# turns several more of them into English words spelled slightly wrong. Same
+# rule as above -- the class, not the instances, because naming one here would
+# fail this file.
+#
+# ru.json and uk.json are listed by name for the same reason, and their collision
+# class is a third one. Cyrillic is a script the dictionary cannot match, so the
+# Latin runs the copy keeps verbatim -- product names, platform names, the
+# placeholder tokens -- are the whole of what a checker would look at, exactly as
+# in the two CJK files. What is specific to Cyrillic is that a good part of its
+# alphabet is homoglyphic with Latin: short runs of it are indistinguishable from
+# ASCII in a font, so any correction the checker did propose here would be one no
+# reader could evaluate by eye, and applying it would replace Cyrillic letters
+# with Latin lookalikes -- copy that still renders correctly and no longer IS the
+# language. Same rule as above: the class, not the instances, because naming one
+# here would fail this file.
+skip = "*.lock,./.git,./.nox,./.venv,./site,./dist,./preview,./out,./tmp,./docs/preview,./docs/plans,./docs/specs,./src/panos_response_pages/data/fixtures,*/data/strings/de.json,*/data/strings/es.json,*/data/strings/it.json,*/data/strings/fr.json,*/data/strings/nl.json,*/data/strings/da.json,*/data/strings/sv.json,*/data/strings/ja.json,*/data/strings/zh.json,*/data/strings/vi.json,*/data/strings/ru.json,*/data/strings/uk.json"
 # "levl" is a deliberate misspelling in the test asserting that a typo'd
 # settings key is rejected rather than silently ignored.
 ignore-words-list = "levl"
+# German prose inside English documentation. `docs/customising.md` carries the
+# worked `translations` example, and one of its sentences is a translator's
+# German -- where the formal pronoun "Sie" is read as a typo for "Size".
+#
+# A regex rather than the two alternatives, both of which are wider:
+#
+# * `ignore-words-list = "sie"` switches that correction off in every file in the  # codespell:ignore
+#   tree, en.json and the Python sources included. This form is case-SENSITIVE,
+#   so it exempts the German pronoun and still catches a lower-case "sie" typed  # codespell:ignore
+#   for "size" in English prose.
+# * skipping docs/customising.md drops the check on ~400 lines of English
+#   documentation to protect one line of German.
+#
+# The marker used in validate.py cannot be used here: the sentence sits inside a
+# ```json block that a reader copies into their own config, and neither a JSON
+# comment nor an HTML one can be added to that line without breaking the example.
+# Same reasoning as the de.json skip above, at word granularity rather than file.
+ignore-regex = "\\bSie\\b"
 
 [tool.mypy]
 python_version = "3.11"

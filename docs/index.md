@@ -57,16 +57,20 @@ Output lands in two places:
 |---|---|
 | `out/deploy/<style>/<palette>/` | Deployable pages, PAN-OS tokens intact |
 | `out/preview/<style>/<palette>/` | The same pages with sample data, for visual review |
-| `out/preview/index.html` | Clickthrough gallery — style, palette, page, viewport, colour scheme |
+| `out/preview/index.html` | Clickthrough gallery — style, palette, page, language, viewport, colour scheme |
 
 Import from `out/deploy/`. The preview build substitutes sample values for the
 PAN-OS tokens so the pages render in a browser; it is **not** deployable.
 
-The preview gallery has a **Palette** dropdown listing every palette with its
-primary colour. Switching palette reloads the frames from a sibling
-`preview/blobs-<palette>.js`, which is why `preview/` contains one of those per
-palette — the gallery would otherwise be a 5.9 MB document, most of it never
-looked at.
+The preview gallery fetches what you ask for and nothing else. Switching palette
+reloads the frames from a sibling `preview/blobs-<palette>.js`; switching language
+pulls that language's dictionary from `preview/lang-<code>.js`. That is why
+`preview/` holds one file per palette and one per non-base language — the base
+language has no sidecar, being the text the frames are already served in.
+
+The point of the split is that `index.html` stays the same size whatever you
+ship: about 1.83 MB with two languages and about 1.83 MB with thirteen. Inlined,
+it would be a 5.9 MB document, most of it never looked at.
 
 Style and palette are independent. A style that pins its own palette (nyan does)
 decides only which palette the gallery opens on; every style is still built in
