@@ -280,6 +280,7 @@ def pages() -> None:
 
 @app.command(name="validate")
 def validate_cmd(
+    ctx: typer.Context,
     directory: Annotated[pathlib.Path, typer.Argument(help="A directory of built pages.")],
 ) -> None:
     """Re-run the PAN-OS guards over already-built pages.
@@ -319,7 +320,8 @@ def validate_cmd(
     if not checked:
         typer.secho(f"No recognised page types found under {directory}", fg=typer.colors.YELLOW, err=True)
         raise typer.Exit(1)
-    typer.echo(f"checked {checked} page(s), {failed} would fail on PAN-OS")
+    if not ctx.obj["json"]:
+        typer.echo(f"checked {checked} page(s), {failed} would fail on PAN-OS")
     if failed:
         raise typer.Exit(1)
 
@@ -402,7 +404,14 @@ def import_scm(
             ],
             dry_run=True,
         )
-        typer.echo(format_import_report(report))
+        # Same split as build: the human report is one channel, JSON lines are
+        # the other, and --log-json means exactly one of them runs. Every dry
+        # run item is ok=True by construction, so there is nothing to escalate
+        # to warning/error here -- the debug line is the JSON-mode record.
+        for r in report.results:
+            log.debug("%s -> %s: dry_run size=%d", r.page, r.folder, r.size)
+        if not ctx.obj["json"]:
+            typer.echo(format_import_report(report))
         return
 
     # Closed once the uploads are done rather than left for process exit: this
@@ -420,6 +429,19 @@ def import_scm(
         for item in items:
             result = target.upload(item)
             log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
+            # As in build: the human report is the channel for a page's outcome
+            # in text mode, so escalating it to warning/error there would print
+            # it twice. In JSON mode there is no report (see below), so a
+            # failure has to be raised to error here or it would never appear
+            # in the one stream --log-json promises.
+            if ctx.obj["json"] and not result.ok:
+                log.error(
+                    "%s -> %s: %s",
+                    result.page,
+                    result.folder,
+                    result.detail,
+                    extra={"mutation_id": result.mutation_id} if result.mutation_id else {},
+                )
             report.results.append(result)
     except ImportFailed as exc:
         log.error("%s", exc)
@@ -428,7 +450,8 @@ def import_scm(
         if target is not None:
             target.close()
 
-    typer.echo(format_import_report(report))
+    if not ctx.obj["json"]:
+        typer.echo(format_import_report(report))
     # One mutation per page, so a run can half-succeed. Reporting success while
     # any page failed would be the one outcome an operator cannot recover from
     # by re-reading the output -- exit non-zero so scripts and CI notice too.

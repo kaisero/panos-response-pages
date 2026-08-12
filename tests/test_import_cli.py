@@ -1,5 +1,6 @@
 """The import command, driven through Typer with the network stubbed."""
 
+import json
 import pathlib
 import tempfile
 
@@ -8,6 +9,7 @@ from typer.testing import CliRunner
 
 from panos_response_pages import cli
 from panos_response_pages.importer.report import PageResult
+from panos_response_pages.importer.scm.config import ScmConfig
 
 pytestmark = pytest.mark.cli
 
@@ -204,3 +206,70 @@ def test_dry_run_reports_the_portal_lock_and_the_configured_folder_separately(mo
     assert "Lab" in response_line
     assert "Mobile Users" in portal_line
     assert "Lab" not in portal_line
+
+
+def test_log_json_suppresses_the_dry_run_report(monkeypatch):
+    # --log-json promises exactly one machine-readable stream. Before the fix,
+    # import scm echoed the human report unconditionally, so a JSON log line
+    # and the human report landed on the same stream together.
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    result = runner.invoke(cli.app, ["--log-json", "import", "scm", "--from", str(build_dir()), "--dry-run"])
+    assert result.exit_code == 0
+    assert "would import" not in result.output
+    assert "dry run" not in result.output
+    for line in result.output.splitlines():
+        json.loads(line)  # every line, if any, must be a JSON object -- not report text
+
+
+def test_log_json_suppresses_the_final_report_and_logs_failures_as_events(monkeypatch):
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+
+    class FakeTarget:
+        name = "scm"
+
+        def describe(self):
+            return "tenant 111"
+
+        def upload(self, item):
+            return PageResult(item.spec.remote, "Prisma Access", False, "21643", detail="HTTP 400: nope")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(cli, "_scm_target", lambda cfg: FakeTarget())
+    result = runner.invoke(cli.app, ["--log-json", "import", "scm", "--from", str(build_dir())])
+    assert result.exit_code == 1
+
+    # Every line must be one JSON object -- format_import_report's multi-line
+    # human report is not valid JSON, so this alone proves it never printed.
+    events = [json.loads(line) for line in result.output.splitlines()]
+    failures = [e for e in events if e["level"] == "error" and "HTTP 400" in e["event"]]
+    assert failures, "the failed page must be logged as a structured event"
+    assert failures[0]["mutation_id"] == "21643"
+
+
+def test_scm_target_shares_one_httpx_client_between_the_token_source_and_the_config_api():
+    # Every other test in this file patches _scm_target out, so nothing else
+    # exercises it. It is the only place that constructs TokenSource and
+    # ScmClient against the same httpx.Client -- the precondition both
+    # ScmClient.close() and ScmTarget.close() docstrings rely on, since it is
+    # what lets a single close() release the whole pool. A refactor giving
+    # TokenSource its own client would leak a connection pool silently and
+    # still pass the rest of the suite.
+    config = ScmConfig(
+        client_id="a@b.iam.panserviceaccount.com",
+        client_secret="s3cret",
+        tsg_id="111",
+        auth_url="https://auth.example",
+        mfe_url="https://api.example/mfe/instances",
+        folder="Prisma Access",
+    )
+    # Constructing these objects makes no network request -- only close()
+    # touches the connection, and that is called below.
+    target = cli._scm_target(config)
+    try:
+        assert target._client._client is target._client._tokens._client
+    finally:
+        target.close()
