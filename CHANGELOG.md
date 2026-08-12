@@ -4,6 +4,27 @@ Notable changes to this project. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3]
+
+### Added
+
+- **An `import` command, starting with `import scm`** — sends a built variant
+  straight into Strata Cloud Manager against a service account, instead of
+  pasting thirteen base64 blobs through the UI by hand. `--dry-run` lists every
+  page and the folder it would land in without contacting anything, `--only`
+  imports a single page, and the exit code is `1` if any page failed, so a
+  partial run does not pass quietly. Credentials resolve CLI flag > `SCM_*`
+  environment > `settings.yaml` > default, the same precedence as everything
+  else here.
+- Imported pages are staged, not live. A write lands in the tenant's *candidate*
+  configuration and nothing in this tool pushes it, so a successful import does
+  not mean the firewalls are serving the new pages yet.
+- The two GlobalProtect portal pages always import into `Mobile Users`, whatever
+  `--folder` says. A portal page is a named object whose name must be unique
+  across the whole folder tree, and the API has no working delete — so writing
+  one to the wrong folder is not a rejected write but a *successful* one that
+  then blocks the correct folder until the stray object is removed by hand.
+
 ## [0.1.2]
 
 ### Added
