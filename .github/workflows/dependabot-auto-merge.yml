@@ -12,7 +12,14 @@ name: Dependabot auto-merge
 # the highest semver change in the group, so one major in the group holds the
 # whole PR back.
 
-on: pull_request
+# develop only, and that restriction is load-bearing rather than tidiness. Only
+# develop has required status checks; enabling auto-merge on a pull request
+# against an unprotected branch means auto-merge has nothing to wait for and the
+# merge happens immediately. Scoping the trigger means a Dependabot pull request
+# that lands on any other branch is simply left alone.
+on:
+  pull_request:
+    branches: [develop]
 
 # Dependabot-triggered runs get a read-only token by default; these two scopes
 # are what let `gh pr merge --auto` act on the pull request. Nothing here checks
