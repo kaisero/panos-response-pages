@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from panos_response_pages.importer.scm.target import ScmTarget
+from panos_response_pages.importer.scm.target import SCM, ScmTarget
 
-__all__ = ["ScmTarget"]
+__all__ = ["SCM", "ScmTarget"]

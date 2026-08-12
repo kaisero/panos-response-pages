@@ -5,13 +5,23 @@ decision, not an API fact: the API will happily write a GlobalProtect portal
 page into any folder. Doing so is unrecoverable -- the object name must be
 unique across the folder tree, and this API has no working delete -- so the
 portal folder is fixed and no flag may override it.
+
+This module is also where SCM registers itself: `SCM` at the bottom binds the
+three offline capabilities (`describe`, `folder_for`, `connect`) that
+`importer.run` drives. Annotating it `Backend[ScmConfig]` is what makes mypy
+check `ScmTarget` against the `Target` protocol -- there is no explicit
+inheritance to carry that check.
 """
 
 from __future__ import annotations
 
+import httpx
+
 from panos_response_pages.errors import ImportFailed
+from panos_response_pages.importer.backend import Backend
 from panos_response_pages.importer.catalogue import PORTAL
 from panos_response_pages.importer.report import PageResult
+from panos_response_pages.importer.scm.auth import TokenSource
 from panos_response_pages.importer.scm.client import ScmClient
 from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.source import ImportItem
@@ -33,6 +43,16 @@ def folder_for(config: ScmConfig, item: ImportItem) -> str:
     -- hence one function, not a rule copied into each caller.
     """
     return PORTAL_FOLDER if item.spec.family == PORTAL else config.folder
+
+
+def describe_config(config: ScmConfig) -> str:
+    """What a dry run says it would write to. Says "not contacted" because it is true.
+
+    The live counterpart is `ScmTarget.describe()`, which names the tenant's API
+    host as well -- and can only do so by asking for it. This one must not, so
+    it reports the tenant alone.
+    """
+    return f"tenant {config.tsg_id} (not contacted)"
 
 
 class ScmTarget:
@@ -117,3 +137,26 @@ class ScmTarget:
         return PageResult(
             page=item.spec.remote, folder=folder, ok=True, mutation_id=mutation_id, size=len(item.payload)
         )
+
+
+def connect(config: ScmConfig) -> ScmTarget:
+    """Build a live SCM target: one httpx client, shared by auth and the config API.
+
+    One client for both, so a single `close()` releases the whole connection
+    pool -- ScmClient.close() and ScmTarget.close() both rely on that. Never
+    called by a dry run; `importer.run` reaches it only on a real run, and the
+    CLI tests substitute it to prove so.
+    """
+    client = httpx.Client()
+    return ScmTarget(config, ScmClient(config, TokenSource(config, client), client))
+
+
+# The registry entry. Everything above it is either pure (folder_for,
+# describe_config -- what a dry run needs) or behind connect (what a real run
+# needs); this line is the only place the two halves are named together.
+SCM: Backend[ScmConfig] = Backend(
+    name=ScmTarget.name,
+    describe=describe_config,
+    scope_for=folder_for,
+    connect=connect,
+)
