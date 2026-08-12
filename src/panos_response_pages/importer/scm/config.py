@@ -19,7 +19,9 @@ from dataclasses import dataclass
 from panos_response_pages.errors import ImportFailed
 from panos_response_pages.settings import ScmSettings
 
-ENV_PREFIX = "SCM_"
+# The fourth precedence layer: built-in defaults, sourced from ScmSettings'
+# own field defaults so there is exactly one place that spells them out.
+_DEFAULTS = ScmSettings()
 
 # field name -> (environment variable, CLI flag) for the error message.
 _SOURCES = {
@@ -49,6 +51,10 @@ class ScmConfig:
 
         A dataclass repr lands in tracebacks, log records and pytest output. The
         secret is replaced rather than shortened: a prefix is still a leak.
+
+        This only guards repr()/str()/f-string interpolation. dataclasses.asdict(),
+        dataclasses.astuple() and vars() all bypass __repr__ and return
+        client_secret in plaintext -- do not reach for those on a ScmConfig.
         """
         return (
             f"ScmConfig(client_id={self.client_id!r}, client_secret='***', "
@@ -91,11 +97,15 @@ def resolve(
             + "\n  ...or add them under `scm:` in ~/.panos_response_pages/settings.yaml"
         )
 
+    # The trailing `or scm.<field>` this used to end with compared scm.<field>
+    # against itself -- a no-op that can never supply an independent built-in
+    # value. `_DEFAULTS.<field>` is the real fourth layer: it only kicks in
+    # when the flag, environment and settings.yaml all agree on "unset".
     return ScmConfig(
         client_id=str(resolved["client_id"]),
         client_secret=str(resolved["client_secret"]),
         tsg_id=str(resolved["tsg_id"]),
-        auth_url=_pick(None, env, "SCM_AUTH_URL", scm.auth_url) or scm.auth_url,
-        mfe_url=_pick(None, env, "SCM_MFE_URL", scm.mfe_url) or scm.mfe_url,
-        folder=_pick(folder, env, "SCM_FOLDER", scm.folder) or scm.folder,
+        auth_url=_pick(None, env, "SCM_AUTH_URL", scm.auth_url) or _DEFAULTS.auth_url,
+        mfe_url=_pick(None, env, "SCM_MFE_URL", scm.mfe_url) or _DEFAULTS.mfe_url,
+        folder=_pick(folder, env, "SCM_FOLDER", scm.folder) or _DEFAULTS.folder,
     )

@@ -37,6 +37,22 @@ def test_folder_default_and_override():
     assert config.resolve(FILE, env={}).folder == "Prisma Access"
     assert config.resolve(FILE, env={}, folder="Lab").folder == "Lab"
     assert config.resolve(FILE, env={"SCM_FOLDER": "EnvLab"}).folder == "EnvLab"
+    assert config.resolve(FILE, env={"SCM_FOLDER": "EnvLab"}, folder="FlagLab").folder == "FlagLab"
+
+
+def test_built_in_defaults_are_used_when_every_other_layer_is_empty():
+    empty = ScmSettings(
+        client_id="file@x.iam.panserviceaccount.com",
+        client_secret="file-secret",
+        tsg_id="111",
+        auth_url="",
+        mfe_url="",
+        folder="",
+    )
+    cfg = config.resolve(empty, env={})
+    assert cfg.auth_url == "https://auth.apps.paloaltonetworks.com"
+    assert cfg.mfe_url == "https://api.apps.paloaltonetworks.com/mfe/instances"
+    assert cfg.folder == "Prisma Access"
 
 
 def test_missing_credentials_are_reported_together_and_name_every_source():
