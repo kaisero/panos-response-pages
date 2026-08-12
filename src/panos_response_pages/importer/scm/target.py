@@ -17,7 +17,9 @@ from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.source import ImportItem
 
 # GlobalProtect portal pages live here and nowhere else. Not configurable: see
-# the module docstring.
+# the module docstring. Kept in sync by hand with SCOPE_TYPES in
+# scm/client.py -- that table's key must be this exact string, or Mobile
+# Users writes get `type=container` and fail with a loud 400.
 PORTAL_FOLDER = "Mobile Users"
 
 
@@ -65,6 +67,14 @@ class ScmTarget:
                 detail=f"written, but could not be read back: {exc}",
             )
 
+        if not state.present:
+            return PageResult(
+                page=item.spec.remote,
+                folder=folder,
+                ok=False,
+                mutation_id=mutation_id,
+                detail="the write was accepted, but the page is absent on read-back",
+            )
         if state.content != encoded:
             return PageResult(
                 page=item.spec.remote,
@@ -79,7 +89,7 @@ class ScmTarget:
                 folder=folder,
                 ok=False,
                 mutation_id=mutation_id,
-                detail=f"the value in {folder!r} is inherited from {state.loc} -- the write did not land here",
+                detail=f"the value in {folder!r} is inherited from {state.loc!r} -- the write did not land here",
             )
 
         return PageResult(

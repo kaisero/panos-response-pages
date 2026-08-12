@@ -41,7 +41,9 @@ CONFIG_PATH = "/api/config/v9.2/Device/BlockPage"
 # This is an exception table, not the set of folders that exist: it holds only
 # the one folder whose scope type differs from the default, and must not be
 # iterated to enumerate folders. Mobile Users is the GlobalProtect folder and
-# is the only `cloud` scope this tool writes to.
+# is the only `cloud` scope this tool writes to. Kept in sync by hand with
+# PORTAL_FOLDER in scm/target.py -- that constant must be this exact string,
+# or Mobile Users writes get `type=container` and fail with a loud 400.
 SCOPE_TYPES = {"Mobile Users": "cloud"}
 DEFAULT_SCOPE_TYPE = "container"
 

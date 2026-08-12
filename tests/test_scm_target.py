@@ -31,15 +31,23 @@ def item(remote: str, payload: bytes = b"hello") -> ImportItem:
 class FakeClient:
     """Records writes and answers reads from what it was told to hold."""
 
-    def __init__(self, after: PageState | None = None, fail: Exception | None = None):
+    def __init__(
+        self,
+        after: PageState | None = None,
+        fail: Exception | None = None,
+        fail_get: Exception | None = None,
+    ):
         self.writes: list[tuple[str, str, str]] = []
         self._after = after
         self._fail = fail
+        self._fail_get = fail_get
 
     def config_host(self) -> str:
         return "paas-4.prod.panorama.paloaltonetworks.com"
 
     def get_page(self, page: str, folder: str) -> PageState:
+        if self._fail_get:
+            raise self._fail_get
         if self._after is not None:
             return self._after
         content = self.writes[-1][2] if self.writes else None
@@ -78,6 +86,18 @@ def test_upload_writes_and_reports_success():
     assert client.writes[0][0] == "url-block-page"
 
 
+def test_upload_writes_a_portal_page_to_mobile_users_even_with_a_custom_folder():
+    # folder_for() pins the lock, but upload() has its own chance to undo it by
+    # passing the configured folder to put_page instead of folder_for()'s
+    # result. That mutation is unrecoverable in production (see the module
+    # docstring), so it must be pinned at the write boundary, not only at
+    # folder_for().
+    client = FakeClient()
+    result = ScmTarget(replace(CFG, folder="Lab"), client).upload(item("global-protect-portal-custom-home-page"))
+    assert client.writes[0][1] == PORTAL_FOLDER
+    assert result.folder == PORTAL_FOLDER
+
+
 def test_upload_sends_base64_of_the_payload():
     client = FakeClient()
     ScmTarget(CFG, client).upload(item("url-block-page", b"ABC"))
@@ -99,7 +119,29 @@ def test_verification_fails_when_the_value_is_inherited_from_another_folder():
     target = ScmTarget(replace(CFG, folder="Mobile Users"), client)
     result = target.upload(item("url-block-page"))
     assert result.ok is False
-    assert "inherited from Prisma Access" in result.detail
+    assert "inherited from 'Prisma Access'" in result.detail
+
+
+def test_content_mismatch_is_reported_even_when_the_value_is_also_inherited():
+    # Both problems are present at once: wrong content, and it is inherited.
+    # The content check must win, because it is the more specific and more
+    # actionable diagnosis -- "inherited" alone would tell an operator the
+    # write landed in the wrong place, when actually nothing they sent is
+    # present at all, inherited or not.
+    client = FakeClient(after=PageState(present=True, content="WRONG", loc="Prisma Access", inherited=True))
+    result = ScmTarget(CFG, client).upload(item("url-block-page"))
+    assert result.ok is False
+    assert "did not match" in result.detail
+
+
+def test_verification_fails_when_the_page_is_absent_on_readback():
+    # The write was accepted, but nothing shows up when read back -- present
+    # is False and content is None. That is a distinct failure from a content
+    # mismatch (something else is there) and deserves its own message.
+    client = FakeClient(after=PageState(present=False, content=None, loc=None, inherited=False))
+    result = ScmTarget(CFG, client).upload(item("url-block-page"))
+    assert result.ok is False
+    assert "absent" in result.detail
 
 
 def test_api_failure_becomes_a_failed_result_not_an_exception():
@@ -107,6 +149,19 @@ def test_api_failure_becomes_a_failed_result_not_an_exception():
     result = ScmTarget(CFG, client).upload(item("url-block-page"))
     assert result.ok is False
     assert "HTTP 400" in result.detail
+
+
+def test_readback_failure_after_a_successful_write_reports_the_mutation_id():
+    # put_page succeeded -- the write happened and the tenant has a mutation
+    # id for it -- but the follow-up get_page raised. An operator needs that
+    # id to go correlate the write directly against the tenant even though
+    # this process could not confirm it landed correctly.
+    client = FakeClient(fail_get=ImportFailed("HTTP 500: internal error"))
+    result = ScmTarget(CFG, client).upload(item("url-block-page"))
+    assert result.ok is False
+    assert result.mutation_id == "21643"
+    assert "could not be read back" in result.detail
+    assert "HTTP 500" in result.detail
 
 
 def test_describe_names_the_tenant_host_and_folder():
