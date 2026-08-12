@@ -3,11 +3,15 @@
 import json
 import pathlib
 import tempfile
+from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from panos_response_pages import cli
+from panos_response_pages.importer import TARGETS, Backend
 from panos_response_pages.importer.report import PageResult
 from panos_response_pages.importer.scm import SCM
 from panos_response_pages.importer.scm.config import ScmConfig
@@ -48,7 +52,7 @@ def test_dry_run_lists_pages_without_building_a_client(monkeypatch):
     def boom(*args, **kwargs):
         raise AssertionError("a dry run must not open a connection")
 
-    monkeypatch.setattr(SCM, "connect", boom)
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=boom))
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir()), "--dry-run"])
     assert result.exit_code == 0
     assert "url-block-page" in result.output
@@ -71,7 +75,7 @@ def test_successful_import_reports_and_exits_zero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=lambda cfg: FakeTarget()))
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 0
     assert "imported 1/1" in result.output
@@ -94,7 +98,7 @@ def test_a_failed_page_exits_nonzero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=lambda cfg: FakeTarget()))
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
     assert "HTTP 400" in result.output
@@ -122,7 +126,7 @@ def test_a_mixed_run_reports_both_pages_and_exits_nonzero(monkeypatch):
         def close(self):
             pass
 
-    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=lambda cfg: FakeTarget()))
     root = pathlib.Path(tempfile.mkdtemp())
     (root / "url-block-page.html").write_text(GOOD, encoding="utf-8")
     (root / "credential-block-page.html").write_text(GOOD, encoding="utf-8")
@@ -176,7 +180,7 @@ def test_a_failure_during_describe_still_closes_the_client(monkeypatch):
             self.closed = True
 
     target = FakeTarget()
-    monkeypatch.setattr(SCM, "connect", lambda cfg: target)
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=lambda cfg: target))
     result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
     assert target.closed is True
@@ -240,7 +244,7 @@ def test_log_json_suppresses_the_final_report_and_logs_failures_as_events(monkey
         def close(self):
             pass
 
-    monkeypatch.setattr(SCM, "connect", lambda cfg: FakeTarget())
+    monkeypatch.setitem(TARGETS, "scm", replace(SCM, connect=lambda cfg: FakeTarget()))
     result = runner.invoke(cli.app, ["--log-json", "import", "scm", "--from", str(build_dir())])
     assert result.exit_code == 1
 
@@ -253,8 +257,9 @@ def test_log_json_suppresses_the_final_report_and_logs_failures_as_events(monkey
 
 
 def test_scm_target_shares_one_httpx_client_between_the_token_source_and_the_config_api():
-    # Every other test in this file substitutes SCM.connect, so nothing else
-    # exercises it. It is the only place that constructs TokenSource and
+    # Every other test in this file substitutes connect via the TARGETS
+    # registry entry, so nothing else exercises the real one. It is the only
+    # place that constructs TokenSource and
     # ScmClient against the same httpx.Client -- the precondition both
     # ScmClient.close() and ScmTarget.close() docstrings rely on, since it is
     # what lets a single close() release the whole pool. A refactor giving
@@ -275,3 +280,92 @@ def test_scm_target_shares_one_httpx_client_between_the_token_source_and_the_con
         assert target._client._client is target._client._tokens._client
     finally:
         target.close()
+
+
+# ---- cli._import driven by a backend that is not SCM -----------------------
+#
+# Every test above reaches cli._import through `import scm`, so nothing proves
+# it is genuinely backend-neutral rather than SCM-shaped in disguise. This is
+# the CLI-side complement to test_import_run.py's fake backend: read the two
+# together and see the whole surface a future backend author has to satisfy.
+
+
+class _FakeTarget:
+    """A minimal live target with no SCM in it -- name, describe, upload, close."""
+
+    name = "fake"
+
+    def __init__(self, *, fail: bool = False):
+        self._fail = fail
+
+    def describe(self) -> str:
+        return "appliance lab at 10.0.0.1"
+
+    def upload(self, item):
+        if self._fail:
+            return PageResult(item.spec.remote, "lab", False, detail="HTTP 400: nope")
+        return PageResult(item.spec.remote, "lab", True, size=len(item.payload))
+
+    def close(self) -> None:
+        pass
+
+
+def _fake_backend(*, fail: bool = False) -> Backend:
+    return Backend(
+        name="fake",
+        describe=lambda cfg: "appliance lab (not contacted)",
+        scope_for=lambda cfg, item: "lab",
+        connect=lambda cfg: _FakeTarget(fail=fail),
+    )
+
+
+def test_import_helper_reports_success_against_a_non_scm_backend(capsys):
+    ctx = SimpleNamespace(obj={"json": False})
+    cli._import(ctx, _fake_backend(), "lab-config", build_dir(), only=None, skip_validate=False, dry_run=False)
+    out = capsys.readouterr().out
+    assert "imported 1/1" in out
+    assert "fake" in out
+
+
+def test_import_helper_exits_nonzero_against_a_non_scm_backend_failure(capsys):
+    ctx = SimpleNamespace(obj={"json": False})
+    with pytest.raises(typer.Exit) as excinfo:
+        cli._import(
+            ctx, _fake_backend(fail=True), "lab-config", build_dir(), only=None, skip_validate=False, dry_run=False
+        )
+    assert excinfo.value.exit_code == 1
+    out = capsys.readouterr().out
+    assert "HTTP 400" in out
+
+
+# ---- inherited coverage gaps -------------------------------------------------
+
+
+def test_only_imports_just_the_requested_page(monkeypatch):
+    # A directory with several importable pages; --only must narrow the run to
+    # the one requested, not silently import everything under the directory.
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    root = pathlib.Path(tempfile.mkdtemp())
+    (root / "url-block-page.html").write_text(GOOD, encoding="utf-8")
+    (root / "credential-block-page.html").write_text(GOOD, encoding="utf-8")
+    (root / "virus-block-page.html").write_text(GOOD, encoding="utf-8")
+
+    result = runner.invoke(cli.app, ["import", "scm", "--from", str(root), "--only", "url-block-page", "--dry-run"])
+    assert result.exit_code == 0
+    assert "would import 1/1" in result.output
+    assert "url-block-page" in result.output
+    assert "credential-block-page" not in result.output
+    assert "virus-block-page" not in result.output
+
+
+def test_a_non_blocking_warning_is_surfaced(monkeypatch):
+    # GOOD has no viewport meta tag, so validate() attaches a non-blocking
+    # warning ("viewport should use initial-scale=1") to the item. The import
+    # must still surface it -- silently dropping the per-item warnings loop
+    # leaves the whole suite green, since a warning alone never fails a page.
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+    result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir()), "--dry-run"])
+    assert result.exit_code == 0
+    assert "initial-scale=1" in result.output

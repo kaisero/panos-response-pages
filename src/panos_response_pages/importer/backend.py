@@ -62,15 +62,23 @@ class Target(Protocol):
 C = TypeVar("C")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Backend(Generic[C]):
     """One backend, registered in `TARGETS` and handed to the shared runner.
 
-    Not frozen: tests substitute `connect` with `monkeypatch.setattr` to prove a
-    dry run never reaches it, and to drive a whole run against a fake target.
-    That seam is the reason this is a record of callables rather than a class
-    with methods -- there is exactly one thing to replace, and replacing it
-    cannot accidentally leave a live client behind.
+    Frozen: a `Backend` such as `SCM` is a process-wide singleton, so an
+    accidental mutation would leak into every later import run in the process,
+    test or production. Freezing turns that into a loud `FrozenInstanceError`
+    at the mutation site instead of silent global state.
+
+    Tests still need to substitute `connect` -- to prove a dry run never
+    reaches it, or to drive a whole run against a fake target -- but they do it
+    at the *registry* seam instead: `monkeypatch.setitem(TARGETS, name,
+    dataclasses.replace(SCM, connect=fake))`. That is the reason this is a
+    record of callables rather than a class with methods -- there is exactly
+    one field to replace, and replacing it cannot accidentally leave a live
+    client behind. monkeypatch's finaliser restores the original registry
+    entry even when the test fails, so nothing leaks between tests.
     """
 
     name: str
