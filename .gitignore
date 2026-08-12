@@ -42,3 +42,6 @@ site/
 # published with the site. Generated output: committing it would ship a gallery
 # of pages the current templates no longer produce.
 docs/preview/
+
+# Throwaway API spike for the `import` command. Never committed.
+prototype/
