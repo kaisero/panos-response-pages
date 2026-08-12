@@ -48,6 +48,88 @@ Re-run the PAN-OS guards over pages that already exist. The guards only help if
 they run on what is actually about to be imported, which is not always what this
 tool just produced.
 
+## `import scm`
+
+Import a built variant into Strata Cloud Manager. Writes land in the tenant's
+**candidate** configuration — `import` never pushes; making a write live is a
+separate step outside this tool. See
+[SCM import architecture](architecture/scm-import.md) for the reasoning behind
+the API calls this makes.
+
+```bash
+panos-response-pages import scm --from out/deploy/beacon/prisma-blue [OPTIONS]
+```
+
+| Option | Default | Notes |
+|---|---|---|
+| `--from`, `-f` | required | A built variant directory, e.g. `out/deploy/beacon/prisma-blue`. |
+| `--folder` | `Prisma Access` | Folder for the **response pages**. Portal pages always go to `Mobile Users` — see below. |
+| `--only` | all pages | Import just this page. Repeatable. |
+| `--client-id` | — | Service account. Prefer `SCM_CLIENT_ID`. |
+| `--client-secret` | — | Prefer `SCM_CLIENT_SECRET`: a flag is visible in the process list. |
+| `--tsg-id` | — | Tenant service group. Prefer `SCM_TSG_ID`. |
+| `--dry-run` | off | Show what would be sent, one line per page and its folder. Contacts nothing — no network call is made, so credentials do not even need to be reachable for the preview to be useful. |
+| `--skip-validate` | off | Import pages the PAN-OS guards would otherwise refuse, because the API accepts a page that then fails silently on the firewall. |
+
+A run that imports 13 pages against a fresh tenant writes 11 response pages —
+`application-block-page`, `credential-block-page`, `credential-coach-text`,
+`data-filter-block-page`, `file-block-continue-page`, `file-block-page`,
+`safe-search-block-page`, `ssl-cert-status-page`, `url-block-page`,
+`url-coach-text`, `virus-block-page` — plus the two GlobalProtect portal
+pages, `portal/home` and `portal/login`.
+
+### Portal pages ignore `--folder`
+
+GlobalProtect portal pages (`portal/home.html`, `portal/login.html`) are
+always imported into `Mobile Users`, never the folder named by `--folder` or
+`SCM_FOLDER`. This is not configurable, and it is deliberate: a portal page is
+a named object whose name must be unique across the entire folder tree, and
+this API has no working delete. Writing one to the wrong folder is not a
+rejected write — it is a *successful* write that then permanently blocks the
+correct folder until the stray object is removed by hand in the SCM UI. See
+[SCM import architecture](architecture/scm-import.md#why-portal-pages-are-locked-to-mobile-users)
+for the full reasoning.
+
+### Exit code
+
+Exit code is `1` if any page failed to import — a partial run is not a
+success, even if most pages landed. `0` only when every requested page was
+staged (or, for `--dry-run`, would have been).
+
+### Credentials
+
+Three credential fields are required: `client_id`, `client_secret`, `tsg_id`.
+They are resolved in this order, same precedence as everywhere else in this
+tool:
+
+**CLI flag > environment > `settings.yaml` > built-in default**
+
+```yaml
+scm:
+  client_id: automation@1234567890.iam.panserviceaccount.com
+  client_secret: ...            # prefer the environment instead; see below
+  tsg_id: "1234567890"
+  folder: Prisma Access          # default shown; only affects response pages
+  # auth_url and mfe_url are also settable here, for non-production tenants
+```
+
+Environment variables:
+
+| Variable | Corresponds to |
+|---|---|
+| `SCM_CLIENT_ID` | `--client-id` / `scm.client_id` |
+| `SCM_CLIENT_SECRET` | `--client-secret` / `scm.client_secret` |
+| `SCM_TSG_ID` | `--tsg-id` / `scm.tsg_id` |
+| `SCM_FOLDER` | `--folder` / `scm.folder` |
+| `SCM_AUTH_URL` | `scm.auth_url` (default `https://auth.apps.paloaltonetworks.com`) |
+| `SCM_MFE_URL` | `scm.mfe_url` (default `https://api.apps.paloaltonetworks.com/mfe/instances`) |
+
+`SCM_CLIENT_SECRET` (or `--client-secret`) is preferred over
+`scm.client_secret` in `settings.yaml`: a flag is visible in the process
+list, and a secret at rest in a plaintext file is worse than one held only in
+the environment for the run. Missing credentials fail with a message naming
+exactly which environment variable or flag would supply each missing field.
+
 ## Settings
 
 `~/.panos_response_pages/settings.yaml`, optional, every key optional:

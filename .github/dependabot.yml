@@ -5,6 +5,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Without this, Dependabot opens against the default branch (main).
+    # Integration happens on develop, so that is where updates belong.
+    target-branch: "develop"
     groups:
       python-dependencies:
         patterns: ["*"]
@@ -14,6 +17,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Without this, Dependabot opens against the default branch (main).
+    # Integration happens on develop, so that is where updates belong.
+    target-branch: "develop"
     groups:
       github-actions:
         patterns: ["*"]

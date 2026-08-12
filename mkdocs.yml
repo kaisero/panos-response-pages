@@ -33,6 +33,7 @@ nav:
   - GP login page: architecture/globalprotect-portal-login-page.md
   - GP home page: architecture/globalprotect-portal-home-page.md
   - URL filtering pages: architecture/url-filtering-response-pages.md
+  - SCM import: architecture/scm-import.md
 
 extra_css:
   - assets/preview-embed.css
