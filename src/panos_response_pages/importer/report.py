@@ -59,6 +59,12 @@ def format_report(report: ImportReport) -> str:
         lines.append(f"  {mark} {r.page:<{width}} {size}  {r.folder}")
         if r.detail:
             lines.append(f"       {r.detail}")
+        # Only on failure: a mutation id on a successful write is nothing an
+        # operator needs to act on, and ScmTarget.upload() only ever attaches
+        # one to a result it could not fully verify -- see its own comment on
+        # why that id matters when the row is a FAIL.
+        if not r.ok and r.mutation_id:
+            lines.append(f"       mutation id: {r.mutation_id}")
 
     lines.append(f"\n  {verb} {report.ok_count}/{len(report.results)} page(s)")
     if report.dry_run:

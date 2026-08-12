@@ -53,3 +53,29 @@ def test_a_dry_run_does_not_claim_staged():
 def test_an_empty_report_does_not_claim_staged():
     text = format_report(report())
     assert STAGED not in text
+
+
+def test_a_failed_result_with_a_mutation_id_shows_it():
+    # ScmTarget.upload() attaches the mutation id to a "written, but could not
+    # be verified" failure specifically so an operator can correlate the write
+    # against the tenant. If format_report drops it, that justification is
+    # false.
+    text = format_report(
+        report(
+            PageResult(
+                "url-block-page",
+                "Prisma Access",
+                False,
+                mutation_id="21643",
+                detail="written, but could not be read back: HTTP 500",
+            )
+        )
+    )
+    assert "21643" in text
+
+
+def test_a_successful_result_does_not_show_a_mutation_id():
+    # Noise, not signal: a successful write needs no correlation id in the
+    # report an operator reads.
+    text = format_report(report(PageResult("url-block-page", "Prisma Access", True, mutation_id="21643")))
+    assert "21643" not in text
