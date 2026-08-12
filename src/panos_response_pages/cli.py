@@ -405,25 +405,28 @@ def import_scm(
         typer.echo(format_import_report(report))
         return
 
-    try:
-        target = _scm_target(config)
-        report = ImportReport(target=target.name, describe=target.describe())
-    except ImportFailed as exc:
-        log.error("%s", exc)
-        raise typer.Exit(1) from exc
-
     # Closed once the uploads are done rather than left for process exit: this
     # command is a one-shot CLI invocation today, where it makes no practical
     # difference, but the target is built here and this is the only place with
     # a handle to close it -- so it is released the moment it is no longer
-    # needed rather than relying on that staying true.
+    # needed rather than relying on that staying true. The try starts at
+    # construction, not after describe(): describe() calls config_host(),
+    # which makes a network request, so a bad credential or an unreachable
+    # tenant must close the client too, not just a failure during upload.
+    target: ScmTarget | None = None
     try:
+        target = _scm_target(config)
+        report = ImportReport(target=target.name, describe=target.describe())
         for item in items:
             result = target.upload(item)
             log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
             report.results.append(result)
+    except ImportFailed as exc:
+        log.error("%s", exc)
+        raise typer.Exit(1) from exc
     finally:
-        target.close()
+        if target is not None:
+            target.close()
 
     typer.echo(format_import_report(report))
     # One mutation per page, so a run can half-succeed. Reporting success while

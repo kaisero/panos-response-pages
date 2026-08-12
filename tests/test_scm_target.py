@@ -3,11 +3,13 @@
 import pathlib
 from dataclasses import replace
 
+import httpx
 import pytest
 
 from panos_response_pages.errors import ImportFailed
 from panos_response_pages.importer.catalogue import BY_REMOTE
-from panos_response_pages.importer.scm.client import PageState, scope_type
+from panos_response_pages.importer.scm.auth import TokenSource
+from panos_response_pages.importer.scm.client import PageState, ScmClient, scope_type
 from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.scm.target import PORTAL_FOLDER, ScmTarget
 from panos_response_pages.importer.source import ImportItem
@@ -42,9 +44,13 @@ class FakeClient:
         self._after = after
         self._fail = fail
         self._fail_get = fail_get
+        self.closed = False
 
     def config_host(self) -> str:
         return "paas-4.prod.panorama.paloaltonetworks.com"
+
+    def close(self) -> None:
+        self.closed = True
 
     def get_page(self, page: str, folder: str) -> PageState:
         self.reads.append((page, folder))
@@ -182,3 +188,20 @@ def test_describe_names_the_tenant_host_and_folder():
     text = ScmTarget(CFG, FakeClient()).describe()
     assert "111" in text and "paas-4" in text and "Prisma Access" in text
     assert "s3cret" not in text
+
+
+def test_close_releases_the_client():
+    client = FakeClient()
+    ScmTarget(CFG, client).close()
+    assert client.closed is True
+
+
+def test_scm_client_close_closes_the_underlying_httpx_client():
+    # Pins the last link of the chain that cli.py's target.close() depends on:
+    # ScmTarget.close() -> ScmClient.close() -> httpx.Client.close(). No
+    # network call is needed to prove this -- httpx.Client.is_closed flips as
+    # soon as close() runs.
+    http_client = httpx.Client()
+    scm_client = ScmClient(CFG, TokenSource(CFG, http_client), http_client)
+    scm_client.close()
+    assert http_client.is_closed is True

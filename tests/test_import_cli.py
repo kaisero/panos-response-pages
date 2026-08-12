@@ -151,6 +151,33 @@ def test_skip_validate_allows_it(monkeypatch):
     assert "url-block-page" in result.output
 
 
+def test_a_failure_during_describe_still_closes_the_client(monkeypatch):
+    # describe() is the first thing that touches the network (it calls
+    # config_host()), so a bad credential or an unreachable tenant raises here,
+    # before any upload happens. The client must still be closed on this path.
+    for key, value in ENV.items():
+        monkeypatch.setenv(key, value)
+
+    class FakeTarget:
+        name = "scm"
+        closed = False
+
+        def describe(self):
+            raise cli.ImportFailed("HTTP 401")
+
+        def upload(self, item):  # pragma: no cover - never reached
+            raise AssertionError("upload must not run when describe() failed")
+
+        def close(self):
+            self.closed = True
+
+    target = FakeTarget()
+    monkeypatch.setattr(cli, "_scm_target", lambda cfg: target)
+    result = runner.invoke(cli.app, ["import", "scm", "--from", str(build_dir())])
+    assert result.exit_code == 1
+    assert target.closed is True
+
+
 def test_dry_run_reports_the_portal_lock_and_the_configured_folder_separately(monkeypatch):
     for key, value in ENV.items():
         monkeypatch.setenv(key, value)
