@@ -77,3 +77,51 @@ def test_guard_failures_are_carried_on_the_item():
 def test_check_false_skips_the_guards():
     root = build_dir({"url-block-page.html": "<html><body><a href='https://x'>x</a></body></html>"})
     assert source.load(root, check=False)[0].errors == []
+
+
+def test_missing_catalogue_pages_are_warned_about_not_silently_skipped(caplog):
+    # A stale or partial build directory used to yield a green "would import
+    # 1/1 page(s)" with no hint that the other catalogue entries were absent
+    # -- the denominator hid it. This is what makes the absence visible.
+    root = build_dir({"url-block-page.html": GOOD})
+    with caplog.at_level("DEBUG", logger="panos_response_pages"):
+        items = source.load(root)
+    assert [i.spec.remote for i in items] == ["url-block-page"]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "not found" in warnings[0].message
+    debugs = [r.message for r in caplog.records if r.levelname == "DEBUG"]
+    assert any("file-block-page" in m for m in debugs), "the missing names should be listed at debug level"
+
+
+def test_a_fully_populated_directory_warns_about_nothing(caplog):
+    root = build_dir(dict.fromkeys(source.BY_LOCAL, GOOD))
+    with caplog.at_level("WARNING", logger="panos_response_pages"):
+        source.load(root, check=False)
+    assert not [r for r in caplog.records if "not found" in r.message]
+
+
+def test_only_naming_a_page_missing_from_the_directory_names_it_in_the_error():
+    # Before this fix the message was the generic "no importable pages under
+    # <dir>", which does not tell an operator which page they actually asked
+    # for. --only names a page that exists in the catalogue but has no file
+    # here.
+    root = build_dir({"url-block-page.html": GOOD})
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root, only={"file-block-page"})
+    assert "file-block-page" in str(exc.value)
+
+
+def test_non_utf8_file_is_reported_as_import_failed_not_a_traceback():
+    # A genuinely latin-1-encoded file: the byte 0xe9 ('é') is not valid UTF-8
+    # on its own, so read_text(encoding="utf-8") raises UnicodeDecodeError.
+    # cli.py only catches ImportFailed -- anything else reaches the operator
+    # as a raw traceback instead of the one-line error every other failure
+    # in this tool produces.
+    root = pathlib.Path(tempfile.mkdtemp())
+    path = root / "file-block-page.html"
+    path.write_bytes("blocked \xe9".encode("latin-1"))
+
+    with pytest.raises(ImportFailed) as exc:
+        source.load(root)
+    assert "file-block-page.html" in str(exc.value)
