@@ -4,6 +4,7 @@ import pytest
 
 from panos_response_pages.errors import ImportFailed
 from panos_response_pages.importer.scm import config
+from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.settings import ScmSettings
 
 pytestmark = pytest.mark.unit
@@ -68,3 +69,20 @@ def test_the_secret_never_appears_in_the_error():
     with pytest.raises(ImportFailed) as exc:
         config.resolve(ScmSettings(client_secret="hunter2"), env={})
     assert "hunter2" not in str(exc.value)
+
+
+def test_repr_masks_the_client_secret():
+    # The dataclass default __repr__ would print client_secret in plain text --
+    # this is what actually stops that from happening. Proven load-bearing: with
+    # __repr__ replaced by f"...{self.client_secret!r}...", this test fails.
+    cfg = ScmConfig(
+        client_id="a@b.iam.panserviceaccount.com",
+        client_secret="hunter2",
+        tsg_id="111",
+        auth_url="https://auth.example",
+        mfe_url="https://api.example/mfe/instances",
+        folder="Prisma Access",
+    )
+    text = repr(cfg)
+    assert "hunter2" not in text
+    assert "***" in text

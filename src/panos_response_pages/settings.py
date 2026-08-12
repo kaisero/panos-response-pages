@@ -50,6 +50,25 @@ class ScmSettings:
     mfe_url: str = "https://api.apps.paloaltonetworks.com/mfe/instances"
     folder: str = "Prisma Access"
 
+    def __repr__(self) -> str:
+        """Never print the secret.
+
+        A dataclass repr lands in tracebacks, log records and pytest output. The
+        secret is replaced rather than shortened: a prefix is still a leak. This
+        `Settings` object lives in the CLI context (`ctx.obj["settings"]`) for
+        the whole run, so it is one accidental `%r` or debug dump away from a
+        leak -- the same rule importer/scm/config.py's `ScmConfig` obeys.
+
+        This only guards repr()/str()/f-string interpolation. dataclasses.asdict(),
+        dataclasses.astuple() and vars() all bypass __repr__ and return
+        client_secret in plaintext -- do not reach for those on a ScmSettings.
+        """
+        return (
+            f"ScmSettings(client_id={self.client_id!r}, client_secret='***', "
+            f"tsg_id={self.tsg_id!r}, auth_url={self.auth_url!r}, mfe_url={self.mfe_url!r}, "
+            f"folder={self.folder!r})"
+        )
+
 
 @dataclass
 class Settings:

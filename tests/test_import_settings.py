@@ -54,3 +54,13 @@ def test_unknown_key_raises():
 def test_non_mapping_raises():
     with pytest.raises(ValueError, match="'scm' must be a mapping"):
         settings.load(write("scm: nope\n"))
+
+
+def test_repr_masks_the_client_secret():
+    # This Settings object lives in ctx.obj for the whole CLI run, so an
+    # accidental %r or debug dump anywhere along the way must not leak it --
+    # the same rule importer/scm/config.py's ScmConfig obeys.
+    scm = settings.ScmSettings(client_id="a@b.iam.panserviceaccount.com", client_secret="hunter2", tsg_id="111")
+    text = repr(scm)
+    assert "hunter2" not in text
+    assert "***" in text
