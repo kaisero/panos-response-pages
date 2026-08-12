@@ -62,6 +62,33 @@ def _as_bool(value: Any, fallback: bool) -> bool:
     return value if isinstance(value, bool) else fallback
 
 
+def _or_default(raw: dict[str, Any], key: str, default: str) -> str:
+    """Read a string setting, treating an explicit ``null`` as "not set".
+
+    ``dict.get(key, default)`` only substitutes ``default`` when ``key`` is
+    absent; a key present with value ``None`` (an explicit ``key: null`` in
+    YAML) sails straight through and gets stringified to the literal text
+    "None" by ``str()``. A settings file rendered from a template with an
+    unset variable produces exactly that YAML, so this is not a hypothetical:
+    it silently turns into "None", which downstream code treats as a truthy
+    string. None of the fields that use this helper have a meaningful empty
+    string, so falling back on any falsy value (`` or default``) is safe and
+    simpler than a dedicated ``is None`` check.
+    """
+    return str(raw.get(key) or default)
+
+
+def _int_or_default(raw: dict[str, Any], key: str, default: int) -> int:
+    """As :func:`_or_default`, but for the integer rotate.* settings.
+
+    ``int(rotate.get(key, default))`` has the same "present but null" gap,
+    and there ``int(None)`` doesn't even get a wrong answer -- it raises
+    ``TypeError`` and takes the whole load() down with it.
+    """
+    value = raw.get(key)
+    return int(value) if value is not None else default
+
+
 def load(path: pathlib.Path | None = None) -> Settings:
     """Read settings, tolerating absence and partial files.
 
@@ -88,12 +115,12 @@ def load(path: pathlib.Path | None = None) -> Settings:
     rotate = log_raw.get("rotate") or {}
     defaults = LogSettings()
     log = LogSettings(
-        level=str(log_raw.get("level", defaults.level)).lower(),
+        level=_or_default(log_raw, "level", defaults.level).lower(),
         file=_as_bool(log_raw.get("file"), defaults.file),
         dir=pathlib.Path(str(log_raw["dir"])).expanduser() if log_raw.get("dir") else defaults.dir,
         json=_as_bool(log_raw.get("json"), defaults.json),
-        max_bytes=int(rotate.get("max_bytes", defaults.max_bytes)),
-        backups=int(rotate.get("backups", defaults.backups)),
+        max_bytes=_int_or_default(rotate, "max_bytes", defaults.max_bytes),
+        backups=_int_or_default(rotate, "backups", defaults.backups),
     )
     scm_raw = raw.get("scm") or {}
     if not isinstance(scm_raw, dict):
@@ -114,9 +141,9 @@ def load(path: pathlib.Path | None = None) -> Settings:
         client_secret=_str_or_none("client_secret"),
         # str(): YAML reads a bare tsg id as an int, and it is a scope suffix.
         tsg_id=_str_or_none("tsg_id"),
-        auth_url=str(scm_raw.get("auth_url", scm_defaults.auth_url)),
-        mfe_url=str(scm_raw.get("mfe_url", scm_defaults.mfe_url)),
-        folder=str(scm_raw.get("folder", scm_defaults.folder)),
+        auth_url=_or_default(scm_raw, "auth_url", scm_defaults.auth_url),
+        mfe_url=_or_default(scm_raw, "mfe_url", scm_defaults.mfe_url),
+        folder=_or_default(scm_raw, "folder", scm_defaults.folder),
     )
 
     return Settings(log=log, scm=scm, source=path)

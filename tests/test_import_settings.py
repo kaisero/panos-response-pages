@@ -36,6 +36,16 @@ def test_numeric_tsg_id_becomes_a_string():
     assert s.scm.tsg_id == "1902164213"
 
 
+def test_explicit_null_yields_defaults():
+    # An explicit `key: null` is a present key whose value is None, not an
+    # absent key -- dict.get(key, default) does not catch it. A settings file
+    # rendered from a template with an unset variable produces exactly this.
+    s = settings.load(write("scm:\n  auth_url: null\n  mfe_url: null\n  folder: null\n"))
+    assert s.scm.auth_url == "https://auth.apps.paloaltonetworks.com"
+    assert s.scm.mfe_url == "https://api.apps.paloaltonetworks.com/mfe/instances"
+    assert s.scm.folder == "Prisma Access"
+
+
 def test_unknown_key_raises():
     with pytest.raises(ValueError, match="unknown scm setting"):
         settings.load(write("scm:\n  clientid: oops\n"))
