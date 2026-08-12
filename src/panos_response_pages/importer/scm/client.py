@@ -76,6 +76,15 @@ class ScmClient:
         self._client = client
         self._host: str | None = None
 
+    def close(self) -> None:
+        """Release the underlying connection pool.
+
+        `_scm_target` hands the same `httpx.Client` to both this class and the
+        `TokenSource`, so one close here is enough for both -- there is no
+        second handle for a caller to remember to close.
+        """
+        self._client.close()
+
     # ---- discovery ----------------------------------------------------------
 
     def config_host(self) -> str:

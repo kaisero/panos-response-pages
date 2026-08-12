@@ -22,14 +22,13 @@ from panos_response_pages.builder import format_report as format_build_report
 from panos_response_pages.errors import BuildError, ImportFailed
 from panos_response_pages.importer import format_report as format_import_report
 from panos_response_pages.importer import load as load_import
-from panos_response_pages.importer.catalogue import PORTAL
 from panos_response_pages.importer.report import ImportReport, PageResult
 from panos_response_pages.importer.scm import ScmTarget
 from panos_response_pages.importer.scm.auth import TokenSource
 from panos_response_pages.importer.scm.client import ScmClient
 from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.scm.config import resolve as resolve_scm
-from panos_response_pages.importer.scm.target import PORTAL_FOLDER
+from panos_response_pages.importer.scm.target import folder_for
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS, detect_kind, validate_portal
 from panos_response_pages.templates import read
@@ -390,12 +389,12 @@ def import_scm(
 
     if dry_run:
         report = ImportReport(
-            target="scm",
+            target=ScmTarget.name,
             describe=f"tenant {config.tsg_id} (not contacted)",
             results=[
                 PageResult(
                     page=i.spec.remote,
-                    folder=PORTAL_FOLDER if i.spec.family == PORTAL else config.folder,
+                    folder=folder_for(config, i),
                     ok=True,
                     size=len(i.payload),
                 )
@@ -413,10 +412,18 @@ def import_scm(
         log.error("%s", exc)
         raise typer.Exit(1) from exc
 
-    for item in items:
-        result = target.upload(item)
-        log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
-        report.results.append(result)
+    # Closed once the uploads are done rather than left for process exit: this
+    # command is a one-shot CLI invocation today, where it makes no practical
+    # difference, but the target is built here and this is the only place with
+    # a handle to close it -- so it is released the moment it is no longer
+    # needed rather than relying on that staying true.
+    try:
+        for item in items:
+            result = target.upload(item)
+            log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
+            report.results.append(result)
+    finally:
+        target.close()
 
     typer.echo(format_import_report(report))
     # One mutation per page, so a run can half-succeed. Reporting success while

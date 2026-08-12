@@ -23,6 +23,18 @@ from panos_response_pages.importer.source import ImportItem
 PORTAL_FOLDER = "Mobile Users"
 
 
+def folder_for(config: ScmConfig, item: ImportItem) -> str:
+    """Which folder one page belongs in -- the one statement of the portal-folder rule.
+
+    Both `ScmTarget.upload()` (the live write) and the CLI's `--dry-run` report
+    (which never builds a `ScmTarget`, and so cannot call the method) need this
+    answer. A dry run is where an operator checks an irreversible write before
+    committing to it, so it must be impossible for the two call sites to disagree
+    -- hence one function, not a rule copied into each caller.
+    """
+    return PORTAL_FOLDER if item.spec.family == PORTAL else config.folder
+
+
 class ScmTarget:
     """The Strata Cloud Manager import backend."""
 
@@ -39,8 +51,18 @@ class ScmTarget:
             f"  portal pages   -> folder {PORTAL_FOLDER!r} (fixed)"
         )
 
+    def close(self) -> None:
+        """Release the underlying HTTP connection pool.
+
+        `_scm_target` in cli.py is the only place that constructs one of these
+        against a real network client, and it has no other handle to close it
+        with -- so the CLI closes the target it built, and the close travels
+        down to the `httpx.Client` from here.
+        """
+        self._client.close()
+
     def folder_for(self, item: ImportItem) -> str:
-        return PORTAL_FOLDER if item.spec.family == PORTAL else self._config.folder
+        return folder_for(self._config, item)
 
     def upload(self, item: ImportItem) -> PageResult:
         """Write one page and verify it, converting any API failure to a result.
