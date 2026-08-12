@@ -7,7 +7,7 @@ import pytest
 
 from panos_response_pages.errors import ImportFailed
 from panos_response_pages.importer.catalogue import BY_REMOTE
-from panos_response_pages.importer.scm.client import PageState
+from panos_response_pages.importer.scm.client import PageState, scope_type
 from panos_response_pages.importer.scm.config import ScmConfig
 from panos_response_pages.importer.scm.target import PORTAL_FOLDER, ScmTarget
 from panos_response_pages.importer.source import ImportItem
@@ -38,6 +38,7 @@ class FakeClient:
         fail_get: Exception | None = None,
     ):
         self.writes: list[tuple[str, str, str]] = []
+        self.reads: list[tuple[str, str]] = []
         self._after = after
         self._fail = fail
         self._fail_get = fail_get
@@ -46,6 +47,7 @@ class FakeClient:
         return "paas-4.prod.panorama.paloaltonetworks.com"
 
     def get_page(self, page: str, folder: str) -> PageState:
+        self.reads.append((page, folder))
         if self._fail_get:
             raise self._fail_get
         if self._after is not None:
@@ -96,6 +98,10 @@ def test_upload_writes_a_portal_page_to_mobile_users_even_with_a_custom_folder()
     result = ScmTarget(replace(CFG, folder="Lab"), client).upload(item("global-protect-portal-custom-home-page"))
     assert client.writes[0][1] == PORTAL_FOLDER
     assert result.folder == PORTAL_FOLDER
+    # The read-back must be pinned too: verifying against the configured
+    # folder ("Lab") instead of the locked one would check provenance in the
+    # wrong place, defeating the very check the lock exists to enforce.
+    assert client.reads[0][1] == PORTAL_FOLDER
 
 
 def test_upload_sends_base64_of_the_payload():
@@ -162,6 +168,14 @@ def test_readback_failure_after_a_successful_write_reports_the_mutation_id():
     assert result.mutation_id == "21643"
     assert "could not be read back" in result.detail
     assert "HTTP 500" in result.detail
+
+
+def test_portal_folder_constant_matches_the_clients_cloud_scope_entry():
+    # PORTAL_FOLDER (target.py) and the SCOPE_TYPES key (client.py) are two
+    # separately-defined constants that must be the exact same string. If they
+    # drift, every portal write is sent with type=container instead of
+    # type=cloud and SCM rejects it with a 400.
+    assert scope_type(PORTAL_FOLDER) == "cloud"
 
 
 def test_describe_names_the_tenant_host_and_folder():
