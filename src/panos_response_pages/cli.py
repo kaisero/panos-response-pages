@@ -13,11 +13,23 @@ import pathlib
 import shutil
 from typing import Annotated
 
+import httpx
 import typer
 
 from panos_response_pages import __version__, datadir, logs, settings
-from panos_response_pages.builder import build_all, format_report, load_themes
-from panos_response_pages.errors import BuildError
+from panos_response_pages.builder import build_all, load_themes
+from panos_response_pages.builder import format_report as format_build_report
+from panos_response_pages.errors import BuildError, ImportFailed
+from panos_response_pages.importer import format_report as format_import_report
+from panos_response_pages.importer import load as load_import
+from panos_response_pages.importer.catalogue import PORTAL
+from panos_response_pages.importer.report import ImportReport, PageResult
+from panos_response_pages.importer.scm import ScmTarget
+from panos_response_pages.importer.scm.auth import TokenSource
+from panos_response_pages.importer.scm.client import ScmClient
+from panos_response_pages.importer.scm.config import ScmConfig
+from panos_response_pages.importer.scm.config import resolve as resolve_scm
+from panos_response_pages.importer.scm.target import PORTAL_FOLDER
 from panos_response_pages.palettes import load_palette
 from panos_response_pages.portal.validate import HOME_VARS, LOGIN_VARS, detect_kind, validate_portal
 from panos_response_pages.templates import read
@@ -39,6 +51,22 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=True,
 )
+
+# A sub-Typer, so the backend name is the subcommand: `import scm` today,
+# `import panos` and `import panorama` alongside it later. Named via add_typer
+# because `import` is a keyword and cannot be a function name.
+import_app = typer.Typer(
+    name="import",
+    help="Send built pages to a management plane.",
+    no_args_is_help=True,
+)
+app.add_typer(import_app, name="import")
+
+
+def _scm_target(config: ScmConfig) -> ScmTarget:
+    """Build a live SCM target. Patched out in tests, and never called by --dry-run."""
+    client = httpx.Client()
+    return ScmTarget(config, ScmClient(config, TokenSource(config, client), client))
 
 
 # ---- discovery --------------------------------------------------------------
@@ -181,7 +209,7 @@ def build(
         log.debug("%s/%s/portal/%s: %d B (%d encoded)", pr.theme, pr.palette, pr.page, pr.size, pr.encoded)
 
     if not ctx.obj["json"]:
-        typer.echo(format_report(result))
+        typer.echo(format_build_report(result))
         if preview:
             typer.echo(f"\n  gallery: {out / 'preview' / 'index.html'}")
             typer.echo(f"  gallery opens on: {result.palette['name']}  ({result.palette['label']})")
@@ -294,4 +322,105 @@ def validate_cmd(
         raise typer.Exit(1)
     typer.echo(f"checked {checked} page(s), {failed} would fail on PAN-OS")
     if failed:
+        raise typer.Exit(1)
+
+
+@import_app.command("scm")
+def import_scm(
+    ctx: typer.Context,
+    source: Annotated[
+        pathlib.Path,
+        typer.Option("--from", "-f", help="A built variant directory, e.g. out/deploy/beacon/prisma-blue."),
+    ],
+    folder: Annotated[
+        str | None,
+        typer.Option("--folder", help="Folder for the response pages. Portal pages always go to Mobile Users."),
+    ] = None,
+    only: Annotated[
+        list[str] | None,
+        typer.Option("--only", help="Import just this page. Repeatable."),
+    ] = None,
+    client_id: Annotated[str | None, typer.Option("--client-id", help="Service account. Or set SCM_CLIENT_ID.")] = None,
+    client_secret: Annotated[
+        str | None,
+        typer.Option("--client-secret", help="Prefer SCM_CLIENT_SECRET: a flag is visible in the process list."),
+    ] = None,
+    tsg_id: Annotated[str | None, typer.Option("--tsg-id", help="Tenant service group. Or set SCM_TSG_ID.")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Show what would be sent, contact nothing.")] = False,
+    skip_validate: Annotated[
+        bool, typer.Option("--skip-validate", help="Import pages the PAN-OS guards reject.")
+    ] = False,
+) -> None:
+    """Import built pages into Strata Cloud Manager.
+
+    Writes land in candidate configuration. Nothing here pushes them.
+    """
+    log = logs.get()
+    try:
+        config = resolve_scm(
+            ctx.obj["settings"].scm,
+            client_id=client_id,
+            client_secret=client_secret,
+            tsg_id=tsg_id,
+            folder=folder,
+        )
+        items = load_import(source, only=set(only) if only else None, check=not skip_validate)
+    except ImportFailed as exc:
+        log.error("%s", exc)
+        raise typer.Exit(1) from exc
+
+    for item in items:
+        for warning in item.warnings:
+            log.warning("%s: %s", item.path, warning)
+
+    # A page that would fail on PAN-OS is refused rather than sent, unless the
+    # operator explicitly opts out: the API accepts the write and then silently
+    # fails to render it, so the guard is the only thing standing between "sent"
+    # and "actually works".
+    blocked = [i for i in items if i.errors]
+    if blocked:
+        for item in blocked:
+            for error in item.errors:
+                log.error("%s: %s", item.path, error)
+        log.error(
+            "%d page(s) would fail silently on PAN-OS. Fix them, or pass --skip-validate to import anyway.",
+            len(blocked),
+        )
+        raise typer.Exit(1)
+
+    if dry_run:
+        report = ImportReport(
+            target="scm",
+            describe=f"tenant {config.tsg_id} (not contacted)",
+            results=[
+                PageResult(
+                    page=i.spec.remote,
+                    folder=PORTAL_FOLDER if i.spec.family == PORTAL else config.folder,
+                    ok=True,
+                    size=len(i.payload),
+                )
+                for i in items
+            ],
+            dry_run=True,
+        )
+        typer.echo(format_import_report(report))
+        return
+
+    try:
+        target = _scm_target(config)
+        report = ImportReport(target=target.name, describe=target.describe())
+    except ImportFailed as exc:
+        log.error("%s", exc)
+        raise typer.Exit(1) from exc
+
+    for item in items:
+        result = target.upload(item)
+        log.debug("%s -> %s: ok=%s %s", item.spec.remote, result.folder, result.ok, result.detail)
+        report.results.append(result)
+
+    typer.echo(format_import_report(report))
+    # One mutation per page, so a run can half-succeed. Reporting success while
+    # any page failed would be the one outcome an operator cannot recover from
+    # by re-reading the output -- exit non-zero so scripts and CI notice too.
+    if report.failed:
         raise typer.Exit(1)
