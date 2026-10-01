@@ -9,9 +9,12 @@ every one of them produced a wrong implementation first:
    `Authorization: Bearer`; the config API answers `401 Invalid/Expired Token`
    to Bearer and requires `x-auth-jwt`. Config calls send both, so accepting
    Bearer later cannot break us.
-2. The config host is `runtime_attributes.paas_api_url`. The sibling `api_url`
-   and `mtls_api_url` are mTLS endpoints and fail the TLS handshake without a
-   client certificate.
+2. The config host is `paas_api_url`. It comes from `/mfe/properties`
+   (`fawkes.runtime_attributes.value`) or, failing that, from the
+   `prisma_access` entry in `/mfe/instances` (`runtime_attributes`). Some
+   tenants return an empty instance list, so properties goes first. The
+   sibling `api_url` and `mtls_api_url` are mTLS endpoints and fail the TLS
+   handshake without a client certificate.
 3. `folder` and `type` are one unit, not two flags. Mobile Users is `cloud`,
    everything else is `container`; crossing them is a 400.
 4. Reads return *effective* config. A child folder inherits from its parent and
@@ -88,17 +91,87 @@ class ScmClient:
     # ---- discovery ----------------------------------------------------------
 
     def config_host(self) -> str:
-        """The host that serves the config API for this tenant."""
+        """The host that serves the config API for this tenant.
+
+        Two sources, in order. `/mfe/properties` first: on some tenants (newer
+        onboardings) `/mfe/instances` is an empty list while the properties
+        document still carries the host. `/mfe/instances` second, so a tenant
+        that only answers there keeps working.
+        """
         if self._host is not None:
             return self._host
 
-        payload = self._call(
+        url, properties_reason = self._paas_from_properties()
+        if url is None:
+            url, instances_reason = self._paas_from_instances()
+            if url is None:
+                raise ImportFailed(
+                    f"no paas_api_url for tenant {self._config.tsg_id}: "
+                    f"{self._config.mfe_properties_url}: {properties_reason}; "
+                    f"{self._config.mfe_url}: {instances_reason}"
+                )
+
+        try:
+            host = urlparse(url).netloc
+        except ValueError:
+            # urlparse itself can raise on a malformed URL (e.g. an
+            # unterminated IPv6 literal) before the empty-netloc check
+            # below ever runs. Same failure, same message either way.
+            host = ""
+        if not host:
+            # Do not cache an empty host: that would make every subsequent
+            # config call fail with an opaque "unknown url type" instead of
+            # this clear message.
+            raise ImportFailed(
+                f"paas_api_url {url!r} for tenant {self._config.tsg_id} has no host; "
+                "expected a full URL such as https://paas-4.example.com/"
+            )
+        self._host = host
+        return self._host
+
+    def _discovery_get(self, url: str) -> Any:
+        return self._call(
             "GET",
-            self._config.mfe_url,
+            url,
             headers={"Authorization": f"Bearer {self._tokens.token()}", "Accept": "application/json"},
         )
+
+    def _paas_from_properties(self) -> tuple[str | None, str]:
+        """`fawkes.runtime_attributes.value.paas_api_url`, or why there is none.
+
+        Every failure here is a reason to try `/mfe/instances` instead -- except
+        a properties document for a different tenant, which means the token is
+        scoped wrong and must stop the run rather than be papered over.
+        """
+        try:
+            payload = self._discovery_get(self._config.mfe_properties_url)
+        except ImportFailed as exc:
+            return None, str(exc)
+        if not isinstance(payload, dict):
+            return None, f"expected a JSON object, got {type(payload).__name__}"
+
+        tsg = payload.get("tsg_id")
+        if tsg is not None and str(tsg) != self._config.tsg_id:
+            raise ImportFailed(
+                f"{self._config.mfe_properties_url} describes tenant {tsg}, expected {self._config.tsg_id}. "
+                "The token is scoped to a different tenant."
+            )
+
+        runtime = payload.get("fawkes.runtime_attributes")
+        value = runtime.get("value") if isinstance(runtime, dict) else None
+        paas = value.get("paas_api_url") if isinstance(value, dict) else None
+        if not isinstance(paas, str) or not paas:
+            return None, "no fawkes.runtime_attributes.value.paas_api_url"
+        return paas, ""
+
+    def _paas_from_instances(self) -> tuple[str | None, str]:
+        """`[app_id == "prisma_access"].runtime_attributes.paas_api_url`, or why there is none."""
+        try:
+            payload = self._discovery_get(self._config.mfe_url)
+        except ImportFailed as exc:
+            return None, str(exc)
         if not isinstance(payload, list):
-            raise ImportFailed(f"{self._config.mfe_url} did not return a list of instances")
+            return None, "did not return a list of instances"
 
         for instance in payload:
             if not isinstance(instance, dict) or instance.get("app_id") != "prisma_access":
@@ -107,31 +180,9 @@ class ScmClient:
             if not isinstance(runtime_attributes, dict):
                 continue
             paas = runtime_attributes.get("paas_api_url")
-            if not paas:
-                continue
-            try:
-                host = urlparse(paas).netloc
-            except ValueError:
-                # urlparse itself can raise on a malformed URL (e.g. an
-                # unterminated IPv6 literal) before the empty-netloc check
-                # below ever runs. Same failure, same message either way.
-                host = ""
-            if not host:
-                # Do not cache an empty host: that would make every subsequent
-                # config call fail with an opaque "unknown url type" instead of
-                # this clear message.
-                raise ImportFailed(
-                    f"paas_api_url {paas!r} for the Prisma Access instance in tenant "
-                    f"{self._config.tsg_id} has no host; expected a full URL such as "
-                    "https://paas-4.example.com/"
-                )
-            self._host = host
-            return self._host
-
-        raise ImportFailed(
-            f"no Prisma Access instance with a paas_api_url in tenant {self._config.tsg_id}. "
-            "The service account may not have access to Prisma Access."
-        )
+            if isinstance(paas, str) and paas:
+                return paas, ""
+        return None, "no prisma_access instance with a paas_api_url"
 
     # ---- pages --------------------------------------------------------------
 

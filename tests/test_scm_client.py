@@ -37,6 +37,44 @@ INSTANCES = [
 ]
 
 
+# The /mfe/properties shape, trimmed to what discovery reads. Recorded from a
+# tenant whose /mfe/instances list was empty (prototype/NOTES.md, A16).
+PROPERTIES = {
+    "tsg_id": "111",
+    "fawkes.runtime_attributes": {
+        "value": {
+            "api_access_url": "https://us-prod-paas-20.api.prismaaccess.paloaltonetworks.com/",
+            "paas_api_url": "https://paas-20.prod.panorama.paloaltonetworks.com/",
+        },
+        "revision": "v1",
+    },
+}
+
+
+def by_endpoint(properties, instances, seen=None):
+    """A discovery handler: one response per mfe endpoint.
+
+    A value that is an int is sent as that HTTP status with an empty object.
+    """
+
+    def respond(value):
+        if isinstance(value, int):
+            return httpx.Response(value, json={})
+        return httpx.Response(200, json=value)
+
+    def handler(request):
+        path = request.url.path
+        if seen is not None:
+            seen.append(path)
+        if path.endswith("/properties"):
+            return respond(properties)
+        if path.endswith("/instances"):
+            return respond(instances)
+        raise AssertionError(f"unexpected request {request.url}")
+
+    return handler
+
+
 class FakeToken:
     def token(self) -> str:
         return "tok-1"
@@ -65,7 +103,7 @@ def test_config_host_is_cached():
 
     def handler(request):
         calls.append(1)
-        return httpx.Response(200, json=INSTANCES)
+        return httpx.Response(200, json=PROPERTIES)
 
     c = make(handler)
     c.config_host()
@@ -73,11 +111,92 @@ def test_config_host_is_cached():
     assert len(calls) == 1
 
 
+def test_config_host_comes_from_mfe_properties_first():
+    seen = []
+
+    def handler(request):
+        assert request.headers["authorization"] == "Bearer tok-1", "discovery uses Bearer"
+        return by_endpoint(PROPERTIES, INSTANCES, seen)(request)
+
+    assert make(handler).config_host() == "paas-20.prod.panorama.paloaltonetworks.com"
+    assert seen == ["/mfe/properties"], "instances must not be asked when properties answers"
+
+
+def test_empty_instance_list_is_no_problem_when_properties_answers():
+    # The tenant that motivated properties-first discovery: /mfe/instances
+    # returns [] for it, while /mfe/properties carries the host.
+    assert make(by_endpoint(PROPERTIES, [])).config_host() == "paas-20.prod.panorama.paloaltonetworks.com"
+
+
+@pytest.mark.parametrize(
+    "properties",
+    [
+        {"tsg_id": "111"},
+        {"tsg_id": "111", "fawkes.runtime_attributes": "not-a-dict"},
+        {"tsg_id": "111", "fawkes.runtime_attributes": {"value": "not-a-dict"}},
+        {"tsg_id": "111", "fawkes.runtime_attributes": {"value": {"paas_api_url": ""}}},
+        {"tsg_id": "111", "fawkes.runtime_attributes": {"value": {"paas_api_url": 42}}},
+        ["not", "an", "object"],
+        403,
+        404,
+    ],
+    ids=[
+        "no-runtime-attributes",
+        "runtime-attributes-not-dict",
+        "value-not-dict",
+        "empty-url",
+        "url-not-string",
+        "top-level-array",
+        "http-403",
+        "http-404",
+    ],
+)
+def test_properties_without_a_usable_url_falls_back_to_instances(properties):
+    assert make(by_endpoint(properties, INSTANCES)).config_host() == "paas-4.prod.panorama.paloaltonetworks.com"
+
+
+def test_properties_non_json_body_falls_back_to_instances():
+    def handler(request):
+        if request.url.path.endswith("/properties"):
+            return httpx.Response(200, text="<html>proxy error</html>")
+        return httpx.Response(200, json=INSTANCES)
+
+    assert make(handler).config_host() == "paas-4.prod.panorama.paloaltonetworks.com"
+
+
+def test_both_sources_failing_names_both_reasons():
+    with pytest.raises(ImportFailed) as exc:
+        make(by_endpoint(403, [])).config_host()
+    message = str(exc.value)
+    assert "no paas_api_url" in message
+    assert "/mfe/properties" in message and "HTTP 403" in message
+    assert "/mfe/instances" in message and "no prisma_access instance" in message
+
+
+def test_properties_for_another_tenant_is_a_hard_failure():
+    # A token scoped to the wrong tenant must not quietly write to that
+    # tenant's config host, and must not fall back either.
+    seen = []
+    other = {**PROPERTIES, "tsg_id": "999"}
+    with pytest.raises(ImportFailed, match=r"tenant 999.*expected 111"):
+        make(by_endpoint(other, INSTANCES, seen)).config_host()
+    assert seen == ["/mfe/properties"]
+
+
+def test_properties_url_without_a_host_is_rejected_not_cached():
+    bad = {"fawkes.runtime_attributes": {"value": {"paas_api_url": "paas-20.example/api"}}}
+    client = make(by_endpoint(bad, INSTANCES))
+    with pytest.raises(ImportFailed, match="has no host"):
+        client.config_host()
+    with pytest.raises(ImportFailed, match="has no host"):
+        client.config_host()
+
+
 def test_missing_prisma_access_instance_is_a_clear_failure():
     def handler(request):
         return httpx.Response(200, json=[{"app_id": "logging_service", "runtime_attributes": {}}])
 
-    with pytest.raises(ImportFailed, match="no Prisma Access instance"):
+    with pytest.raises(ImportFailed, match="no paas_api_url"):
         make(handler).config_host()
 
 
@@ -432,7 +551,7 @@ def test_instances_list_of_non_dicts_is_skipped_not_a_crash():
     def handler(request):
         return httpx.Response(200, json=["not-a-dict", "also-not-a-dict"])
 
-    with pytest.raises(ImportFailed, match="no Prisma Access instance"):
+    with pytest.raises(ImportFailed, match="no paas_api_url"):
         make(handler).config_host()
 
 
@@ -440,7 +559,7 @@ def test_runtime_attributes_as_a_string_is_skipped_not_a_crash():
     def handler(request):
         return httpx.Response(200, json=[{"app_id": "prisma_access", "runtime_attributes": "not-a-dict"}])
 
-    with pytest.raises(ImportFailed, match="no Prisma Access instance"):
+    with pytest.raises(ImportFailed, match="no paas_api_url"):
         make(handler).config_host()
 
 

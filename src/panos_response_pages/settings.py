@@ -48,6 +48,7 @@ class ScmSettings:
     tsg_id: str | None = None
     auth_url: str = "https://auth.apps.paloaltonetworks.com"
     mfe_url: str = "https://api.apps.paloaltonetworks.com/mfe/instances"
+    mfe_properties_url: str = "https://api.apps.paloaltonetworks.com/mfe/properties"
     folder: str = "Prisma Access"
 
     def __repr__(self) -> str:
@@ -66,7 +67,7 @@ class ScmSettings:
         return (
             f"ScmSettings(client_id={self.client_id!r}, client_secret='***', "
             f"tsg_id={self.tsg_id!r}, auth_url={self.auth_url!r}, mfe_url={self.mfe_url!r}, "
-            f"folder={self.folder!r})"
+            f"mfe_properties_url={self.mfe_properties_url!r}, folder={self.folder!r})"
         )
 
 
@@ -146,7 +147,7 @@ def load(path: pathlib.Path | None = None) -> Settings:
         raise ValueError(f"{path}: 'scm' must be a mapping")
 
     scm_defaults = ScmSettings()
-    known = {"client_id", "client_secret", "tsg_id", "auth_url", "mfe_url", "folder"}
+    known = {"client_id", "client_secret", "tsg_id", "auth_url", "mfe_url", "mfe_properties_url", "folder"}
     unknown_scm = set(scm_raw) - known
     if unknown_scm:
         raise ValueError(f"{path}: unknown scm setting(s): {', '.join(sorted(unknown_scm))}")
@@ -162,6 +163,7 @@ def load(path: pathlib.Path | None = None) -> Settings:
         tsg_id=_str_or_none("tsg_id"),
         auth_url=_or_default(scm_raw, "auth_url", scm_defaults.auth_url),
         mfe_url=_or_default(scm_raw, "mfe_url", scm_defaults.mfe_url),
+        mfe_properties_url=_or_default(scm_raw, "mfe_properties_url", scm_defaults.mfe_properties_url),
         folder=_or_default(scm_raw, "folder", scm_defaults.folder),
     )
 
