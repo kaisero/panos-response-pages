@@ -41,6 +41,9 @@ class ScmConfig:
     auth_url: str
     mfe_url: str
     folder: str
+    # Defaulted, and last, so existing constructors stay valid: it was added
+    # after the other fields, when /mfe/instances proved empty on some tenants.
+    mfe_properties_url: str = _DEFAULTS.mfe_properties_url
 
     @property
     def scope(self) -> str:
@@ -108,4 +111,6 @@ def resolve(
         auth_url=_pick(None, env, "SCM_AUTH_URL", scm.auth_url) or _DEFAULTS.auth_url,
         mfe_url=_pick(None, env, "SCM_MFE_URL", scm.mfe_url) or _DEFAULTS.mfe_url,
         folder=_pick(folder, env, "SCM_FOLDER", scm.folder) or _DEFAULTS.folder,
+        mfe_properties_url=_pick(None, env, "SCM_MFE_PROPERTIES_URL", scm.mfe_properties_url)
+        or _DEFAULTS.mfe_properties_url,
     )

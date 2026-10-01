@@ -40,9 +40,10 @@ def test_explicit_null_yields_defaults():
     # An explicit `key: null` is a present key whose value is None, not an
     # absent key -- dict.get(key, default) does not catch it. A settings file
     # rendered from a template with an unset variable produces exactly this.
-    s = settings.load(write("scm:\n  auth_url: null\n  mfe_url: null\n  folder: null\n"))
+    s = settings.load(write("scm:\n  auth_url: null\n  mfe_url: null\n  mfe_properties_url: null\n  folder: null\n"))
     assert s.scm.auth_url == "https://auth.apps.paloaltonetworks.com"
     assert s.scm.mfe_url == "https://api.apps.paloaltonetworks.com/mfe/instances"
+    assert s.scm.mfe_properties_url == "https://api.apps.paloaltonetworks.com/mfe/properties"
     assert s.scm.folder == "Prisma Access"
 
 

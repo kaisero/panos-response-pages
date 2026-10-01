@@ -41,6 +41,18 @@ def test_folder_default_and_override():
     assert config.resolve(FILE, env={"SCM_FOLDER": "EnvLab"}, folder="FlagLab").folder == "FlagLab"
 
 
+def test_mfe_properties_url_takes_env_over_file():
+    file = ScmSettings(
+        client_id="file@x.iam.panserviceaccount.com",
+        client_secret="file-secret",
+        tsg_id="111",
+        mfe_properties_url="https://file.example/mfe/properties",
+    )
+    assert config.resolve(file, env={}).mfe_properties_url == "https://file.example/mfe/properties"
+    env = {"SCM_MFE_PROPERTIES_URL": "https://env.example/mfe/properties"}
+    assert config.resolve(file, env=env).mfe_properties_url == "https://env.example/mfe/properties"
+
+
 def test_built_in_defaults_are_used_when_every_other_layer_is_empty():
     empty = ScmSettings(
         client_id="file@x.iam.panserviceaccount.com",
@@ -48,11 +60,13 @@ def test_built_in_defaults_are_used_when_every_other_layer_is_empty():
         tsg_id="111",
         auth_url="",
         mfe_url="",
+        mfe_properties_url="",
         folder="",
     )
     cfg = config.resolve(empty, env={})
     assert cfg.auth_url == "https://auth.apps.paloaltonetworks.com"
     assert cfg.mfe_url == "https://api.apps.paloaltonetworks.com/mfe/instances"
+    assert cfg.mfe_properties_url == "https://api.apps.paloaltonetworks.com/mfe/properties"
     assert cfg.folder == "Prisma Access"
 
 
